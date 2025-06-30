@@ -1,0 +1,16 @@
+{
+    "song_name": "Rock",
+    "time_signature": "4/4",
+    "time_division": "1/4",
+    "parts": [
+        { "name": "Intro", "bars": 8, "repeat_pattern": false },
+        { "name": "Verse 1", "bars": 16, "repeat_pattern": true },
+        { "name": "Chorus", "bars": 16, "repeat_pattern": true },
+        { "name": "Verse 2", "bars": 16, "repeat_pattern": true },
+        { "name": "Chorus", "bars": 16, "repeat_pattern": true },
+        { "name": "Bridge", "bars": 8, "repeat_pattern": false },
+        { "name": "Solo", "bars": 16, "repeat_pattern": false },
+        { "name": "Chorus", "bars": 16, "repeat_pattern": true },
+        { "name": "Outro", "bars": 8, "repeat_pattern": false }
+    ]
+}

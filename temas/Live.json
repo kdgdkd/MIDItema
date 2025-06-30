@@ -1,0 +1,14 @@
+{
+    "song_name": "Live",
+    "time_signature": "4/4",
+    "time_division": "1/4",
+    "parts": [
+        { "name": "Intro", "bars": 8, "repeat_pattern": false },
+        { "name": "Groove A", "bars": 16, "repeat_pattern": true },
+        { "name": "Groove B", "bars": 16, "repeat_pattern": true },
+        { "name": "Build", "bars": 8, "repeat_pattern": true },
+        { "name": "Climax", "bars": 16, "repeat_pattern": true },
+        { "name": "Cooldown", "bars": 8, "repeat_pattern": true },
+        { "name": "Outro", "bars": 8, "repeat_pattern": false }
+    ]
+}

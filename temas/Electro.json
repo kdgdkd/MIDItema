@@ -1,0 +1,14 @@
+{
+    "song_name": "Electro",
+    "time_signature": "4/4",
+    "time_division": "1/4",
+    "parts": [
+        { "name": "Intro FX", "bars": 8, "repeat_pattern": false },
+        { "name": "Beat Drop", "bars": 16, "repeat_pattern": true },
+        { "name": "Bassline A", "bars": 16, "repeat_pattern": true },
+        { "name": "Synth Lead", "bars": 16, "repeat_pattern": true },
+        { "name": "Breakdown", "bars": 8, "repeat_pattern": true },
+        { "name": "Bassline B", "bars": 16, "repeat_pattern": true },
+        { "name": "Outro FX", "bars": 8, "repeat_pattern": false }
+    ]
+}

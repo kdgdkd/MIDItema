@@ -1,0 +1,14 @@
+{
+    "song_name": "Trance",
+    "time_signature": "4/4",
+    "time_division": "1/4",
+    "parts": [
+        { "name": "Beatless Intro", "bars": 32, "repeat_pattern": false },
+        { "name": "Groove Intro", "bars": 32, "repeat_pattern": true },
+        { "name": "Main Groove", "bars": 64, "repeat_pattern": true },
+        { "name": "Breakdown (Pads)", "bars": 32, "repeat_pattern": false },
+        { "name": "Build-Up (Snare Roll)", "bars": 16, "repeat_pattern": false },
+        { "name": "Anthem / Drop", "bars": 64, "repeat_pattern": true },
+        { "name": "Outro", "bars": 32, "repeat_pattern": false }
+    ]
+}

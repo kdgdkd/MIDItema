@@ -1,0 +1,13 @@
+{
+    "song_name": "Techno Capas",
+    "time_signature": "4/4",
+    "time_division": "1/4",
+    "parts": [
+        { "name": "Kick + Bass", "bars": 16, "repeat_pattern": true },
+        { "name": "Hi-Hats", "bars": 16, "repeat_pattern": [false, true] },
+        { "name": "Percussion Loop", "bars": 16, "repeat_pattern": [false, false, true] },
+        { "name": "Synth Stab", "bars": 8, "repeat_pattern": [false, false, false, true] },
+        { "name": "Filter Break", "bars": 8, "repeat_pattern": false },
+        { "name": "Main Groove (All)", "bars": 32, "repeat_pattern": true }
+    ]
+}

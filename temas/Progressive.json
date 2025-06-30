@@ -1,0 +1,14 @@
+{
+    "song_name": "Progressive",
+    "time_signature": "4/4",
+    "time_division": "1/4",
+    "parts": [
+        { "name": "Intro", "bars": 32, "repeat_pattern": false },
+        { "name": "Groove A", "bars": 32, "repeat_pattern": true },
+        { "name": "Breakdown", "bars": 32, "repeat_pattern": false },
+        { "name": "Build Up", "bars": 16, "repeat_pattern": false },
+        { "name": "Climax", "bars": 32, "repeat_pattern": true },
+        { "name": "Groove B", "bars": 32, "repeat_pattern": true },
+        { "name": "Outro", "bars": 32, "repeat_pattern": false }
+    ]
+}

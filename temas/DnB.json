@@ -1,0 +1,15 @@
+{
+    "song_name": "DnB",
+    "time_signature": "4/4",
+    "time_division": "1/4",
+    "parts": [
+        { "name": "Intro", "bars": 16, "repeat_pattern": false },
+        { "name": "Verse 1", "bars": 32, "repeat_pattern": true },
+        { "name": "Pre-Drop", "bars": 8, "repeat_pattern": true },
+        { "name": "Drop 1", "bars": 32, "repeat_pattern": true },
+        { "name": "Verse 2", "bars": 32, "repeat_pattern": true },
+        { "name": "Pre-Drop 2", "bars": 8, "repeat_pattern": true },
+        { "name": "Drop 2", "bars": 32, "repeat_pattern": true },
+        { "name": "Outro", "bars": 16, "repeat_pattern": false }
+    ]
+}

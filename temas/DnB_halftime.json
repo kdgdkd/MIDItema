@@ -1,0 +1,13 @@
+{
+    "song_name": "DnB (Half-Time)",
+    "time_signature": "4/4",
+    "time_division": "1/8",
+    "parts": [
+        { "name": "Pad Intro", "bars": 8, "repeat_pattern": false },
+        { "name": "2-Step Beat", "bars": 16, "repeat_pattern": true },
+        { "name": "Reese Bassline", "bars": 16, "repeat_pattern": true },
+        { "name": "Amen Break", "bars": 8, "repeat_pattern": [true, false] },
+        { "name": "Sub Drop", "bars": 32, "repeat_pattern": true },
+        { "name": "Outro", "bars": 8, "repeat_pattern": false }
+    ]
+}

@@ -1,0 +1,12 @@
+{
+    "song_name": "xHCx",
+    "time_signature": "4/4",
+    "time_division": "1/4",
+    "parts": [
+        { "name": "clack-clack-clack-clack", "bars": 4, "repeat_pattern": false },
+        { "name": "tu-pa-tu-tu-pa", "bars": 8, "repeat_pattern": true },
+        { "name": "ni-ni-niu-no-ni-ni", "bars": 4, "repeat_pattern": true },
+        { "name": "tu-pa-tu-tu-pa", "bars": 8, "repeat_pattern": true },
+        { "name": "niaummmmmmm... tu-tu-tum", "bars": 2, "repeat_pattern": false }
+    ]
+}

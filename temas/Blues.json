@@ -1,0 +1,13 @@
+{
+    "song_name": "Blues",
+    "time_signature": "4/4",
+    "time_division": "1/4",
+    "parts": [
+        { "name": "Turnaround", "bars": 4, "repeat_pattern": false },
+        { "name": "Head 1", "bars": 12, "repeat_pattern": true },
+        { "name": "Solo 1", "bars": 12, "repeat_pattern": true },
+        { "name": "Solo 2", "bars": 12, "repeat_pattern": true },
+        { "name": "Head 2", "bars": 12, "repeat_pattern": true },
+        { "name": "Outro Vamp", "bars": 12, "repeat_pattern": false }
+    ]
+}

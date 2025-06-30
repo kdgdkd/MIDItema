@@ -1,0 +1,13 @@
+{
+    "song_name": "Minimal",
+    "time_signature": "4/4",
+    "time_division": "1/4",
+    "parts": [
+        { "name": "Beat Intro", "bars": 16, "repeat_pattern": false },
+        { "name": "Groove 1", "bars": 32, "repeat_pattern": true },
+        { "name": "Varia 1", "bars": 16, "repeat_pattern": true },
+        { "name": "Groove 2", "bars": 32, "repeat_pattern": true },
+        { "name": "Varia 2", "bars": 16, "repeat_pattern": true },
+        { "name": "Beat Outro", "bars": 16, "repeat_pattern": false }
+    ]
+}

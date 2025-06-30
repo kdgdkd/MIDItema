@@ -1,0 +1,12 @@
+{
+    "song_name": "Ambient",
+    "time_signature": "4/4",
+    "time_division": "1/4",
+    "parts": [
+        { "name": "Pad Intro", "bars": 32, "repeat_pattern": false },
+        { "name": "Texture A", "bars": 64, "repeat_pattern": true },
+        { "name": "Texture B", "bars": 64, "repeat_pattern": true },
+        { "name": "Climax Drone", "bars": 32, "repeat_pattern": true },
+        { "name": "Pad Outro", "bars": 32, "repeat_pattern": false }
+    ]
+}

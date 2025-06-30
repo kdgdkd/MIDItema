@@ -1,0 +1,13 @@
+{
+    "song_name": "Live Jam",
+    "time_signature": "4/4",
+    "time_division": "1/4",
+    "parts": [
+        { "name": "Pattern 1", "bars": 16, "repeat_pattern": true },
+        { "name": "Pattern 2", "bars": 16, "repeat_pattern": true },
+        { "name": "Pattern 3", "bars": 16, "repeat_pattern": true },
+        { "name": "Pattern 4", "bars": 16, "repeat_pattern": true },
+        { "name": "Break", "bars": 8, "repeat_pattern": true },
+        { "name": "Fill", "bars": 1, "repeat_pattern": [false, false, false, true] }
+    ]
+}
