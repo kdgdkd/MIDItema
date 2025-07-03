@@ -30,6 +30,8 @@ Los cambios también se envían por OSC, de modo que pueden ser leídos por otra
 
 - **Envío por OSC:** Envía mensajes OSC detallados en cada cambio de parte, permitiendo una fácil integración con otro software creativo (MIDImod, Resolume, TouchDesigner, VCV Rack, etc.).
 
+- **Salida de Program Change por MIDI:** Envía un mensaje de Program Change MIDI en cada cambio de parte, permitiéndote cambiar de sonido automáticamente en sintetizadores o unidades de efectos externas.
+
 - **Control de Transporte Remoto:** Puede enviar comandos de Start/Stop a un reloj maestro (que reciba señales de transporte), permitiéndote controlar la interpretación de la canción desde una única terminal.
 
 - **Configurable:** Todos los puertos de E/S y los ajustes de OSC se definen en un simple archivo de configuración.
@@ -56,8 +58,12 @@ Este archivo, ubicado en el directorio raíz, define las conexiones MIDI y OSC.
 
 ```
 {
-    "clock_source_alias": "CLOCK",
-    "remote_control_alias": "TPT",
+    "clock_source": "ENTRADA_CLOCK",
+    "transport_out": "SALIDA_TRANSPORTE",
+    "midi_configuration": {
+        "device_out": "Puerto_Sinte",
+        "channel_out": 1
+    },
     "osc_configuration": {
         "send": {
             "ip": "127.0.0.1",
@@ -68,9 +74,15 @@ Este archivo, ubicado en el directorio raíz, define las conexiones MIDI y OSC.
 }
 ```
 
-- clock_source_alias: Una subcadena del nombre del puerto de entrada MIDI que envía el reloj.
+- clock_source: Una subcadena del nombre del puerto de entrada MIDI que envía el reloj.
 
-- remote_control_alias: Una subcadena del nombre del puerto de salida MIDI al que enviar los comandos de transporte (el puerto en el que el reloj maestro escucharía las señales de transporte).
+- transport_out: Una subcadena del nombre del puerto de salida MIDI al que enviar los comandos de transporte (el puerto en el que el reloj maestro escucharía las señales de transporte).
+
+- midi_configuration: (Opcional) Bloque para configurar la salida de Program Change.
+
+    - device_out: Una subcadena del puerto de salida MIDI al que enviar los mensajes de Program Change (ej: el nombre de tu sintetizador).
+
+    - channel_out: El canal MIDI (1-16) en el que se enviarán los mensajes. Por defecto, es 1.
 
 - osc_configuration.send:
   
@@ -172,6 +184,15 @@ Cuando una nueva parte comienza, MIDItema envía un mensaje OSC a la IP, puerto 
 3. **Compases de la Parte** (int): El número total de compases en esta nueva parte.
 
 4. **Índice de la Parte** (int): El índice de base cero de esta parte en el array parts de la canción.
+
+## Integración con MIDI Program Change
+
+Además de OSC, MIDItema puede enviar un mensaje de Program Change MIDI cada vez que una nueva parte comienza. Esto es ideal para controlar hardware externo como sintetizadores o pedales de efectos.
+
+El valor del mensaje de Program Change corresponde al **índice de base cero** de la nueva parte en el array `parts` de la canción.
+
+- Si la canción transiciona a la **primera** parte de la lista (índice 0), enviará `Program Change 0`.
+- Si transiciona a la **tercera** parte (índice 2), enviará `Program Change 2` en el canal MIDI configurado.
 
 #### Probando OSC
 

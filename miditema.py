@@ -63,6 +63,8 @@ goto_input_buffer = ""
 app_ui_instance = None
 midi_input_port = None
 midi_output_ports = []
+pc_output_port = None
+pc_channel = 0 
 beat_flash_end_time = 0
 osc_client = None
 osc_address = None
@@ -148,6 +150,7 @@ def setup_part(part_index):
     song_state.remaining_beats_in_part = part.get("bars", 0) * song_state.time_signature_numerator
     
     send_osc_part_change(song_state.song_name, song_state.current_part_index, part)
+    send_midi_program_change(part_index) 
 
     # Si una parte válida tiene 0 compases, la saltamos para evitar bucles infinitos
     if song_state.remaining_beats_in_part <= 0:
@@ -354,6 +357,19 @@ def send_midi_command(command: str):
         ui_feedback_message = f"Error sending MIDI: {e}"
 
 
+def send_midi_program_change(part_index: int):
+    """Envía un mensaje de Program Change si el puerto está configurado."""
+    if not pc_output_port:
+        return
+    try:
+        # El índice de la parte se usa directamente como el número del program change
+        msg = mido.Message('program_change', channel=pc_channel, program=part_index)
+        pc_output_port.send(msg)
+    except Exception as e:
+        global ui_feedback_message
+        ui_feedback_message = f"Error enviando PC: {e}"
+
+
 def send_osc_part_change(song_name: str, part_index: int, part: dict):
     """Construye y envía un mensaje OSC cuando cambia una parte."""
     if not osc_client:
@@ -429,7 +445,7 @@ def get_key_legend_text():
     """Muestra la leyenda de los controles de teclado."""
     line1 = "<b>[←→:</b> Nav] <b>[↑:</b> Restart Part] <b>[↓:</b> Cancel] "
     line2 = "<b>[0-3:</b> Quick Jump] <b>[4-6:</b> Set Quantize] "
-    line3 = "<b>[.:</b> Go to Part]"
+    line3 = "<b>[.nn:</b> Go to Part nn]"
     return HTML(f"<style fg='#666666'>{line1}{line2}{line3}</style>")
 
 # --- UI Functions ---
@@ -632,7 +648,8 @@ def main():
     args = parser.parse_args()
 
     config = load_config()
-    clock_alias = config.get("clock_source_alias")
+    # --- Configuración de Entrada de Clock ---
+    clock_source_name = config.get("clock_source")
     selected_port_name = None
     available_ports = mido.get_input_names()
 
@@ -641,12 +658,12 @@ def main():
         print("Asegúrate de que tus dispositivos están conectados y el backend MIDI (ej. rtmidi) está instalado.")
         return
 
-    if clock_alias:
-        selected_port_name = find_port_by_substring(available_ports, clock_alias)
+    if clock_source_name:
+        selected_port_name = find_port_by_substring(available_ports, clock_source_name)
         if selected_port_name:
-            print(f"[*] Fuente de clock '{selected_port_name}' encontrada desde {CONF_FILE_NAME}.")
+            print(f"[*] Fuente de clock '{selected_port_name}' encontrada desde la configuración.")
         else:
-            print(f"[!] El alias '{clock_alias}' de {CONF_FILE_NAME} no coincide con ningún puerto.")
+            print(f"[!] La fuente de clock '{clock_source_name}' de la configuración no coincide con ningún puerto.")
 
     if not selected_port_name:
         selected_port_name = interactive_selector(available_ports, "Selecciona la fuente de MIDI Clock")
@@ -654,18 +671,38 @@ def main():
             print("[!] No se seleccionó ninguna fuente. Saliendo.")
             return
 
-    remote_alias = config.get("remote_control_alias")
-    if remote_alias:
-        output_port_name = find_port_by_substring(mido.get_output_names(), remote_alias)
+    # --- Configuración de Salidas MIDI ---
+    transport_out_name = config.get("transport_out")
+    if transport_out_name:
+        output_port_name = find_port_by_substring(mido.get_output_names(), transport_out_name)
         if output_port_name:
             try:
                 port = mido.open_output(output_port_name)
                 midi_output_ports.append(port)
-                print(f"[*] Puerto de salida '{output_port_name}' abierto para control remoto.")
+                print(f"[*] Puerto de salida '{output_port_name}' abierto para control de transporte.")
             except Exception as e:
-                print(f"[!] No se pudo abrir el puerto de salida '{output_port_name}': {e}")
+                print(f"[!] No se pudo abrir el puerto de transporte '{output_port_name}': {e}")
         else:
-            print(f"[!] El alias de control remoto '{remote_alias}' no fue encontrado.")
+            print(f"[!] El puerto de transporte '{transport_out_name}' no fue encontrado.")
+
+    midi_config = config.get("midi_configuration")
+    if midi_config:
+        global pc_output_port, pc_channel
+        pc_device_name = midi_config.get("device_out")
+        pc_channel_config = midi_config.get("channel_out", 1) # Por defecto canal 1
+
+        if pc_device_name:
+            pc_port_name = find_port_by_substring(mido.get_output_names(), pc_device_name)
+            if pc_port_name:
+                try:
+                    pc_output_port = mido.open_output(pc_port_name)
+                    # El canal del usuario es 1-16, Mido usa 0-15
+                    pc_channel = max(0, min(15, pc_channel_config - 1))
+                    print(f"[*] Puerto de salida '{pc_port_name}' abierto para Program Change en el canal {pc_channel + 1}.")
+                except Exception as e:
+                    print(f"[!] No se pudo abrir el puerto para Program Change '{pc_port_name}': {e}")
+            else:
+                print(f"[!] El dispositivo de Program Change '{pc_device_name}' no fue encontrado.")
 
     osc_config = config.get("osc_configuration", {}).get("send")
     if osc_config:
@@ -894,9 +931,10 @@ def main():
         print("\nCerrando...")
         if midi_input_port:
             midi_input_port.close()
-        # Nuevo: Cerrar puertos de salida
         for port in midi_output_ports:
             port.close()
+        if pc_output_port: # Nueva línea
+            pc_output_port.close() # Nueva línea
         if listener_thread.is_alive():
             listener_thread.join(timeout=0.2)
         print("Detenido.")

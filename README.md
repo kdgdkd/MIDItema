@@ -29,6 +29,8 @@ Changes are also broadcast with OSC, so they can be read by other applications (
 - **Visual TUI:** A clean, full-screen terminal interface provides a clear overview of the current state and information on the part, including a moving step sequencer showing the bars in the current part, elapsed time, the active quantization mode and any pending action.
   
 - **OSC Broadcasting:** Sends detailed OSC messages on every part change, allowing for easy integration with other creative software (MIDImod, Resolume, TouchDesigner, VCV Rack, etc.).
+
+- **MIDI Program Change Output:** Sends a MIDI Program Change message on every part change, allowing you to automatically change patches on external synthesizers or effects units.
   
 - **Remote Transport Control:** Can send Start/Stop commands to a master clock (that receives transport signals), allowing you to control the song performance from the single terminal.
   
@@ -58,8 +60,12 @@ This file, located in the root directory, defines the MIDI and OSC connections.
 
 ```
 {
-    "clock_source_alias": "CLOCK",
-    "remote_control_alias": "TPT",
+    "clock_source": "CLOCK_IN",
+    "transport_out": "TRANSPORT_OUT",
+    "midi_configuration": {
+        "device_out": "Synth_Port",
+        "channel_out": 1
+    },
     "osc_configuration": {
         "send": {
             "ip": "127.0.0.1",
@@ -70,9 +76,15 @@ This file, located in the root directory, defines the MIDI and OSC connections.
 }
 ```
 
-- clock_source_alias: A substring of the MIDI input port name that sends the clock.
+- clock_source: A substring of the MIDI input port name that sends the clock.
   
-- remote_control_alias: A substring of the MIDI output port name to send transport commands to (the port on which the master clock would listen to transport signals).
+- transport_out: A substring of the MIDI output port name to send transport commands to (the port on which the master clock would listen to transport signals).
+
+- midi_configuration: (Optional) Block to configure Program Change output.
+
+  - device_out: A substring of the MIDI output port to send Program Change messages to (e.g., the name of your synthesizer).
+  
+  - channel_out: The MIDI channel (1-16) on which to send the Program Change messages. Defaults to 1.
   
 - osc_configuration.send:
   
@@ -178,6 +190,16 @@ When a new part starts, MIDItema sends an OSC message to the configured IP, port
   
 4. **Part Index** (int): The zero-based index of this part in the song's parts array.
   
+
+## MIDI Program Change Integration
+
+In addition to OSC, MIDItema can send a MIDI Program Change message every time a new part begins. This is ideal for controlling external hardware like synthesizers or effects pedals.
+
+The value of the Program Change message corresponds to the **zero-based index** of the new part in the song's `parts` array.
+
+- If the song transitions to the **first** part in the list (index 0), it will send `Program Change 0`.
+- If it transitions to the **third** part (index 2), it will send `Program Change 2` on the configured MIDI channel.
+
 
 #### Testing OSC
 

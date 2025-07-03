@@ -1,6 +1,11 @@
 {
-    "clock_source_alias": "CLOCK",
-    "remote_control_alias": "TPT",
+    "clock_source": "CLOCK",
+    "transport_out": "TPT",
+
+    "midi_configuration": {
+        "device_out": "MIDImod_IN",
+        "channel_out": 0
+    },
 
     "osc_configuration": {
         "send": {
