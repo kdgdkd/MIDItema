@@ -68,6 +68,7 @@ pc_channel = 0
 beat_flash_end_time = 0
 osc_client = None
 osc_address = None
+osc_config = {}
 ui_feedback_message = ""
 
 # --- Helper Functions ---
@@ -165,29 +166,32 @@ def start_next_part():
         "+1", song_state.current_part_index, song_state.pass_count
     )
     
-    # Aplicar el nuevo estado de pase
-    song_state.pass_count = next_pass_count
-    
-    # Configurar la parte encontrada
-    setup_part(next_index)
+    if next_index is None:
+        # No hay más partes válidas para reproducir
+        handle_song_end()
+    else:
+        # Aplicar el nuevo estado de pase y configurar la parte
+        song_state.pass_count = next_pass_count
+        setup_part(next_index)
 
 
 def process_song_tick():
     """Llamado en cada "beat" de la canción (definido por time_division)."""
     global beat_flash_end_time
-    if clock_state.status != "PLAYING": return
-    check_and_execute_pending_action()
-    if pending_action is None:
-        pass # En una futura revisión podríamos refinar esto.
+    if clock_state.status != "PLAYING":
+        return
+    jump_executed = check_and_execute_pending_action()
 
-    song_state.remaining_beats_in_part -= 1
+    # Si NO se ejecutó un salto, proceder con la cuenta atrás normal.
+    if not jump_executed:
+        song_state.remaining_beats_in_part -= 1
     
-    if song_state.remaining_beats_in_part > 0 and \
-       song_state.remaining_beats_in_part % song_state.time_signature_numerator == 0:
-        beat_flash_end_time = time.time() + 0.1 # Activar flash por 0.1 segundos
+        if song_state.remaining_beats_in_part > 0 and \
+           song_state.remaining_beats_in_part % song_state.time_signature_numerator == 0:
+            beat_flash_end_time = time.time() + 0.1 # Activar flash por 0.1 segundos
 
-    if song_state.remaining_beats_in_part <= 0:
-        start_next_part()
+        if song_state.remaining_beats_in_part <= 0:
+            start_next_part()
 
 # --- Dynamic Part-Jumping Logic ---
 
@@ -224,7 +228,7 @@ def find_next_valid_part_index(direction: str, start_index: int, start_pass_coun
         if play_this_part and part.get("bars", 0) > 0:
             return temp_index, temp_pass_count
 
-    return start_index, start_pass_count # Si no se encuentra, no cambiar
+    return  None, None # Si no se encuentra, devuelve None
 
 
 def execute_jump():
@@ -265,7 +269,10 @@ def execute_jump():
     pending_action = None
 
 def check_and_execute_pending_action():
-    """Verifica si se cumplen las condiciones de cuantización para ejecutar un salto."""
+    """
+    Verifica si se cumplen las condiciones de cuantización para ejecutar un salto.
+    Devuelve True si se ejecutó un salto, False en caso contrario.
+    """
     if not pending_action or clock_state.status != "PLAYING":
         return
 
@@ -283,6 +290,8 @@ def check_and_execute_pending_action():
         should_jump = True
     elif quantize == "next_bar" and is_last_beat_of_bar:
         should_jump = True
+    elif quantize == "next_4" and is_last_beat_of_bar and (current_bar + 1) % 4 == 0:
+        should_jump = True
     elif quantize == "next_8" and is_last_beat_of_bar and (current_bar + 1) % 8 == 0:
         should_jump = True
     elif quantize == "next_16" and is_last_beat_of_bar and (current_bar + 1) % 16 == 0:
@@ -292,7 +301,9 @@ def check_and_execute_pending_action():
 
     if should_jump:
         execute_jump()
+        return True
 
+    return False
 
 def midi_input_listener():
     """El hilo principal que escucha los mensajes MIDI y actualiza el estado."""
@@ -369,6 +380,32 @@ def send_midi_program_change(part_index: int):
         global ui_feedback_message
         ui_feedback_message = f"Error enviando PC: {e}"
 
+def send_osc_song_end():
+    """Construye y envía un mensaje OSC cuando la canción termina."""
+    if not osc_client or not osc_config:
+        return
+    
+    address = osc_config.get("address_song_end")
+    if not address:
+        return # No se envía nada si la dirección no está configurada
+
+    try:
+        builder = osc_message_builder.OscMessageBuilder(address=address)
+        builder.add_arg(song_state.song_name, 's')
+        msg = builder.build()
+        osc_client.send(msg)
+    except Exception as e:
+        global ui_feedback_message
+        ui_feedback_message = f"Error enviando OSC de fin: {e}"
+
+def handle_song_end():
+    """Gestiona el final de la secuencia de la canción."""
+    global ui_feedback_message
+    clock_state.status = "FINISHED"
+    send_osc_song_end()
+    reset_song_state_on_stop() # Resetea los contadores
+    ui_feedback_message = f"Canción '{song_state.song_name}' finalizada."
+
 
 def send_osc_part_change(song_name: str, part_index: int, part: dict):
     """Construye y envía un mensaje OSC cuando cambia una parte."""
@@ -444,8 +481,8 @@ def get_action_status_text():
 def get_key_legend_text():
     """Muestra la leyenda de los controles de teclado."""
     line1 = "<b>[←→:</b> Nav] <b>[↑:</b> Restart Part] <b>[↓:</b> Cancel] "
-    line2 = "<b>[0-3:</b> Quick Jump] <b>[4-6:</b> Set Quantize] "
-    line3 = "<b>[.nn:</b> Go to Part nn]"
+    line2 = "<b>[0-3:</b> Quick Jump] <b>[4-7,9:</b> Set Quantize] "
+    line3 = "<b>[.:</b> Go to Part]"
     return HTML(f"<style fg='#666666'>{line1}{line2}{line3}</style>")
 
 # --- UI Functions ---
@@ -473,33 +510,69 @@ def get_part_name_text():
     return HTML(app_title_line + "\n" + part_name_line)
 
 
+def get_dynamic_endpoint():
+    """
+    Calcula el compás final relevante, ya sea el final de la parte
+    o el punto de ejecución de una acción pendiente.
+    Devuelve el número del compás final (1-based).
+    """
+    current_part = song_state.parts[song_state.current_part_index]
+    total_bars_in_part = current_part.get("bars", 0)
+
+    if not pending_action or clock_state.status != "PLAYING":
+        return total_bars_in_part
+
+    # Calcular la posición actual
+    sig_num = song_state.time_signature_numerator
+    beats_into_part = (total_bars_in_part * sig_num) - song_state.remaining_beats_in_part
+    current_bar_index = beats_into_part // sig_num # 0-based
+
+    quantize = pending_action.get("quantize")
+    
+    if quantize in ["instant", "next_bar"]:
+        return current_bar_index + 1
+    
+    quantize_map = {"next_4": 4, "next_8": 8, "next_16": 16}
+    if quantize in quantize_map:
+        boundary = quantize_map[quantize]
+        # Calcula el próximo múltiplo de 'boundary' desde el compás actual
+        target_bar = ((current_bar_index // boundary) + 1) * boundary
+        return target_bar
+    
+    return total_bars_in_part # Fallback
+
+
 
 def get_countdown_text():
-    # Lógica para mostrar la cuenta atrás de compases y tiempos
     bar_text = "-0"
     beat_text = "0"
-    # Corregido: Fondo oscuro por defecto
     style = "bg='#222222' fg='ansiwhite'"
 
     if clock_state.status == "PLAYING" and song_state.remaining_beats_in_part > 0:
         sig_num = song_state.time_signature_numerator
         rem_beats = song_state.remaining_beats_in_part
         
-        display_beat = (rem_beats - 1) % sig_num + 1
+        endpoint_bar = get_dynamic_endpoint()
         
-        remaining_bars = math.ceil(rem_beats / sig_num)
-        display_bar = -(remaining_bars - 1)
+        # Calcular compases y beats actuales
+        total_beats_in_part = song_state.parts[song_state.current_part_index].get("bars", 0) * sig_num
+        beats_into_part = total_beats_in_part - rem_beats
+        current_bar_index = beats_into_part // sig_num
+        
+        remaining_bars_to_endpoint = endpoint_bar - current_bar_index
+        
+        display_beat = (rem_beats - 1) % sig_num + 1
+        display_bar = -(remaining_bars_to_endpoint - 1)
         
         bar_text = f"{display_bar}"
-        if remaining_bars == 1: bar_text = "-0"
+        if remaining_bars_to_endpoint == 1: bar_text = "-0"
         beat_text = f"{display_beat}"
 
-        if remaining_bars == 1:
-            style = "bg='#222222' fg='ansired' bold='true'" # Último compás en rojo
-        elif remaining_bars <= 4:
-            style = "bg='#222222' fg='ansiyellow' bold='true'" # Aviso en amarillo
+        if remaining_bars_to_endpoint == 1:
+            style = "bg='#222222' fg='ansired' bold='true'"
+        elif remaining_bars_to_endpoint <= 4:
+            style = "bg='#222222' fg='ansiyellow' bold='true'"
     
-    # Nuevo: El flash tiene prioridad sobre otros estilos
     if time.time() < beat_flash_end_time:
         style = "bg='#cccccc' fg='ansiblack' bold='true'"
 
@@ -526,6 +599,7 @@ def get_next_part_text():
 
 
 
+
 def get_step_sequencer_text():
     """Genera la representación visual de los compases."""
     if song_state.current_part_index == -1:
@@ -539,27 +613,32 @@ def get_step_sequencer_text():
     sig_num = song_state.time_signature_numerator
     consumed_beats = (total_bars * sig_num) - song_state.remaining_beats_in_part
     consumed_bars = consumed_beats // sig_num
+    
+    endpoint_bar = get_dynamic_endpoint() if pending_action else total_bars
 
     output_lines = []
-    padding = " " * 10 # Misma indentación que el título
+    padding = " " * 10
 
     for row_start in range(0, total_bars, 8):
         line1 = ""
         line2 = ""
         for i in range(row_start, min(row_start + 8, total_bars)):
-            bar_index = i + 1
-            if bar_index <= consumed_bars:
-                style = "fg='#444444'"
-            elif bar_index == consumed_bars + 1 and clock_state.status == "PLAYING":
-                remaining_bars = total_bars - consumed_bars
-                if remaining_bars == 1:
-                    style = "fg='ansired' bold='true'" # Último compás
-                elif remaining_bars <= 4:
-                    style = "fg='ansiyellow' bold='true'" # Aviso
+            bar_index_0based = i
+            
+            style = "fg='#888888'" # Estilo por defecto (compás futuro normal)
+            
+            if bar_index_0based < consumed_bars:
+                style = "fg='#444444'" # Compás ya consumido
+            elif bar_index_0based == consumed_bars and clock_state.status == "PLAYING":
+                remaining_bars_to_endpoint = endpoint_bar - bar_index_0based
+                if remaining_bars_to_endpoint == 1:
+                    style = "fg='ansired' bold='true'"
+                elif remaining_bars_to_endpoint <= 4:
+                    style = "fg='ansiyellow' bold='true'"
                 else:
-                    style = "fg='ansicyan' bold='true'" # Normal
-            else:
-                style = "fg='#888888'"
+                    style = "fg='ansicyan' bold='true'"
+            elif pending_action and bar_index_0based >= endpoint_bar:
+                 style = "fg='#444444'" # Compás que se saltará
             
             block = "██  "
             line1 += f"<style {style}>{block}</style>"
@@ -571,8 +650,6 @@ def get_step_sequencer_text():
         if row_start + 8 < total_bars:
             output_lines.append("")
     
-    # Nuevo: Lógica para asegurar una altura mínima de 4 filas de bloques
-    # 4 filas = 8 líneas de texto (2 por fila) + 3 separadores = 11 líneas
     target_height = 11
     while len(output_lines) < target_height:
         output_lines.append("")
@@ -583,12 +660,11 @@ def get_step_sequencer_text():
 
 def get_status_line_text():
     status = clock_state.status.ljust(10)
-    # Corregido: Formato a 0 decimales
     bpm = f"{clock_state.bpm:.0f} BPM".ljust(12)
     source = f"Clock: {clock_state.source_name}"
     
     elapsed_str = "--:--"
-    if clock_state.start_time > 0:
+    if clock_state.start_time > 0 and clock_state.status != "FINISHED":
         elapsed_seconds = time.time() - clock_state.start_time
         minutes, seconds = divmod(int(elapsed_seconds), 60)
         elapsed_str = f"{minutes:02d}:{seconds:02d}"
@@ -838,7 +914,7 @@ def main():
         def _(event):
             global pending_action, ui_feedback_message
             key = event.key_sequence[0].data
-            quant_map = {"0": "instant", "1": "next_bar", "2": "next_8", "3": "next_16"}
+            quant_map = {"0": "next_bar", "1": "next_4", "2": "next_8", "3": "next_16"}
             quant = quant_map[key]
             
             # Corregido: Crear la acción con la nueva estructura de diccionario
@@ -847,14 +923,23 @@ def main():
             
             ui_feedback_message = f"Next part with (Quant: {quant.upper()})."
             
-    for i in "456":
+    for i in "45679":
         @kb.add(i, filter=~is_goto_mode)
         def _(event):
             global quantize_mode, ui_feedback_message
             key = event.key_sequence[0].data
-            quant_map = {"4": "next_8", "5": "next_16", "6": "next_32"}
+            quant_map = {
+                "4": "next_4", 
+                "5": "next_8", 
+                "6": "next_16", 
+                "7": "next_bar", 
+                "9": "instant"
+            }
             quantize_mode = quant_map[key]
-            ui_feedback_message = f"Global Quantization: {quantize_mode.upper()}."
+            ui_feedback_message = f"Modo de cuantización global cambiado a: {quantize_mode.upper()}."
+
+    # --- Activación del modo "Ir a Parte" ---
+    @kb.add('.', filter=~is_goto_mode)
 
     # --- Activación del modo "Ir a Parte" ---
     @kb.add('.', filter=~is_goto_mode)

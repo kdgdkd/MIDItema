@@ -149,27 +149,29 @@ Estos archivos definen la estructura de una canción. Deben colocarse en un dire
 
 ### Controles
 
-MIDItema cuenta con un potente esquema de control para directos. La mayoría de las acciones se programan como una **acción pendiente** y se ejecutan con cuantización.
+MIDItema cuenta con un potente esquema de control para directos. La mayoría de las acciones se programan como una **acción pendiente** y se ejecutan con cuantización.
 
-| Tecla(s)                              | Acción                      | Detalles / Cuantización                                                                                                                                         |
-| ------------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Transporte Global**                 |                             |                                                                                                                                                                 |
-| Espacio / Enter                       | Enviar Start/Stop           | Envía un comando MIDI Start/Stop inmediatamente.                                                                                                                |
-| q / Ctrl+C                            | Salir                       | Cierra la aplicación.                                                                                                                                           |
-| **Navegación en Directo**             |                             |                                                                                                                                                                 |
-| → / ←                                 | Saltar Siguiente / Anterior | Programa un salto. Usa el modo de cuantización **global**. Pulsar varias veces acumula el salto (ej: → → → programa un salto de +3).                            |
-| ↑                                     | Reiniciar Parte             | Reinicia la parte actual desde su comienzo. Usa el modo de cuantización **global**.                                                                             |
-| ↓                                     | Cancelar Acción             | Cancela inmediatamente cualquier acción pendiente.                                                                                                              |
-| . o , luego [num] Enter               | Ir a Parte                  | Activa el modo 'Ir a'. Escribe un número de parte (ej: .12) y pulsa Enter para programar el salto a la parte número 12. Usa el modo de cuantización **global**. |
-| **Saltos Rápidos**                    |                             |                                                                                                                                                                 |
-| 0                                     | Salto Rápido +1             | Salta a la siguiente parte. **Cuantización Fija: Instantánea** (siguiente pulso).                                                                               |
-| 1                                     | Salto Rápido +1             | Salta a la siguiente parte. **Cuantización Fija: Siguiente Compás**.                                                                                            |
-| 2                                     | Salto Rápido +1             | Salta a la siguiente parte. **Cuantización Fija: Siguientes 8 Compases**.                                                                                       |
-| 3                                     | Salto Rápido +1             | Salta a la siguiente parte. **Cuantización Fija: Siguientes 16 Compases**.                                                                                      |
-| **Selección de Modo de Cuantización** |                             |                                                                                                                                                                 |
-| 4                                     | Fijar Cuant. Global         | Establece el modo global para flechas e 'Ir a' en **Siguientes 8 Compases**.                                                                                    |
-| 5                                     | Fijar Cuant. Global         | Establece el modo global en **Siguientes 16 Compases**.                                                                                                         |
-| 6                                     | Fijar Cuant. Global         | Establece el modo global en **Siguientes 32 Compases**.                                                                                                         |
+| Tecla(s) | Acción | Detalles / Cuantización |
+| :--- | :--- | :--- |
+| **Transporte Global** | | |
+| `Espacio` / `Enter` | Enviar Start/Stop | Envía un comando MIDI Start/Stop inmediatamente. |
+| `q` / `Ctrl+C` | Salir | Cierra la aplicación. |
+| **Navegación en Directo** | | |
+| `→` / `←` | Saltar Siguiente / Anterior | Programa un salto. Usa el modo de cuantización **global**. Pulsar varias veces acumula el salto (ej: `→` `→` `→` programa un salto de `+3`). |
+| `↑` | Reiniciar Parte | Reinicia la parte actual desde su comienzo. Usa el modo de cuantización **global**. |
+| `↓` | Cancelar Acción | Cancela inmediatamente cualquier acción pendiente. |
+| `.` o `,` luego `[num]` `Enter` | Ir a Parte | Activa el modo 'Ir a'. Escribe un número de parte (ej: .12) y pulsa Enter para programar el salto. Usa el modo de cuantización **global**. |
+| **Saltos Rápidos** | | |
+| `0` | Salto Rápido +1 | Salta a la siguiente parte. **Cuantización Fija: Instantánea** (siguiente pulso). |
+| `1` | Salto Rápido +1 | Salta a la siguiente parte. **Cuantización Fija: Siguiente Compás**. |
+| `2` | Salto Rápido +1 | Salta a la siguiente parte. **Cuantización Fija: Siguientes 8 Compases**. |
+| `3` | Salto Rápido +1 | Salta a la siguiente parte. **Cuantización Fija: Siguientes 16 Compases**. |
+| **Selección de Modo de Cuantización** | | |
+| `4` | Fijar Cuant. Global | Establece el modo global en **Siguientes 4 Compases**. |
+| `5` | Fijar Cuant. Global | Establece el modo global en **Siguientes 8 Compases**. |
+| `6` | Fijar Cuant. Global | Establece el modo global en **Siguientes 16 Compases**. |
+| `7` | Fijar Cuant. Global | Establece el modo global en **Siguiente Compás**. |
+| `9` | Fijar Cuant. Global | Establece el modo global en **Instantánea**. |
 
 ## Integración OSC
 

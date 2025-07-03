@@ -4,11 +4,13 @@ A terminal-based, live-performance song arranger and bar counter, broadcasting s
 
 ## Core Concept
 
+MIDItema is designed as an arranger for live performances.  
+
 MIDItema listens to an external master clock (like a DAW, hardware sequencer, or our companion tool MIDImaster) and uses that timing information to step through a pre-defined song structure, or jump dynamically between parts on command.
 
 It will show a bar-countdown for the current part of the song, allowing the user to know in advance when the next change in the song is occurring.
 
-Changes are also broadcast with OSC, so they can be read by other applications (for example, with MIDImod).
+Changes are also broadcast with OSC and MIDI Program Change.
 
 ## Features
 
@@ -19,8 +21,6 @@ Changes are also broadcast with OSC, so they can be read by other applications (
 - **Flexible Control Scheme:** Use single-key presses for both fixed actions (e.g., "jump to the next part, quantized to the bar") and global-mode actions.
   
 - **Bar-countdown:** Shows the number of bars left in the current part of the song, so you can prepare for changes.
-  
-- **MIDI Clock Slave:** Synchronizes perfectly to any standard MIDI clock source.
   
 - **JSON-based Song Structure:** Define your entire song structure, parts, and lengths in simple, human-readable JSON files.
   
@@ -101,7 +101,7 @@ These files define the structure of a song. They must be placed in a temas/ di
 
 ```
 {
-    "song_name": "My Awesome Track",
+    "song_name": "lorem",
     "time_signature": "4/4",
     "time_division": "1/4",
     "parts": [
@@ -154,27 +154,29 @@ These files define the structure of a song. They must be placed in a temas/ di
 
 ### Controls
 
-MIDItema features a powerful control scheme for live performance. Most actions are scheduled as a **pending action** and executed with quantization.
+MIDItema features a powerful control scheme for live performance. Most actions are scheduled as a **pending action** and executed with quantization.
 
 | Key(s) | Action | Details / Quantization |
-| --- | --- | --- |
-| **Global Transport** |     |     |
-| Space / Enter | Send Start/Stop | Sends a MIDI Start/Stop command immediately. |
-| q / Ctrl+C | Quit | Exits the application. |
-| **Live Navigation** |     |     |
-| → / ← | Jump Next / Previous | Programs a jump. Uses the **global** quantize mode. Pressing multiple times accumulates the jump (e.g., → → → programs a +3 jump). |
-| ↑   | Restart Part | Restarts the current part from its beginning. Uses the **global** quantize mode. |
-| ↓   | Cancel Action | Immediately cancels any pending action. |
-| . or , then [num] Enter | Go to Part | Enters "Go to" mode. Type a part number (e.g., .12) and press Enter to program the jump to the 12th part ahead in the song (considering repeats). Uses the **global** quantize mode. |
-| **Quick Jumps** |     |     |
-| 0   | Quick Jump +1 | Jumps to the next part. **Fixed Quantization: Instant** (next beat). |
-| 1   | Quick Jump +1 | Jumps to the next part. **Fixed Quantization: Next Bar**. |
-| 2   | Quick Jump +1 | Jumps to the next part. **Fixed Quantization: Next 8 Bars**. |
-| 3   | Quick Jump +1 | Jumps to the next part. **Fixed Quantization: Next 16 Bars**. |
-| **Quantize Mode Selection** |     |     |
-| 4   | Set Global Quantize | Sets the global mode used by arrows and "Go to" to **Next 8 Bars**. |
-| 5   | Set Global Quantize | Sets the global mode to **Next 16 Bars**. |
-| 6   | Set Global Quantize | Sets the global mode to **Next 32 Bars**. |
+| :--- | :--- | :--- |
+| **Global Transport** | | |
+| `Space` / `Enter` | Send Start/Stop | Sends a MIDI Start/Stop command immediately. |
+| `q` / `Ctrl+C` | Quit | Exits the application. |
+| **Live Navigation** | | |
+| `→` / `←` | Jump Next / Previous | Programs a jump. Uses the **global** quantize mode. Pressing multiple times accumulates the jump (e.g., `→` `→` `→` programs a `+3` jump). |
+| `↑` | Restart Part | Restarts the current part from its beginning. Uses the **global** quantize mode. |
+| `↓` | Cancel Action | Immediately cancels any pending action. |
+| `.` or `,` then `[num]` `Enter` | Go to Part | Enters "Go to" mode. Type a part number (e.g., .12) and press Enter to program the jump. Uses the **global** quantize mode. |
+| **Quick Jumps** | | |
+| `0` | Quick Jump +1 | Jumps to the next part. **Fixed Quantization: Instant** (next beat). |
+| `1` | Quick Jump +1 | Jumps to the next part. **Fixed Quantization: Next Bar**. |
+| `2` | Quick Jump +1 | Jumps to the next part. **Fixed Quantization: Next 8 Bars**. |
+| `3` | Quick Jump +1 | Jumps to the next part. **Fixed Quantization: Next 16 Bars**. |
+| **Quantize Mode Selection** | | |
+| `4` | Set Global Quantize | Sets the global mode to **Next 4 Bars**. |
+| `5` | Set Global Quantize | Sets the global mode to **Next 8 Bars**. |
+| `6` | Set Global Quantize | Sets the global mode to **Next 16 Bars**. |
+| `7` | Set Global Quantize | Sets the global mode to **Next Bar**. |
+| `9` | Set Global Quantize | Sets the global mode to **Instant**. |
 
 ## OSC Integration
 

@@ -11,7 +11,8 @@
         "send": {
             "ip": "127.0.0.1",
             "port": 9000,
-            "address": "/miditema/part/change"
+            "address": "/miditema/part/change",
+            "address_song_end": "/miditema/song/end"
         }
     }
 }
