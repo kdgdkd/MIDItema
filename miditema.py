@@ -18,6 +18,7 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.filters import Condition
 
 # --- Global Configuration ---
 SONGS_DIR_NAME = "temas"
@@ -36,6 +37,7 @@ class ClockState:
         self.source_id = None
         self.tick_times = [] # Para promediar el BPM
         self.last_tick_time = 0
+        self.start_time = 0
 
 class SongState:
     """Almacena el estado de la canción y la secuencia."""
@@ -50,9 +52,14 @@ class SongState:
         self.time_signature_numerator = 4
         self.ticks_per_song_beat = MIDI_PPQN
 
+
 # --- Global State Instances ---
 clock_state = ClockState()
 song_state = SongState()
+pending_action = None
+quantize_mode = "next_8" # Modo de cuantización por defecto
+goto_input_active = False
+goto_input_buffer = ""
 app_ui_instance = None
 midi_input_port = None
 midi_output_ports = []
@@ -131,44 +138,44 @@ def reset_song_state_on_stop():
     clock_state.tick_times = []
     clock_state.bpm = 0.0
 
+def setup_part(part_index):
+    """Configura una parte específica para la reproducción y envía mensajes."""
+    if not (0 <= part_index < len(song_state.parts)):
+        return # Salida segura si el índice no es válido
+
+    song_state.current_part_index = part_index
+    part = song_state.parts[part_index]
+    song_state.remaining_beats_in_part = part.get("bars", 0) * song_state.time_signature_numerator
+    
+    send_osc_part_change(song_state.song_name, song_state.current_part_index, part)
+
+    # Si una parte válida tiene 0 compases, la saltamos para evitar bucles infinitos
+    if song_state.remaining_beats_in_part <= 0:
+        start_next_part()
+
+
+
 def start_next_part():
     """La lógica principal para determinar qué parte de la canción reproducir a continuación."""
-    while True: # Bucle para saltar partes que no se deben reproducir
-        song_state.current_part_index += 1
+    # Encuentra el siguiente índice válido partiendo del estado actual
+    next_index, next_pass_count = find_next_valid_part_index(
+        "+1", song_state.current_part_index, song_state.pass_count
+    )
+    
+    # Aplicar el nuevo estado de pase
+    song_state.pass_count = next_pass_count
+    
+    # Configurar la parte encontrada
+    setup_part(next_index)
 
-        # Si hemos pasado la última parte, envolvemos y aumentamos el contador de pasadas
-        if song_state.current_part_index >= len(song_state.parts):
-            song_state.current_part_index = 0
-            song_state.pass_count += 1
-
-        part = song_state.parts[song_state.current_part_index]
-        pattern = part.get("repeat_pattern")
-
-        play_this_part = False
-        # Lógica de repeat_pattern
-        if pattern is None or pattern is True:
-            play_this_part = True
-        elif pattern is False:
-            if song_state.pass_count == 0:
-                play_this_part = True
-        elif isinstance(pattern, list) and pattern:
-            pattern_index = song_state.pass_count % len(pattern)
-            if pattern[pattern_index]:
-                play_this_part = True
-
-        if play_this_part:
-            song_state.remaining_beats_in_part = part.get("bars", 0) * song_state.time_signature_numerator
-            send_osc_part_change(song_state.song_name, song_state.current_part_index, part)
-            # Si una parte válida tiene 0 compases, la saltamos para evitar bucles infinitos
-            if song_state.remaining_beats_in_part > 0:
-                break # Salimos del bucle while porque hemos encontrado una parte para reproducir
-        
-        # Si llegamos aquí, la parte actual se salta, y el bucle while continúa a la siguiente.
 
 def process_song_tick():
     """Llamado en cada "beat" de la canción (definido por time_division)."""
     global beat_flash_end_time
     if clock_state.status != "PLAYING": return
+    check_and_execute_pending_action()
+    if pending_action is None:
+        pass # En una futura revisión podríamos refinar esto.
 
     song_state.remaining_beats_in_part -= 1
     
@@ -178,6 +185,111 @@ def process_song_tick():
 
     if song_state.remaining_beats_in_part <= 0:
         start_next_part()
+
+# --- Dynamic Part-Jumping Logic ---
+
+def find_next_valid_part_index(direction: str, start_index: int, start_pass_count: int):
+    """Encuentra el índice y el pass_count de la siguiente parte válida."""
+    if not song_state.parts:
+        return -1, 0
+
+    temp_index = start_index
+    temp_pass_count = start_pass_count
+    step = 1 if direction == "+1" else -1
+
+    for _ in range(len(song_state.parts) * 2): # Bucle de seguridad
+        temp_index += step
+
+        if temp_index >= len(song_state.parts):
+            temp_index = 0
+            temp_pass_count += 1
+        elif temp_index < 0:
+            temp_index = len(song_state.parts) - 1
+            temp_pass_count = max(0, temp_pass_count - 1)
+
+        part = song_state.parts[temp_index]
+        pattern = part.get("repeat_pattern")
+        
+        play_this_part = False
+        if pattern is None or pattern is True:
+            play_this_part = True
+        elif pattern is False:
+            if temp_pass_count == 0: play_this_part = True
+        elif isinstance(pattern, list) and pattern:
+            if pattern[temp_pass_count % len(pattern)]: play_this_part = True
+
+        if play_this_part and part.get("bars", 0) > 0:
+            return temp_index, temp_pass_count
+
+    return start_index, start_pass_count # Si no se encuentra, no cambiar
+
+
+def execute_jump():
+    """Ejecuta el salto modificando el estado de la canción según la acción pendiente."""
+    global pending_action
+    if not pending_action:
+        return
+
+    target = pending_action.get("target")
+    final_index = song_state.current_part_index
+    final_pass_count = song_state.pass_count
+
+    if isinstance(target, dict) and target.get("type") == "relative":
+        steps = target.get("value", 0)
+        if steps == 0:
+            pending_action = None
+            return
+
+        direction = "+1" if steps > 0 else "-1"
+        for _ in range(abs(steps)):
+            final_index, final_pass_count = find_next_valid_part_index(direction, final_index, final_pass_count)
+        
+    elif target == "restart":
+        # El índice no cambia, el pass_count tampoco
+        pass
+    elif isinstance(target, int):
+        if 0 <= target < len(song_state.parts):
+            final_index = target
+            final_pass_count = 0 
+        else:
+            pending_action = None
+            return
+    
+    # Aplicar el estado y configurar la parte de destino DIRECTAMENTE
+    song_state.pass_count = final_pass_count
+    setup_part(final_index)
+    
+    pending_action = None
+
+def check_and_execute_pending_action():
+    """Verifica si se cumplen las condiciones de cuantización para ejecutar un salto."""
+    if not pending_action or clock_state.status != "PLAYING":
+        return
+
+    quantize = pending_action.get("quantize")
+    
+    # Contexto musical actual
+    sig_num = song_state.time_signature_numerator
+    total_beats_in_part = song_state.parts[song_state.current_part_index].get("bars", 0) * sig_num
+    beats_into_part = total_beats_in_part - song_state.remaining_beats_in_part
+    current_bar = beats_into_part // sig_num
+    is_last_beat_of_bar = (song_state.remaining_beats_in_part % sig_num == 1)
+
+    should_jump = False
+    if quantize == "instant":
+        should_jump = True
+    elif quantize == "next_bar" and is_last_beat_of_bar:
+        should_jump = True
+    elif quantize == "next_8" and is_last_beat_of_bar and (current_bar + 1) % 8 == 0:
+        should_jump = True
+    elif quantize == "next_16" and is_last_beat_of_bar and (current_bar + 1) % 16 == 0:
+        should_jump = True
+    elif quantize == "next_32" and is_last_beat_of_bar and (current_bar + 1) % 32 == 0:
+        should_jump = True
+
+    if should_jump:
+        execute_jump()
+
 
 def midi_input_listener():
     """El hilo principal que escucha los mensajes MIDI y actualiza el estado."""
@@ -195,10 +307,12 @@ def midi_input_listener():
 
         if msg.type == 'start':
             clock_state.status = "PLAYING"
+            clock_state.start_time = time.time()
             reset_song_state_on_stop()
             start_next_part()
         elif msg.type == 'stop':
             clock_state.status = "STOPPED"
+            clock_state.start_time = 0
             reset_song_state_on_stop()
         elif msg.type == 'continue':
             clock_state.status = "PLAYING"
@@ -229,15 +343,15 @@ def send_midi_command(command: str):
     """Envía un comando MIDI a todos los puertos de salida."""
     global ui_feedback_message
     if not midi_output_ports:
-        ui_feedback_message = "Info: No hay puerto de control remoto configurado."
+        ui_feedback_message = "[!] No hay puerto de control remoto configurado."
         return
     try:
         msg = mido.Message(command)
         for port in midi_output_ports:
             port.send(msg)
-            ui_feedback_message = f"Info: Comando '{command}' enviado a '{port.name}'."
+            ui_feedback_message = f"[!] '{command}' sent to '{port.name}'."
     except Exception as e:
-        ui_feedback_message = f"Error enviando MIDI: {e}"
+        ui_feedback_message = f"Error sending MIDI: {e}"
 
 
 def send_osc_part_change(song_name: str, part_index: int, part: dict):
@@ -258,28 +372,86 @@ def send_osc_part_change(song_name: str, part_index: int, part: dict):
     except Exception as e:
         # Actualizar el feedback de la UI si hay un error OSC
         global ui_feedback_message
-        ui_feedback_message = f"Error enviando OSC: {e}"
+        ui_feedback_message = f"Error sending OSC: {e}"
 
 
 def get_feedback_text():
     """Muestra el último mensaje de feedback en la UI."""
-    # return HTML(f"<style fg='#888888'>{ui_feedback_message}</style>")
+    return HTML(f"<style fg='#888888'>{ui_feedback_message}</style>")
 
+
+
+def get_action_status_text():
+    """Muestra el modo de cuantización y la acción pendiente."""
+    global ui_feedback_message
+    quant_str = quantize_mode.replace("_", " ").upper()
+    
+    action_str = "Ø"
+    if pending_action:
+        target = pending_action.get("target")
+        quant = pending_action.get("quantize").replace("_", " ").upper()
+        
+        part_name = ""
+        
+        if isinstance(target, dict) and target.get("type") == "relative":
+            value = target.get("value", 0)
+            if value != 0:
+                direction = "+1" if value > 0 else "-1"
+                
+                # Simular el salto completo para encontrar el nombre de la parte de destino
+                final_index = song_state.current_part_index
+                final_pass_count = song_state.pass_count
+                for _ in range(abs(value)):
+                    final_index, final_pass_count = find_next_valid_part_index(direction, final_index, final_pass_count)
+
+                part_name = song_state.parts[final_index].get('name', 'N/A')
+                prefix = "Jump to" if value > 0 else "Jump back to"
+                action_str = f"{prefix} ({value:+}): {part_name} ({quant})"
+            else:
+                action_str = "Cancelled"
+
+        elif target == "restart":
+            part_name = song_state.parts[song_state.current_part_index].get('name', 'N/A')
+            action_str = f"Restart: {part_name} ({quant})"
+        elif isinstance(target, int):
+            if 0 <= target < len(song_state.parts):
+                part_name = song_state.parts[target].get('name', 'N/A')
+            action_str = f"Go to: {part_name} ({quant})"
+    
+    # Lógica para el modo "Ir a Parte"
+    if goto_input_active:
+        ui_feedback_message = "" # Limpiar otros mensajes
+        return HTML(f"<style bg='ansiyellow' fg='ansiblack'>Ir a Parte: {goto_input_buffer}_</style>")
+
+    return HTML(f"<b>Quant:</b> <style bg='#333333'>[{quant_str}]</style> | <b>Pending Action:</b> <style bg='#333333'>[{action_str}]</style>")
+
+def get_key_legend_text():
+    """Muestra la leyenda de los controles de teclado."""
+    line1 = "<b>[←→:</b> Nav] <b>[↑:</b> Restart Part] <b>[↓:</b> Cancel] "
+    line2 = "<b>[0-3:</b> Quick Jump] <b>[4-6:</b> Set Quantize] "
+    line3 = "<b>[.:</b> Go to Part]"
+    return HTML(f"<style fg='#666666'>{line1}{line2}{line3}</style>")
 
 # --- UI Functions ---
 def get_part_name_text():
     """Genera el encabezado de la aplicación, incluyendo el nombre de la parte."""
     app_title_line = f"<style fg='#888888'>miditema - {song_state.song_name}</style>"
 
+    part_info_str = "---"
+    part_to_display = None
+
     if song_state.current_part_index != -1:
-        name = song_state.parts[song_state.current_part_index].get('name', '---')
+        part_to_display = song_state.parts[song_state.current_part_index]
     elif song_state.parts:
-        name = song_state.parts[0].get('name', '---')
-    else:
-        name = "---"
+        part_to_display = song_state.parts[0]
+
+    if part_to_display:
+        name = part_to_display.get('name', '---')
+        bars = part_to_display.get('bars', 0)
+        part_info_str = f"{name} ({bars} compases)"
     
     # Centrar el nombre en un ancho fijo (ej. 80) para consistencia
-    centered_name = name.center(80)
+    centered_name = part_info_str.center(80)
     part_name_line = f"<style bg='#222222' fg='ansiwhite' bold='true'>{centered_name}</style>"
 
     return HTML(app_title_line + "\n" + part_name_line)
@@ -325,33 +497,14 @@ def get_next_part_text():
         return ""
 
     # Simular la búsqueda de la siguiente parte sin cambiar el estado real
-    temp_index = song_state.current_part_index
-    temp_pass_count = song_state.pass_count
+    next_index, _ = find_next_valid_part_index("+1", song_state.current_part_index, song_state.pass_count)
 
-    for _ in range(len(song_state.parts) * 2): # Bucle de seguridad
-        temp_index += 1
-        if temp_index >= len(song_state.parts):
-            temp_index = 0
-            temp_pass_count += 1
-
-        part = song_state.parts[temp_index]
-        pattern = part.get("repeat_pattern")
-        
-        play_this_part = False
-        if pattern is None or pattern is True:
-            play_this_part = True
-        elif pattern is False:
-            if temp_pass_count == 0: play_this_part = True
-        elif isinstance(pattern, list) and pattern:
-            if pattern[temp_pass_count % len(pattern)]: play_this_part = True
-
-
-        if play_this_part:
-            name = part.get('name', 'N/A')
-            bars = part.get('bars', 0)
-            # Corregido: Sin prefijo y sin centrado
-            next_part_str = f" >> {name} ({bars})"
-            return HTML(f"<style fg='#888888'>{next_part_str}</style>")
+    if next_index != song_state.current_part_index:
+        part = song_state.parts[next_index]
+        name = part.get('name', 'N/A')
+        bars = part.get('bars', 0)
+        next_part_str = f" >> {name} ({bars})"
+        return HTML(f"<style fg='#888888'>{next_part_str}</style>")
 
     return HTML("<style fg='#888888'>Siguiente >> Fin</style>")
 
@@ -416,8 +569,15 @@ def get_status_line_text():
     status = clock_state.status.ljust(10)
     # Corregido: Formato a 0 decimales
     bpm = f"{clock_state.bpm:.0f} BPM".ljust(12)
-    source = f"Fuente: {clock_state.source_name}"
-    return HTML(f"{status} | {bpm} | {source}")
+    source = f"Clock: {clock_state.source_name}"
+    
+    elapsed_str = "--:--"
+    if clock_state.start_time > 0:
+        elapsed_seconds = time.time() - clock_state.start_time
+        minutes, seconds = divmod(int(elapsed_seconds), 60)
+        elapsed_str = f"{minutes:02d}:{seconds:02d}"
+
+    return HTML(f"{status} | {elapsed_str} | {bpm} | {source}")
 
 # --- UI Interactive Selectors ---
 def interactive_selector(items, prompt_title):
@@ -493,7 +653,6 @@ def main():
         if not selected_port_name:
             print("[!] No se seleccionó ninguna fuente. Saliendo.")
             return
-            return
 
     remote_alias = config.get("remote_control_alias")
     if remote_alias:
@@ -564,15 +723,23 @@ def main():
 
     signal.signal(signal.SIGINT, signal_handler)
 
+   
     # 4. Iniciar Interfaz de Usuario
     kb = KeyBindings()
+    
+    # --- Filtros de Condición para el modo "Ir a Parte" ---
+    @Condition
+    def is_goto_mode():
+        return goto_input_active
+
+    # --- Acciones Globales ---
     @kb.add('q', eager=True)
     @kb.add('c-c', eager=True)
     def _(event):
         event.app.exit()
 
-    @kb.add('enter')
-    @kb.add(' ')
+    @kb.add('enter', filter=~is_goto_mode)
+    @kb.add(' ', filter=~is_goto_mode)
     def _(event):
         """Envía Start/Stop."""
         if clock_state.status == "STOPPED":
@@ -580,21 +747,140 @@ def main():
         else:
             send_midi_command('stop')
 
+    # --- Lógica de Salto (Modo Normal) ---
+    @kb.add('right', filter=~is_goto_mode)
+    def _(event):
+        global pending_action, ui_feedback_message
+        
+        if (pending_action and 
+            isinstance(pending_action.get("target"), dict) and 
+            pending_action["target"].get("type") == "relative"):
+            
+            # Apilar acción existente
+            pending_action["target"]["value"] += 1
+        else:
+            # Crear nueva acción
+            target = {"type": "relative", "value": 1}
+            pending_action = {"target": target, "quantize": quantize_mode}
+        
+        ui_feedback_message = "Jump forward."
+
+    @kb.add('left', filter=~is_goto_mode)
+    def _(event):
+        global pending_action, ui_feedback_message
+
+        if (pending_action and 
+            isinstance(pending_action.get("target"), dict) and 
+            pending_action["target"].get("type") == "relative"):
+            
+            # Apilar acción existente
+            pending_action["target"]["value"] -= 1
+        else:
+            # Crear nueva acción
+            target = {"type": "relative", "value": -1}
+            pending_action = {"target": target, "quantize": quantize_mode}
+            
+        ui_feedback_message = "Jump back."
+
+    @kb.add('up', filter=~is_goto_mode)
+    def _(event):
+        global pending_action, ui_feedback_message
+        pending_action = {"target": "restart", "quantize": quantize_mode}
+        ui_feedback_message = "Restart current part."
+
+    @kb.add('down', filter=~is_goto_mode)
+    def _(event):
+        global pending_action, ui_feedback_message
+        if pending_action:
+            pending_action = None
+            ui_feedback_message = "Pending action cancelled."
+
+    # --- Controles Numéricos (Modo Normal) ---
+    for i in "0123":
+        @kb.add(i, filter=~is_goto_mode)
+        def _(event):
+            global pending_action, ui_feedback_message
+            key = event.key_sequence[0].data
+            quant_map = {"0": "instant", "1": "next_bar", "2": "next_8", "3": "next_16"}
+            quant = quant_map[key]
+            
+            # Corregido: Crear la acción con la nueva estructura de diccionario
+            target = {"type": "relative", "value": 1}
+            pending_action = {"target": target, "quantize": quant}
+            
+            ui_feedback_message = f"Next part with (Quant: {quant.upper()})."
+            
+    for i in "456":
+        @kb.add(i, filter=~is_goto_mode)
+        def _(event):
+            global quantize_mode, ui_feedback_message
+            key = event.key_sequence[0].data
+            quant_map = {"4": "next_8", "5": "next_16", "6": "next_32"}
+            quantize_mode = quant_map[key]
+            ui_feedback_message = f"Global Quantization: {quantize_mode.upper()}."
+
+    # --- Activación del modo "Ir a Parte" ---
+    @kb.add('.', filter=~is_goto_mode)
+    @kb.add(',', filter=~is_goto_mode)
+    def _(event):
+        global goto_input_active, goto_input_buffer
+        goto_input_active = True
+        goto_input_buffer = ""
+
+    # --- Controles en modo "Ir a Parte" ---
+    @kb.add('escape', filter=is_goto_mode)
+    @kb.add('down', filter=is_goto_mode)
+    def _(event):
+        global goto_input_active, ui_feedback_message
+        goto_input_active = False
+        ui_feedback_message = "Pending action cancelled."
+
+    @kb.add('backspace', filter=is_goto_mode)
+    def _(event):
+        global goto_input_buffer
+        goto_input_buffer = goto_input_buffer[:-1]
+
+    # --- Captura de dígitos en modo "Ir a Parte" ---
+    for i in "0123456789":
+        @kb.add(i, filter=is_goto_mode)
+        def _(event):
+            global goto_input_buffer
+            goto_input_buffer += event.data
+
+    @kb.add('enter', filter=is_goto_mode)
+    def _(event):
+        global goto_input_active, goto_input_buffer, pending_action, ui_feedback_message
+        if goto_input_buffer.isdigit():
+            part_num = int(goto_input_buffer)
+            if 1 <= part_num <= len(song_state.parts):
+                pending_action = {"target": part_num - 1, "quantize": quantize_mode}
+                ui_feedback_message = f"Go to part {part_num}."
+            else:
+                ui_feedback_message = f"[!] Error: part {part_num} does not exist."
+        else:
+            ui_feedback_message = "[!] Error: invalid input."
+        goto_input_active = False
+        goto_input_buffer = ""
+
 
     root_container = HSplit([
         Window(content=FormattedTextControl(text=get_part_name_text)),
-        # Corregido: Alineación al 25% con VSplit y pesos
         VSplit([
-            Window(width=Dimension(weight=1)), # 25% de espacio flexible a la izquierda
+            Window(width=Dimension(weight=1)),
             Window(content=FormattedTextControl(text=get_countdown_text), width=40),
-            Window(width=Dimension(weight=3)), # 75% de espacio flexible a la derecha
+            Window(width=Dimension(weight=3)),
         ]),
         Window(height=1),
         Window(content=FormattedTextControl(text=get_step_sequencer_text)),
         Window(content=FormattedTextControl(text=get_next_part_text)),
         Window(content=FormattedTextControl("-" * 80), height=1),
+        
+        # --- Bloque de estado inferior (Reordenado) ---
         Window(content=FormattedTextControl(text=get_status_line_text)),
-        Window(content=FormattedTextControl(text=get_feedback_text)), # Nueva línea de feedback
+        Window(content=FormattedTextControl(text=get_action_status_text)),
+        Window(content=FormattedTextControl(text=get_feedback_text)),
+        Window(content=FormattedTextControl(text=get_key_legend_text), height=1),
+
     ], style="bg:#111111 #cccccc")
 
     app_ui_instance = Application(layout=Layout(root_container), key_bindings=kb, full_screen=True, refresh_interval=0.1)

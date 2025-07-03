@@ -1,48 +1,38 @@
 # MIDItema
 
-A terminal-based bar counter and song arranger, broadcasting song-part changes via OSC.
-
-
+A terminal-based, live-performance song arranger and bar counter, broadcasting song-part changes via OSC.
 
 ## Core Concept
 
-MIDItema listens to an external master clock (like a DAW, hardware sequencer, or our companion tool midimaster) and uses that timing information to step through a pre-defined song structure.
+MIDItema listens to an external master clock (like a DAW, hardware sequencer, or our companion tool MIDImaster) and uses that timing information to step through a pre-defined song structure, or jump dynamically between parts on command.
 
-It will show a bar-countdown for the current part of the song, allowing the user to know in advance when the next change in the song is ocurring.
+It will show a bar-countdown for the current part of the song, allowing the user to know in advance when the next change in the song is occurring.
 
-Changes are also broadcast with OSC, so they can be read by other applications.
-
-
+Changes are also broadcast with OSC, so they can be read by other applications (for example, with MIDImod).
 
 ## Features
 
-- **Bar-countdown:** Shows the number of bars left in the current part of the song.
+- **Dynamic Part Jumping:** The core feature for live performance. Program jumps to the next/previous part, restart the current section, or go to any specific part of the song.
+  
+- **Quantized Actions:** Jumps are not immediate. They are scheduled as a **pending action** and executed with musical precision, aligned to the next bar, to the next 8-bar/16-bar section, or even instantly on the next beat.
+  
+- **Flexible Control Scheme:** Use single-key presses for both fixed actions (e.g., "jump to the next part, quantized to the bar") and global-mode actions.
+  
+- **Bar-countdown:** Shows the number of bars left in the current part of the song, so you can prepare for changes.
+  
 - **MIDI Clock Slave:** Synchronizes perfectly to any standard MIDI clock source.
   
 - **JSON-based Song Structure:** Define your entire song structure, parts, and lengths in simple, human-readable JSON files.
   
-- **Advanced Repetition Logic:** Control exactly when parts repeat using flexible patterns (e.g., "play only once," "play every other time," "play twice, then skip twice").
+- **... including Advanced Repetition Logic:** Control exactly when parts repeat using flexible patterns (e.g., "play the Intro only once," "play every other time," "play twice, then skip twice").
   
-- **Visual TUI:** A clean, full-screen terminal interface provides a clear overview of the current state.
-    
-- **OSC Broadcasting:** Sends detailed OSC messages on every part change, allowing for easy integration with other creative software (Resolume, TouchDesigner, VCV Rack, etc.).
+- **Visual TUI:** A clean, full-screen terminal interface provides a clear overview of the current state and information on the part, including a moving step sequencer showing the bars in the current part, elapsed time, the active quantization mode and any pending action.
   
-- **Remote Transport Control:** Can send Start/Stop commands to a master device, allowing you to control your entire setup from one terminal (best integrated with MIDImaster).
+- **OSC Broadcasting:** Sends detailed OSC messages on every part change, allowing for easy integration with other creative software (MIDImod, Resolume, TouchDesigner, VCV Rack, etc.).
+  
+- **Remote Transport Control:** Can send Start/Stop commands to a master clock (that receives transport signals), allowing you to control the song performance from the single terminal.
   
 - **Configurable:** All I/O ports and OSC settings are defined in a simple configuration file.
-  
-
-## How It Works
-
-1. **Listen:** MIDItema connects to a MIDI input port and listens for MIDI Clock messages.
-  
-2. **Count:** It uses the incoming clock ticks to count beats and bars according to the loaded song file's structure.
-  
-3. **Sequence:** When a part finishes, it determines the next part to play based on the defined repeat_pattern logic.
-  
-4. **Broadcast:** As soon as a new part begins, it sends an OSC message with the new part's details to a configurable IP address and port.
-  
-5. **Control (Optional):** It can also send Start/Stop messages to a separate MIDI output port to remotely control the master clock source.
   
 
 ## Installation
@@ -53,26 +43,18 @@ Changes are also broadcast with OSC, so they can be read by other applications.
   
 3. Install the required dependencies:
   
-
-  
   ```
   pip install mido python-osc prompt-toolkit python-rtmidi
   ```
   
 
-  
-  Note: python-rtmidi is a recommended backend for mido on most systems.
-  
-
 ## Configuration
 
-MIDItema is controlled by two types of JSON files.
+MIDItema is controlled by two types of JSON files.
 
-### 1. Main Configuration (MIDItema.conf.json)
+### 1. Main Configuration (miditema.conf.json)
 
 This file, located in the root directory, defines the MIDI and OSC connections.
-
-
 
 ```
 {
@@ -82,17 +64,15 @@ This file, located in the root directory, defines the MIDI and OSC connections.
         "send": {
             "ip": "127.0.0.1",
             "port": 9000,
-            "address": "/MIDItema/part/change"
+            "address": "/miditema/part/change"
         }
     }
 }
 ```
 
-
-
 - clock_source_alias: A substring of the MIDI input port name that sends the clock.
   
-- remote_control_alias: A substring of the MIDI output port name to send transport commands to.
+- remote_control_alias: A substring of the MIDI output port name to send transport commands to (the port on which the master clock would listen to transport signals).
   
 - osc_configuration.send:
   
@@ -107,8 +87,6 @@ This file, located in the root directory, defines the MIDI and OSC connections.
 
 These files define the structure of a song. They must be placed in a temas/ directory.
 
-
-
 ```
 {
     "song_name": "My Awesome Track",
@@ -121,8 +99,6 @@ These files define the structure of a song. They must be placed in a temas/ di
     ]
 }
 ```
-
-
 
 - song_name: (Optional) The name displayed in the UI. Defaults to the filename.
   
@@ -149,13 +125,11 @@ These files define the structure of a song. They must be placed in a temas/ di
 
 ## Usage
 
-1. Configure your master clock source (e.g., midimaster, Ableton Live, a hardware synth) to send MIDI clock.
+1. Configure your master clock source (e.g., Ableton Live, a hardware sequencer, a sw clock like MIDImaster).
   
-2. Configure MIDItema.conf.json to listen to the correct ports.
+2. Configure miditema.conf.json to listen to the correct ports.
   
-3. Run MIDItema from your terminal:
-  
-
+3. Run MIDItema from your terminal:
   
   ```
   # Run and select a song from the interactive list
@@ -164,22 +138,37 @@ These files define the structure of a song. They must be placed in a temas/ di
   # Or, specify a song file directly (without the .json extension)
   python miditema.py my_song_file
   ```
-
-
   
 
 ### Controls
 
-- Space / Enter: Send Start/Stop MIDI command to the remote control port.
-  
-- q / Ctrl+C: Quit the application.
-  
+MIDItema features a powerful control scheme for live performance. Most actions are scheduled as a **pending action** and executed with quantization.
+
+| Key(s) | Action | Details / Quantization |
+| --- | --- | --- |
+| **Global Transport** |     |     |
+| Space / Enter | Send Start/Stop | Sends a MIDI Start/Stop command immediately. |
+| q / Ctrl+C | Quit | Exits the application. |
+| **Live Navigation** |     |     |
+| → / ← | Jump Next / Previous | Programs a jump. Uses the **global** quantize mode. Pressing multiple times accumulates the jump (e.g., → → → programs a +3 jump). |
+| ↑   | Restart Part | Restarts the current part from its beginning. Uses the **global** quantize mode. |
+| ↓   | Cancel Action | Immediately cancels any pending action. |
+| . or , then [num] Enter | Go to Part | Enters "Go to" mode. Type a part number (e.g., .12) and press Enter to program the jump to the 12th part ahead in the song (considering repeats). Uses the **global** quantize mode. |
+| **Quick Jumps** |     |     |
+| 0   | Quick Jump +1 | Jumps to the next part. **Fixed Quantization: Instant** (next beat). |
+| 1   | Quick Jump +1 | Jumps to the next part. **Fixed Quantization: Next Bar**. |
+| 2   | Quick Jump +1 | Jumps to the next part. **Fixed Quantization: Next 8 Bars**. |
+| 3   | Quick Jump +1 | Jumps to the next part. **Fixed Quantization: Next 16 Bars**. |
+| **Quantize Mode Selection** |     |     |
+| 4   | Set Global Quantize | Sets the global mode used by arrows and "Go to" to **Next 8 Bars**. |
+| 5   | Set Global Quantize | Sets the global mode to **Next 16 Bars**. |
+| 6   | Set Global Quantize | Sets the global mode to **Next 32 Bars**. |
 
 ## OSC Integration
 
-This is the core feature for integrating MIDItema with other software.
+This is the core feature for integrating MIDItema with other software.
 
-When a new part starts, MIDItema sends an OSC message to the configured IP, port, and address. The message contains four arguments:
+When a new part starts, MIDItema sends an OSC message to the configured IP, port, and address. The message contains four arguments:
 
 1. **Song Name** (string): The name of the currently loaded song.
   
@@ -192,7 +181,7 @@ When a new part starts, MIDItema sends an OSC message to the configured IP, po
 
 #### Testing OSC
 
-A simple Python script, osc_receiver.py, is provided in this repository to help you test and verify that OSC messages are being sent correctly. Run it in a separate terminal to see incoming messages.
+A simple Python script, osc_receiver.py, can be used to help you test and verify that OSC messages are being sent correctly. Run it in a separate terminal to see incoming messages.
 
 ## License
 

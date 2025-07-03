@@ -1,0 +1,12 @@
+{
+    "clock_source_alias": "CLOCK",
+    "remote_control_alias": "TPT",
+
+    "osc_configuration": {
+        "send": {
+            "ip": "127.0.0.1",
+            "port": 9000,
+            "address": "/miditema/part/change"
+        }
+    }
+}
