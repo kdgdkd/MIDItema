@@ -207,6 +207,7 @@ The value of the Program Change message corresponds to the **zero-based index** 
 
 A simple Python script, osc_receiver.py, can be used to help you test and verify that OSC messages are being sent correctly. Run it in a separate terminal to see incoming messages.
 
+
 ## License
 
-This project is licensed under the MIT License.
+GNU AGPLv3 License. See LICENSE file.
