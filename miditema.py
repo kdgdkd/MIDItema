@@ -62,6 +62,7 @@ goto_input_active = False
 goto_input_buffer = ""
 app_ui_instance = None
 midi_input_port = None
+midi_control_port = None
 midi_output_ports = []
 pc_output_port = None
 pc_channel = 0 
@@ -249,7 +250,9 @@ def execute_jump():
 
         direction = "+1" if steps > 0 else "-1"
         for _ in range(abs(steps)):
-            final_index, final_pass_count = find_next_valid_part_index(direction, final_index, final_pass_count)
+            # Si en algún paso no se encuentra una parte válida, el resultado es None
+            if final_index is not None:
+                final_index, final_pass_count = find_next_valid_part_index(direction, final_index, final_pass_count)
         
     elif target == "restart":
         # El índice no cambia, el pass_count tampoco
@@ -262,9 +265,13 @@ def execute_jump():
             pending_action = None
             return
     
-    # Aplicar el estado y configurar la parte de destino DIRECTAMENTE
-    song_state.pass_count = final_pass_count
-    setup_part(final_index)
+    # Si el salto resulta en el final de la canción, gestionarlo
+    if final_index is None:
+        handle_song_end()
+    else:
+        # Aplicar el estado y configurar la parte de destino DIRECTAMENTE
+        song_state.pass_count = final_pass_count
+        setup_part(final_index)
     
     pending_action = None
 
@@ -305,10 +312,13 @@ def check_and_execute_pending_action():
 
     return False
 
+
 def midi_input_listener():
     """El hilo principal que escucha los mensajes MIDI y actualiza el estado."""
     global midi_input_port, clock_state, song_state
     
+    is_shared_port = midi_control_port is not None and midi_control_port is midi_input_port
+
     while not SHUTDOWN_FLAG:
         if not midi_input_port:
             time.sleep(0.1)
@@ -319,6 +329,7 @@ def midi_input_listener():
             time.sleep(0.001)
             continue
 
+        # --- Lógica de Clock ---
         if msg.type == 'start':
             clock_state.status = "PLAYING"
             clock_state.start_time = time.time()
@@ -340,18 +351,120 @@ def midi_input_listener():
                 delta = current_time - clock_state.last_tick_time
                 if delta > 0:
                     clock_state.tick_times.append(delta)
-                    if len(clock_state.tick_times) > 96: # Promediar sobre las últimas 4 negras
+                    if len(clock_state.tick_times) > 96:
                         clock_state.tick_times.pop(0)
                     avg_delta = sum(clock_state.tick_times) / len(clock_state.tick_times)
                     clock_state.bpm = (60.0 / MIDI_PPQN) / avg_delta
             clock_state.last_tick_time = current_time
 
-            # --- Avance de la Canción ---
+            # --- Avance de la Canción (LÓGICA CORREGIDA) ---
             if clock_state.status == "PLAYING":
                 song_state.midi_clock_tick_counter += 1
                 if song_state.midi_clock_tick_counter >= song_state.ticks_per_song_beat:
                     song_state.midi_clock_tick_counter = 0
                     process_song_tick()
+        
+        # --- Lógica de Control (si el puerto es compartido) ---
+        elif is_shared_port:
+            process_control_message(msg)
+
+def process_control_message(msg):
+    """Procesa un único mensaje de control MIDI. Reutilizable."""
+    global pending_action, quantize_mode, ui_feedback_message
+    
+    if msg.type == 'program_change':
+        if 0 <= msg.program < len(song_state.parts):
+            pending_action = {"target": msg.program, "quantize": quantize_mode}
+            ui_feedback_message = f"PC Recibido: Ir a parte {msg.program + 1}."
+        else:
+            ui_feedback_message = f"PC Recibido: Parte {msg.program + 1} no existe."
+
+    elif msg.type == 'control_change' and msg.control == 0:
+        val = msg.value
+        if 0 <= val <= 3:
+            quant_map = {0: "instant", 1: "next_bar", 2: "next_8", 3: "next_16"}
+            quant = quant_map[val]
+            target = {"type": "relative", "value": 1}
+            pending_action = {"target": target, "quantize": quant}
+            ui_feedback_message = f"CC Recibido: Salto rápido (Quant: {quant.upper()})."
+        elif val in [4, 5, 6, 7, 9]:
+            quant_map = {4: "next_4", 5: "next_8", 6: "next_16", 7: "next_bar", 9: "instant"}
+            quantize_mode = quant_map[val]
+            ui_feedback_message = f"CC Recibido: Modo global -> {quantize_mode.upper()}."
+        elif val == 10:
+            target = {"type": "relative", "value": -1}
+            pending_action = {"target": target, "quantize": quantize_mode}
+            ui_feedback_message = "CC Recibido: Saltar Anterior."
+        elif val == 11:
+            target = {"type": "relative", "value": 1}
+            pending_action = {"target": target, "quantize": quantize_mode}
+            ui_feedback_message = "CC Recibido: Saltar Siguiente."
+        elif val == 12:
+            pending_action = {"target": "restart", "quantize": quantize_mode}
+            ui_feedback_message = "CC Recibido: Reiniciar Parte."
+        elif val == 13:
+            if pending_action:
+                pending_action = None
+                ui_feedback_message = "CC Recibido: Acción cancelada."
+
+def midi_control_listener():
+    """El hilo que escucha los mensajes MIDI de control (PC, CC)."""
+    global pending_action, quantize_mode, ui_feedback_message
+    while not SHUTDOWN_FLAG:
+        if not midi_control_port:
+            time.sleep(0.1)
+            continue
+
+        msg = midi_control_port.poll()
+        if not msg:
+            time.sleep(0.001)
+            continue
+        
+        process_control_message(msg)
+
+        if msg.type == 'program_change':
+            # Salto directo a una parte usando el número de Program Change
+            if 0 <= msg.program < len(song_state.parts):
+                pending_action = {"target": msg.program, "quantize": quantize_mode}
+                ui_feedback_message = f"PC Recibido: Ir a parte {msg.program + 1}."
+            else:
+                ui_feedback_message = f"PC Recibido: Parte {msg.program + 1} no existe."
+
+        elif msg.type == 'control_change' and msg.control == 0:
+            val = msg.value
+            
+            # Saltos rápidos (cuantización fija)
+            if 0 <= val <= 3:
+                quant_map = {0: "instant", 1: "next_bar", 2: "next_8", 3: "next_16"}
+                quant = quant_map[val]
+                target = {"type": "relative", "value": 1}
+                pending_action = {"target": target, "quantize": quant}
+                ui_feedback_message = f"CC Recibido: Salto rápido (Quant: {quant.upper()})."
+            
+            # Selección de modo de cuantización global
+            elif val in [4, 5, 6, 7, 9]:
+                quant_map = {4: "next_4", 5: "next_8", 6: "next_16", 7: "next_bar", 9: "instant"}
+                quantize_mode = quant_map[val]
+                ui_feedback_message = f"CC Recibido: Modo global -> {quantize_mode.upper()}."
+
+            # Navegación (cuantización global)
+            elif val == 10: # Saltar Anterior
+                target = {"type": "relative", "value": -1}
+                pending_action = {"target": target, "quantize": quantize_mode}
+                ui_feedback_message = "CC Recibido: Saltar Anterior."
+            elif val == 11: # Saltar Siguiente
+                target = {"type": "relative", "value": 1}
+                pending_action = {"target": target, "quantize": quantize_mode}
+                ui_feedback_message = "CC Recibido: Saltar Siguiente."
+            elif val == 12: # Reiniciar Parte
+                pending_action = {"target": "restart", "quantize": quantize_mode}
+                ui_feedback_message = "CC Recibido: Reiniciar Parte."
+            elif val == 13: # Cancelar Acción
+                if pending_action:
+                    pending_action = None
+                    ui_feedback_message = "CC Recibido: Acción cancelada."
+
+
 
 def send_midi_command(command: str):
     """Envía un comando MIDI a todos los puertos de salida."""
@@ -455,9 +568,15 @@ def get_action_status_text():
                 final_index = song_state.current_part_index
                 final_pass_count = song_state.pass_count
                 for _ in range(abs(value)):
-                    final_index, final_pass_count = find_next_valid_part_index(direction, final_index, final_pass_count)
+                    if final_index is not None:
+                        final_index, final_pass_count = find_next_valid_part_index(direction, final_index, final_pass_count)
 
-                part_name = song_state.parts[final_index].get('name', 'N/A')
+                # Comprobar si el salto lleva al final
+                if final_index is None:
+                    part_name = "End"
+                else:
+                    part_name = song_state.parts[final_index].get('name', 'N/A')
+                
                 prefix = "Jump to" if value > 0 else "Jump back to"
                 action_str = f"{prefix} ({value:+}): {part_name} ({quant})"
             else:
@@ -588,14 +707,16 @@ def get_next_part_text():
     # Simular la búsqueda de la siguiente parte sin cambiar el estado real
     next_index, _ = find_next_valid_part_index("+1", song_state.current_part_index, song_state.pass_count)
 
-    if next_index != song_state.current_part_index:
-        part = song_state.parts[next_index]
-        name = part.get('name', 'N/A')
-        bars = part.get('bars', 0)
-        next_part_str = f" >> {name} ({bars})"
-        return HTML(f"<style fg='#888888'>{next_part_str}</style>")
+    # Si no se encuentra una parte siguiente válida, es el final de la canción.
+    if next_index is None:
+        return HTML("<style fg='#888888'>Siguiente >> Fin</style>")
 
-    return HTML("<style fg='#888888'>Siguiente >> Fin</style>")
+    # Si se encontró una parte, mostrar su información.
+    part = song_state.parts[next_index]
+    name = part.get('name', 'N/A')
+    bars = part.get('bars', 0)
+    next_part_str = f" >> {name} ({bars})"
+    return HTML(f"<style fg='#888888'>{next_part_str}</style>")
 
 
 
@@ -763,7 +884,7 @@ def main():
 
     midi_config = config.get("midi_configuration")
     if midi_config:
-        global pc_output_port, pc_channel
+        global pc_output_port, pc_channel, midi_control_port
         pc_device_name = midi_config.get("device_out")
         pc_channel_config = midi_config.get("channel_out", 1) # Por defecto canal 1
 
@@ -780,7 +901,23 @@ def main():
             else:
                 print(f"[!] El dispositivo de Program Change '{pc_device_name}' no fue encontrado.")
 
-    osc_config = config.get("osc_configuration", {}).get("send")
+        control_device_key = midi_config.get("device_in") or midi_config.get("midi_in")
+        if control_device_key:
+            control_port_name = find_port_by_substring(mido.get_input_names(), control_device_key)
+            if control_port_name:
+                if control_port_name == selected_port_name:
+                    print("[!] Advertencia: El puerto de control es el mismo que el de clock.")
+                    midi_control_port = midi_input_port
+                else:
+                    try:
+                        midi_control_port = mido.open_input(control_port_name)
+                        print(f"[*] Puerto de entrada '{control_port_name}' abierto para control MIDI.")
+                    except Exception as e:
+                        print(f"[!] No se pudo abrir el puerto de control '{control_port_name}': {e}")
+            else:
+                print(f"[!] El dispositivo de control '{control_device_key}' no fue encontrado.")
+
+    osc_config = config.get("osc_configuration", {}).get("send", {})
     if osc_config:
         ip = osc_config.get("ip", "127.0.0.1")
         port = osc_config.get("port")
@@ -834,8 +971,15 @@ def main():
     listener_thread = threading.Thread(target=midi_input_listener, daemon=True)
     listener_thread.start()
 
-    signal.signal(signal.SIGINT, signal_handler)
+    if midi_control_port and midi_control_port is not midi_input_port:
+        control_listener_thread = threading.Thread(target=midi_control_listener, daemon=True)
+        control_listener_thread.start()
+    else:
+        # Si el puerto es el mismo, la lógica se manejará en el hilo principal de clock
+        # (Esto requiere una modificación futura, por ahora separamos)
+        control_listener_thread = None 
 
+    signal.signal(signal.SIGINT, signal_handler)
    
     # 4. Iniciar Interfaz de Usuario
     kb = KeyBindings()
@@ -1022,6 +1166,8 @@ def main():
             pc_output_port.close() # Nueva línea
         if listener_thread.is_alive():
             listener_thread.join(timeout=0.2)
+        if control_listener_thread and control_listener_thread.is_alive(): 
+            control_listener_thread.join(timeout=0.2)
         print("Detenido.")
 
 if __name__ == "__main__":  
