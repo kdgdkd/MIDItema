@@ -1,18 +1,32 @@
 {
     "clock_source": "CLOCK",
     "transport_out": "TPT",
-
     "midi_configuration": {
+        "device_in": "MIDImod_OUT",
         "device_out": "MIDImod_IN",
-        "channel_out": 0
+        "channel_out": 1
     },
-
     "osc_configuration": {
         "send": {
             "ip": "127.0.0.1",
             "port": 9000,
             "address": "/miditema/part/change",
-            "address_song_end": "/miditema/song/end"
+            "address_song_end": "/miditema/song/end",
+            
+            "bar_triggers": [
+                {
+                    "block_size": 1,
+                    "address": "/miditema/trigger/bar"
+                },
+                {
+                    "block_size": 4,
+                    "address": "/miditema/trigger/block4"
+                },
+                {
+                    "block_size": 8,
+                    "address": "/miditema/trigger/block8"
+                }
+            ]
         }
     }
 }
