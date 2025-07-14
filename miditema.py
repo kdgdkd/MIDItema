@@ -27,7 +27,31 @@ CONF_FILE_NAME = "miditema.conf.json"
 SHUTDOWN_FLAG = False
 MIDI_PPQN = 24  # MIDI Clock Standard, no configurable
 
+
+# --- Color Palette Definitions ---
+# Styles for part titles (background color)
+TITLE_COLOR_PALETTE = {
+    'default': "bg='#222222' fg='ansiwhite'",
+    'red':     "bg='ansired' fg='ansiwhite'",
+    'green':   "bg='ansigreen' fg='ansiwhite'",
+    'yellow':  "bg='ansiyellow' fg='ansiblack'",
+    'blue':    "bg='ansiblue' fg='ansiwhite'",
+    'magenta': "bg='ansimagenta' fg='ansiwhite'",
+    'cyan':    "bg='ansicyan' fg='ansiblack'",
+}
+# Styles for foreground elements (text, sequencer blocks)
+FG_COLOR_PALETTE = {
+    'default': "fg='ansicyan' bold='true'",
+    'red':     "fg='ansired' bold='true'",
+    'green':   "fg='ansigreen' bold='true'",
+    'yellow':  "fg='ansiyellow' bold='true'",
+    'blue':    "fg='ansiblue' bold='true'",
+    'magenta': "fg='ansimagenta' bold='true'",
+    'cyan':    "fg='ansicyan' bold='true'",
+}
+
 # --- State Classes ---
+
 class ClockState:
     """Almacena el estado del reloj MIDI entrante."""
     def __init__(self):
@@ -48,6 +72,7 @@ class SongState:
         self.remaining_beats_in_part = 0
         self.pass_count = 0
         self.midi_clock_tick_counter = 0
+        self.current_bar_in_part = 0 
         # Valores derivados de la canción
         self.time_signature_numerator = 4
         self.ticks_per_song_beat = MIDI_PPQN
@@ -135,10 +160,12 @@ def load_song_file(filepath: Path):
 
 def reset_song_state_on_stop():
     """Resetea el estado de la secuencia cuando el reloj se detiene."""
+    # print("DEBUG: reset_song_state_on_stop -> Reseteando contadores de canción")
     song_state.current_part_index = -1
     song_state.remaining_beats_in_part = 0
     song_state.pass_count = 0
     song_state.midi_clock_tick_counter = 0
+    song_state.current_bar_in_part = 0
     clock_state.tick_times = []
     clock_state.bpm = 0.0
 
@@ -150,6 +177,7 @@ def setup_part(part_index):
     song_state.current_part_index = part_index
     part = song_state.parts[part_index]
     song_state.remaining_beats_in_part = part.get("bars", 0) * song_state.time_signature_numerator
+    song_state.current_bar_in_part = 0
     
     send_osc_part_change(song_state.song_name, song_state.current_part_index, part)
     send_midi_program_change(part_index) 
@@ -181,18 +209,37 @@ def process_song_tick():
     global beat_flash_end_time
     if clock_state.status != "PLAYING":
         return
+    
+    # Comprobar si hay un salto pendiente y si se debe ejecutar ahora
     jump_executed = check_and_execute_pending_action()
 
     # Si NO se ejecutó un salto, proceder con la cuenta atrás normal.
     if not jump_executed:
         song_state.remaining_beats_in_part -= 1
     
-        if song_state.remaining_beats_in_part > 0 and \
-           song_state.remaining_beats_in_part % song_state.time_signature_numerator == 0:
-            beat_flash_end_time = time.time() + 0.1 # Activar flash por 0.1 segundos
+        # Lógica de fin de compás
+        sig_num = song_state.time_signature_numerator
+        # Evitar error si la parte no tiene 'bars' (aunque setup_part ya lo filtra)
+        current_part = song_state.parts[song_state.current_part_index]
+        total_beats_in_part = current_part.get("bars", 0) * sig_num
+        beats_into_part = total_beats_in_part - song_state.remaining_beats_in_part
 
+        # Comprobar si se ha completado un compás
+        if beats_into_part > 0 and beats_into_part % sig_num == 0:
+            # Actualizar el contador de compases completados
+            song_state.current_bar_in_part = beats_into_part // sig_num
+            
+            # Llamar a la función que enviará los mensajes OSC
+            send_osc_bar_triggers(song_state.current_bar_in_part)
+            
+            # Activar flash visual en el primer beat del siguiente compás
+            if song_state.remaining_beats_in_part > 0:
+                beat_flash_end_time = time.time() + 0.1
+
+        # Comprobar si la parte ha terminado
         if song_state.remaining_beats_in_part <= 0:
             start_next_part()
+# ----------------------------------------------------
 
 # --- Dynamic Part-Jumping Logic ---
 
@@ -317,6 +364,7 @@ def midi_input_listener():
     """El hilo principal que escucha los mensajes MIDI y actualiza el estado."""
     global midi_input_port, clock_state, song_state
     
+    # Un puerto es compartido si el puerto de control se ha asignado al de entrada.
     is_shared_port = midi_control_port is not None and midi_control_port is midi_input_port
 
     while not SHUTDOWN_FLAG:
@@ -331,18 +379,22 @@ def midi_input_listener():
 
         # --- Lógica de Clock ---
         if msg.type == 'start':
+            # print("DEBUG: midi_input_listener (start) -> cambiando estado a PLAYING")
             clock_state.status = "PLAYING"
             clock_state.start_time = time.time()
             reset_song_state_on_stop()
             start_next_part()
         elif msg.type == 'stop':
+            # print("DEBUG: midi_input_listener (stop) -> cambiando estado a STOPPED")    
             clock_state.status = "STOPPED"
             clock_state.start_time = 0
             reset_song_state_on_stop()
         elif msg.type == 'continue':
+            # print("DEBUG: midi_input_listener (continue) -> cambiando estado a PLAYING")
             clock_state.status = "PLAYING"
         elif msg.type == 'clock':
             if clock_state.status == "STOPPED":
+                # print("DEBUG: midi_input_listener (clock) -> cambiando estado a PLAYING")
                 clock_state.status = "PLAYING"
                 print("Info: Clock detectado. Sincronizando estado a PLAYING.")
             # --- Cálculo de BPM ---
@@ -357,7 +409,7 @@ def midi_input_listener():
                     clock_state.bpm = (60.0 / MIDI_PPQN) / avg_delta
             clock_state.last_tick_time = current_time
 
-            # --- Avance de la Canción (LÓGICA CORREGIDA) ---
+            # --- Avance de la Canción ---
             if clock_state.status == "PLAYING":
                 song_state.midi_clock_tick_counter += 1
                 if song_state.midi_clock_tick_counter >= song_state.ticks_per_song_beat:
@@ -369,7 +421,7 @@ def midi_input_listener():
             process_control_message(msg)
 
 def process_control_message(msg):
-    """Procesa un único mensaje de control MIDI. Reutilizable."""
+    """Procesa un único mensaje de control MIDI (PC o CC)."""
     global pending_action, quantize_mode, ui_feedback_message
     
     if msg.type == 'program_change':
@@ -381,35 +433,37 @@ def process_control_message(msg):
 
     elif msg.type == 'control_change' and msg.control == 0:
         val = msg.value
+        # Saltos rápidos (cuantización fija)
         if 0 <= val <= 3:
             quant_map = {0: "instant", 1: "next_bar", 2: "next_8", 3: "next_16"}
             quant = quant_map[val]
             target = {"type": "relative", "value": 1}
             pending_action = {"target": target, "quantize": quant}
             ui_feedback_message = f"CC Recibido: Salto rápido (Quant: {quant.upper()})."
+        # Selección de modo de cuantización global
         elif val in [4, 5, 6, 7, 9]:
             quant_map = {4: "next_4", 5: "next_8", 6: "next_16", 7: "next_bar", 9: "instant"}
             quantize_mode = quant_map[val]
             ui_feedback_message = f"CC Recibido: Modo global -> {quantize_mode.upper()}."
-        elif val == 10:
+        # Navegación (cuantización global)
+        elif val == 10: # Saltar Anterior
             target = {"type": "relative", "value": -1}
             pending_action = {"target": target, "quantize": quantize_mode}
             ui_feedback_message = "CC Recibido: Saltar Anterior."
-        elif val == 11:
+        elif val == 11: # Saltar Siguiente
             target = {"type": "relative", "value": 1}
             pending_action = {"target": target, "quantize": quantize_mode}
             ui_feedback_message = "CC Recibido: Saltar Siguiente."
-        elif val == 12:
+        elif val == 12: # Reiniciar Parte
             pending_action = {"target": "restart", "quantize": quantize_mode}
             ui_feedback_message = "CC Recibido: Reiniciar Parte."
-        elif val == 13:
+        elif val == 13: # Cancelar Acción
             if pending_action:
                 pending_action = None
                 ui_feedback_message = "CC Recibido: Acción cancelada."
 
 def midi_control_listener():
-    """El hilo que escucha los mensajes MIDI de control (PC, CC)."""
-    global pending_action, quantize_mode, ui_feedback_message
+    """El hilo que escucha los mensajes MIDI de control (en un puerto dedicado)."""
     while not SHUTDOWN_FLAG:
         if not midi_control_port:
             time.sleep(0.1)
@@ -422,53 +476,11 @@ def midi_control_listener():
         
         process_control_message(msg)
 
-        if msg.type == 'program_change':
-            # Salto directo a una parte usando el número de Program Change
-            if 0 <= msg.program < len(song_state.parts):
-                pending_action = {"target": msg.program, "quantize": quantize_mode}
-                ui_feedback_message = f"PC Recibido: Ir a parte {msg.program + 1}."
-            else:
-                ui_feedback_message = f"PC Recibido: Parte {msg.program + 1} no existe."
-
-        elif msg.type == 'control_change' and msg.control == 0:
-            val = msg.value
-            
-            # Saltos rápidos (cuantización fija)
-            if 0 <= val <= 3:
-                quant_map = {0: "instant", 1: "next_bar", 2: "next_8", 3: "next_16"}
-                quant = quant_map[val]
-                target = {"type": "relative", "value": 1}
-                pending_action = {"target": target, "quantize": quant}
-                ui_feedback_message = f"CC Recibido: Salto rápido (Quant: {quant.upper()})."
-            
-            # Selección de modo de cuantización global
-            elif val in [4, 5, 6, 7, 9]:
-                quant_map = {4: "next_4", 5: "next_8", 6: "next_16", 7: "next_bar", 9: "instant"}
-                quantize_mode = quant_map[val]
-                ui_feedback_message = f"CC Recibido: Modo global -> {quantize_mode.upper()}."
-
-            # Navegación (cuantización global)
-            elif val == 10: # Saltar Anterior
-                target = {"type": "relative", "value": -1}
-                pending_action = {"target": target, "quantize": quantize_mode}
-                ui_feedback_message = "CC Recibido: Saltar Anterior."
-            elif val == 11: # Saltar Siguiente
-                target = {"type": "relative", "value": 1}
-                pending_action = {"target": target, "quantize": quantize_mode}
-                ui_feedback_message = "CC Recibido: Saltar Siguiente."
-            elif val == 12: # Reiniciar Parte
-                pending_action = {"target": "restart", "quantize": quantize_mode}
-                ui_feedback_message = "CC Recibido: Reiniciar Parte."
-            elif val == 13: # Cancelar Acción
-                if pending_action:
-                    pending_action = None
-                    ui_feedback_message = "CC Recibido: Acción cancelada."
-
-
 
 def send_midi_command(command: str):
     """Envía un comando MIDI a todos los puertos de salida."""
     global ui_feedback_message
+    # print(f"DEBUG: handle_song_end -> cambiando estado a FINISHED")
     if not midi_output_ports:
         ui_feedback_message = "[!] No hay puerto de control remoto configurado."
         return
@@ -515,6 +527,7 @@ def handle_song_end():
     """Gestiona el final de la secuencia de la canción."""
     global ui_feedback_message
     clock_state.status = "FINISHED"
+    send_midi_command('stop') 
     send_osc_song_end()
     reset_song_state_on_stop() # Resetea los contadores
     ui_feedback_message = f"Canción '{song_state.song_name}' finalizada."
@@ -539,6 +552,37 @@ def send_osc_part_change(song_name: str, part_index: int, part: dict):
         # Actualizar el feedback de la UI si hay un error OSC
         global ui_feedback_message
         ui_feedback_message = f"Error sending OSC: {e}"
+
+
+def send_osc_bar_triggers(completed_bar_number: int):
+    """Comprueba y envía mensajes OSC para los contadores de compases/bloques."""
+    if not osc_client or not osc_config:
+        return
+
+    bar_triggers = osc_config.get("bar_triggers", [])
+    if not bar_triggers:
+        return
+
+    for trigger in bar_triggers:
+        block_size = trigger.get("block_size")
+        address = trigger.get("address")
+
+        if not block_size or not address or block_size <= 0:
+            continue # Ignorar triggers mal configurados
+
+        if completed_bar_number % block_size == 0:
+            try:
+                # Calcular el número de bloque (ej. compás 8 con block_size 4 es el bloque 2)
+                block_number = completed_bar_number // block_size
+                
+                builder = osc_message_builder.OscMessageBuilder(address=address)
+                builder.add_arg(completed_bar_number, 'i') # Compás actual en la parte
+                builder.add_arg(block_number, 'i')         # Número de bloque
+                msg = builder.build()
+                osc_client.send(msg)
+            except Exception as e:
+                global ui_feedback_message
+                ui_feedback_message = f"Error enviando OSC trigger: {e}"
 
 
 def get_feedback_text():
@@ -611,6 +655,7 @@ def get_part_name_text():
 
     part_info_str = "---"
     part_to_display = None
+    style_str = TITLE_COLOR_PALETTE['default']
 
     if song_state.current_part_index != -1:
         part_to_display = song_state.parts[song_state.current_part_index]
@@ -621,10 +666,11 @@ def get_part_name_text():
         name = part_to_display.get('name', '---')
         bars = part_to_display.get('bars', 0)
         part_info_str = f"{name} ({bars} compases)"
+        color_name = part_to_display.get('color')
+        style_str = TITLE_COLOR_PALETTE.get(color_name, TITLE_COLOR_PALETTE['default'])
     
-    # Centrar el nombre en un ancho fijo (ej. 80) para consistencia
     centered_name = part_info_str.center(80)
-    part_name_line = f"<style bg='#222222' fg='ansiwhite' bold='true'>{centered_name}</style>"
+    part_name_line = f"<style {style_str} bold='true'>{centered_name}</style>"
 
     return HTML(app_title_line + "\n" + part_name_line)
 
@@ -704,21 +750,52 @@ def get_next_part_text():
     if clock_state.status != "PLAYING":
         return ""
 
-    # Simular la búsqueda de la siguiente parte sin cambiar el estado real
     next_index, _ = find_next_valid_part_index("+1", song_state.current_part_index, song_state.pass_count)
 
-    # Si no se encuentra una parte siguiente válida, es el final de la canción.
     if next_index is None:
         return HTML("<style fg='#888888'>Siguiente >> Fin</style>")
 
-    # Si se encontró una parte, mostrar su información.
     part = song_state.parts[next_index]
     name = part.get('name', 'N/A')
     bars = part.get('bars', 0)
     next_part_str = f" >> {name} ({bars})"
-    return HTML(f"<style fg='#888888'>{next_part_str}</style>")
+    
+    color_name = part.get('color', 'default')
+    style_str = FG_COLOR_PALETTE.get(color_name, FG_COLOR_PALETTE['default'])
+
+    return HTML(f"<style {style_str}>{next_part_str}</style>")
 
 
+def get_bar_counter_text():
+    """Muestra el contador de compases actual vs el total de la parte."""
+    if song_state.current_part_index == -1 or clock_state.status == "STOPPED":
+        return HTML("<style fg='#666666'>Compás: --/--</style>")
+
+    part = song_state.parts[song_state.current_part_index]
+    total_bars = part.get("bars", 0)
+    current_bar = song_state.current_bar_in_part
+
+    # El contador es 1-based para la UI, pero el estado es 0-based
+    display_bar = current_bar + 1
+    if clock_state.status != "PLAYING" or current_bar >= total_bars:
+        display_bar = current_bar
+
+    # Si estamos en el último beat del compás, mostramos el siguiente número
+    sig_num = song_state.time_signature_numerator
+    if song_state.remaining_beats_in_part % sig_num == 1 and clock_state.status == "PLAYING":
+        display_bar = current_bar + 1
+
+    # Para evitar mostrar "17/16" al final, lo limitamos
+    display_bar = min(display_bar, total_bars)
+    
+    # Durante la reproducción, el compás actual es el que está sonando
+    if clock_state.status == "PLAYING" and song_state.current_bar_in_part < total_bars:
+        display_bar = song_state.current_bar_in_part + 1
+    elif clock_state.status != "PLAYING":
+        display_bar = 0 # Muestra 0 si está parado
+    
+    bar_str = f"Compás: {display_bar:02d}/{total_bars:02d}"
+    return HTML(f"<style fg='#888888'>{bar_str}</style>")
 
 
 def get_step_sequencer_text():
@@ -737,6 +814,11 @@ def get_step_sequencer_text():
     
     endpoint_bar = get_dynamic_endpoint() if pending_action else total_bars
 
+    # Obtener el color base para los bloques de esta parte
+    part_color_name = part.get('color')
+    # Si no hay color definido, usar un gris tenue por defecto para los bloques futuros
+    part_style = FG_COLOR_PALETTE.get(part_color_name, "fg='#888888'")
+
     output_lines = []
     padding = " " * 10
 
@@ -746,20 +828,21 @@ def get_step_sequencer_text():
         for i in range(row_start, min(row_start + 8, total_bars)):
             bar_index_0based = i
             
-            style = "fg='#888888'" # Estilo por defecto (compás futuro normal)
+            style = part_style # Por defecto, todos los bloques tienen el color de la parte
             
             if bar_index_0based < consumed_bars:
                 style = "fg='#444444'" # Compás ya consumido
+            elif pending_action and bar_index_0based >= endpoint_bar:
+                 style = "fg='#444444'" # Compás que se saltará
             elif bar_index_0based == consumed_bars and clock_state.status == "PLAYING":
+                # Estilo especial para el compás activo
                 remaining_bars_to_endpoint = endpoint_bar - bar_index_0based
                 if remaining_bars_to_endpoint == 1:
                     style = "fg='ansired' bold='true'"
                 elif remaining_bars_to_endpoint <= 4:
                     style = "fg='ansiyellow' bold='true'"
                 else:
-                    style = "fg='ansicyan' bold='true'"
-            elif pending_action and bar_index_0based >= endpoint_bar:
-                 style = "fg='#444444'" # Compás que se saltará
+                    style = "fg='ansiwhite' bold='true'" # Compás activo normal
             
             block = "██  "
             line1 += f"<style {style}>{block}</style>"
@@ -837,12 +920,24 @@ def interactive_selector(items, prompt_title):
 
 # --- Main Application ---
 def main():
-    global app_ui_instance, midi_input_port, midi_output_ports, osc_client, osc_address
+    global app_ui_instance, midi_input_port, midi_output_ports, osc_client, osc_address, quantize_mode, pc_output_port, pc_channel, midi_control_port
 
     print("MIDItema\n")
     parser = argparse.ArgumentParser(prog="miditema", description="Contador de compases esclavo de MIDI Clock.")
     parser.add_argument("song_file", nargs='?', default=None, help=f"Nombre del archivo de canción (sin .json) en ./{SONGS_DIR_NAME}/.")
+    parser.add_argument("--quant", type=str, default=None, help="Fija la cuantización por defecto. Valores: bar, 4, 8, 16, 32, instant.")
     args = parser.parse_args()
+
+    # Procesar argumento de cuantización
+    if args.quant:
+        quant_map = {"bar": "next_bar", "4": "next_4", "8": "next_8", "16": "next_16", "32": "next_32", "instant": "instant"}
+        valid_modes = set(quant_map.values())
+        user_mode = quant_map.get(args.quant, args.quant)
+        if user_mode in valid_modes:
+            quantize_mode = user_mode
+            print(f"[*] Modo de cuantización por defecto fijado a: {quantize_mode.upper()}")
+        else:
+            print(f"[!] Modo de cuantización '{args.quant}' no válido. Usando por defecto '{quantize_mode}'.")
 
     config = load_config()
     # --- Configuración de Entrada de Clock ---
@@ -852,7 +947,6 @@ def main():
 
     if not available_ports:
         print("[!] Error: No se encontraron puertos de entrada MIDI.")
-        print("Asegúrate de que tus dispositivos están conectados y el backend MIDI (ej. rtmidi) está instalado.")
         return
 
     if clock_source_name:
@@ -860,15 +954,25 @@ def main():
         if selected_port_name:
             print(f"[*] Fuente de clock '{selected_port_name}' encontrada desde la configuración.")
         else:
-            print(f"[!] La fuente de clock '{clock_source_name}' de la configuración no coincide con ningún puerto.")
+            print(f"[!] La fuente de clock '{clock_source_name}' de la config no fue encontrada.")
 
     if not selected_port_name:
         selected_port_name = interactive_selector(available_ports, "Selecciona la fuente de MIDI Clock")
         if not selected_port_name:
             print("[!] No se seleccionó ninguna fuente. Saliendo.")
             return
+            
+    # Abrir puerto de clock principal
+    try:
+        midi_input_port = mido.open_input(selected_port_name)
+        clock_state.source_name = selected_port_name
+        print(f"[*] Escuchando MIDI Clock en '{selected_port_name}'...")
+    except Exception as e:
+        print(f"[!] Error abriendo el puerto MIDI '{selected_port_name}': {e}")
+        return
 
-    # --- Configuración de Salidas MIDI ---
+    # --- Configuración de Salidas y Control ---
+    # ... (El código de transport_out y osc_configuration no cambia) ...
     transport_out_name = config.get("transport_out")
     if transport_out_name:
         output_port_name = find_port_by_substring(mido.get_output_names(), transport_out_name)
@@ -884,16 +988,14 @@ def main():
 
     midi_config = config.get("midi_configuration")
     if midi_config:
-        global pc_output_port, pc_channel, midi_control_port
         pc_device_name = midi_config.get("device_out")
-        pc_channel_config = midi_config.get("channel_out", 1) # Por defecto canal 1
+        pc_channel_config = midi_config.get("channel_out", 1)
 
         if pc_device_name:
             pc_port_name = find_port_by_substring(mido.get_output_names(), pc_device_name)
             if pc_port_name:
                 try:
                     pc_output_port = mido.open_output(pc_port_name)
-                    # El canal del usuario es 1-16, Mido usa 0-15
                     pc_channel = max(0, min(15, pc_channel_config - 1))
                     print(f"[*] Puerto de salida '{pc_port_name}' abierto para Program Change en el canal {pc_channel + 1}.")
                 except Exception as e:
@@ -906,12 +1008,12 @@ def main():
             control_port_name = find_port_by_substring(mido.get_input_names(), control_device_key)
             if control_port_name:
                 if control_port_name == selected_port_name:
-                    print("[!] Advertencia: El puerto de control es el mismo que el de clock.")
+                    print("[*] El puerto de control es el mismo que el de clock. Usando modo compartido.")
                     midi_control_port = midi_input_port
                 else:
                     try:
                         midi_control_port = mido.open_input(control_port_name)
-                        print(f"[*] Puerto de entrada '{control_port_name}' abierto para control MIDI.")
+                        print(f"[*] Puerto de entrada '{control_port_name}' abierto para control MIDI (dedicado).")
                     except Exception as e:
                         print(f"[!] No se pudo abrir el puerto de control '{control_port_name}': {e}")
             else:
@@ -922,17 +1024,26 @@ def main():
         ip = osc_config.get("ip", "127.0.0.1")
         port = osc_config.get("port")
         osc_address = osc_config.get("address")
-        if port and osc_address:
+        
+        # Guardamos la configuración completa para usarla en otras funciones
+        globals()['osc_config'] = osc_config
+
+        if port and (osc_address or osc_config.get("bar_triggers")):
             try:
                 osc_client = udp_client.SimpleUDPClient(ip, port)
-                print(f"[*] Cliente OSC configurado para enviar a {ip}:{port} en la dirección '{osc_address}'")
+                print(f"[*] Cliente OSC configurado para enviar a {ip}:{port}")
+                if osc_address:
+                    print(f"    - Dirección de cambio de parte: '{osc_address}'")
+                if osc_config.get("bar_triggers"):
+                    print(f"    - Triggers de compás/bloque activados.")
             except Exception as e:
                 print(f"Error configurando el cliente OSC: {e}")
         else:
-            print("Advertencia: La configuración OSC está incompleta (falta 'port' o 'address').")
+            print("Advertencia: La configuración OSC está incompleta (falta 'port' y 'address' o 'bar_triggers').")
 
 
     # 2. Seleccionar Canción
+    # ... (La selección de canción no cambia) ...
     selected_song_path = None
     if args.song_file:
         path = SONGS_DIR / f"{args.song_file}.json"
@@ -960,24 +1071,13 @@ def main():
         return # Salir si la canción no es válida
 
     # 3. Iniciar MIDI y Lógica
-    try:
-        midi_input_port = mido.open_input(selected_port_name)
-        clock_state.source_name = selected_port_name
-        print(f"[*] Escuchando MIDI Clock en '{selected_port_name}'...")
-    except Exception as e:
-        print(f"[!] Error abriendo el puerto MIDI '{selected_port_name}': {e}")
-        return
-
     listener_thread = threading.Thread(target=midi_input_listener, daemon=True)
     listener_thread.start()
 
+    control_listener_thread = None
     if midi_control_port and midi_control_port is not midi_input_port:
         control_listener_thread = threading.Thread(target=midi_control_listener, daemon=True)
         control_listener_thread.start()
-    else:
-        # Si el puerto es el mismo, la lógica se manejará en el hilo principal de clock
-        # (Esto requiere una modificación futura, por ahora separamos)
-        control_listener_thread = None 
 
     signal.signal(signal.SIGINT, signal_handler)
    
@@ -1139,6 +1239,7 @@ def main():
         Window(height=1),
         Window(content=FormattedTextControl(text=get_step_sequencer_text)),
         Window(content=FormattedTextControl(text=get_next_part_text)),
+        Window(content=FormattedTextControl(text=get_bar_counter_text), height=1, style="fg:#888888"),
         Window(content=FormattedTextControl("-" * 80), height=1),
         
         # --- Bloque de estado inferior (Reordenado) ---
