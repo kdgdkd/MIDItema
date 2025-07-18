@@ -1,0 +1,89 @@
+// Setlist completo para un directo 
+{
+    "playlist_name": "Set de Directo",
+    "mode": "loop",
+    // "mode": "song",
+    "songs": [
+      // -----------------------------------------------------------------
+      // CANCIÓN 1: INTRO 
+      // -----------------------------------------------------------------
+      {
+        "song_name": "Intro",
+        "color": "blue",
+        "parts": [
+          { "name": "Intro", "bars": 32, "color": "green", "repeat_pattern": false },
+          { 
+            "name": "Entra Perc", "bars": 16, "color": "red",
+            // Loop preparación siguiente tema.
+            "repeat_pattern": true 
+          }
+        ]
+      },
+  
+      // -----------------------------------------------------------------
+      // CANCIÓN 2: TEMA 1 
+      // -----------------------------------------------------------------
+      {
+        "song_name": "Progresiva",
+        "color": "cyan",
+        "parts": [
+          { "name": "Subtle Kick", "bars": 16, "color": "cyan", "repeat_pattern": false },
+          { "name": "Hi-Hats & Shakers", "bars": 16, "color": "blue", "repeat_pattern": false },
+          { "name": "Bassline Filter In", "bars": 32, "color": "green", "repeat_pattern": false },
+          { "name": "Full Percussion Groove", "bars": 16, "color": "yellow", "repeat_pattern": false },
+          { "name": "Tension / Riser", "bars": 16, "color": "red", "repeat_pattern": true }
+        ]
+      },
+  
+      // -----------------------------------------------------------------
+      // CANCIÓN 3: TEMA 2 
+      // -----------------------------------------------------------------
+      {
+        "song_name": "EVOLUTION",
+        "color": "green",
+        "parts": [
+          { "name": "Groove A", "bars": 32, "color": "cyan", "repeat_pattern": false  },
+          { "name": "Groove B", "bars": 32, "color": "blue", "repeat_pattern": false  },
+          { "name": "Break", "bars": 16, "color": "green", "repeat_pattern": false  },
+          { "name": "Groove A+B", "bars": 32, "color": "yellow", "repeat_pattern": false },
+          { "name": "Peak", "bars": 32, "color": "yellow", "repeat_pattern": false },
+          { "name": "(Out)", "bars": 32, "color": "red", "repeat_pattern": true }
+        ]
+      },
+  
+      // -----------------------------------------------------------------
+      // CANCIÓN 4: PUENTE ACIDO
+      // -----------------------------------------------------------------
+      {
+        "song_name": "Puente Acido",
+        "color": "yellow",
+        "parts": [
+          { "name": "Acid Filter Intro", "bars": 16, "color": "cyan", "repeat_pattern": false },
+          { "name": "Driving Bassline", "bars": 32, "color": "blue", "repeat_pattern": false },
+          { "name": "Percussion Break", "bars": 32, "color": "green", "repeat_pattern": false },
+          { "name": "303 Solo", "bars": 32, "color": "green", "repeat_pattern": false },
+          { "name": "Full Acid Groove", "bars": 32, "color": "yellow", "repeat_pattern": false },
+          { "name": "Filtered Outro", "bars": 16, "color": "red", "repeat_pattern": true }
+        ]
+      },
+  
+      // -----------------------------------------------------------------
+      // CANCIÓN 5: CIERRE PROGRESIVO
+      // -----------------------------------------------------------------
+      {
+        "song_name": "Cierre Progresivo",
+        "color": "magenta",
+        "parts": [
+          { "name": "Arp Intro", "bars": 32, "color": "magenta", "repeat_pattern": false },
+          { "name": "Pad Swells", "bars": 16, "color": "blue", "repeat_pattern": false },
+          { "name": "Melody A", "bars": 32, "color": "green", "repeat_pattern": false },
+          { "name": "Break 16", "bars": 16, "color": "blue", "repeat_pattern": false },
+          { "name": "Melody B / Harmony", "bars": 32, "color": "green", "repeat_pattern": false },
+          { "name": "Final Build", "bars": 16, "color": "yellow", "repeat_pattern": false },
+          { "name": "Break 4", "bars": 4, "color": "blue", "repeat_pattern": false },
+          { "name": "Peak Melody", "bars": 32, "color": "yellow", "repeat_pattern": false },
+          { "name": "Outro", "bars": 32, "color": "red", "repeat_pattern": true }
+        ]
+      }
+    ]
+  }
