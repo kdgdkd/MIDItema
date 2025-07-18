@@ -1,4 +1,4 @@
-# MIDItema: Live Performance Sequencer
+MIDItema: Live Performance Sequencer
 
 A terminal-based, live performance song arranger and bar counter. MIDItema acts as a MIDI clock slave, stepping through song structures and broadcasting state changes via MIDI and OSC, giving you powerful, quantized control over your song's flow.
 
@@ -422,6 +422,13 @@ All actions below are triggered by sending a Control Change message on **CC #
 | 18  | Cancel Action | Immediately cancels any pending action. |
 | 19  | Toggle Playback Mode | Switches between Loop Mode and Song Mode. |
 
+#### Global Part Jumps (CC #1)
+
+This is a powerful feature for navigating large setlists. It allows you to jump to any part across your entire playlist with a single message.
+
+- **Action:** Jump to a specific part in the entire setlist.
+- **Details:** The `value` of the CC #1 message (0-127) corresponds to the global, zero-based index of the part you want to jump to. MIDItema calculates which song and part this index corresponds to. - `CC #1, Value 0`: Jumps to the first part of the first song. - `CC #1, Value 1`: Jumps to the second part of the first song (if it exists). - If the first song has 5 parts, `CC #1, Value 5` will jump to the first part of the *second* song. - **Quantization:** Uses the currently active **global** quantize mode.
+
 ## MIDI Output
 
 MIDItema can send MIDI messages to control other devices in your setup.
@@ -553,8 +560,6 @@ These are powerful, rhythmically-timed messages configured via the "bar_trigger
   - /miditema/trigger/bar 8 8
 
   - /miditema/trigger/block4 8 2 (This is the **2nd** block of 4 bars)
-
-
 
 ## License
 
