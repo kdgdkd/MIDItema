@@ -16,7 +16,9 @@ You can pre-define the sections of your song (Intro, Verse, Chorus, etc.) and th
   
 - **Advanced Song & Playlist Structure:** Define your songs and playlists in simple, human-readable json5 files, which allows for comments. Specify parts, lengths, colors for both songs and parts, and complex repetition logic.
   
-  - **Repetition Patterns:** Control exactly how parts repeat within a song.
+
+  - **Repetition Patterns:** Control exactly how parts repeat within a song.
+
 - **Live Part & Song Navigation:** The core of MIDItema. Program quantized jumps to the next/previous part or song, restart the current section, or go to any specific part/song on command.
   
 - **Dual Playback Mode (Loop/Song):** Toggle between two modes on the fly. **Loop Mode** respects the `repeat_pattern` of each part, allowing for loops and vamping. **Song Mode** overrides these patterns, forcing the arrangement to always advance linearly to the next part, perfect for progressing through a song's structure.
@@ -25,67 +27,77 @@ You can pre-define the sections of your song (Intro, Verse, Chorus, etc.) and th
   
 - **Comprehensive TUI (Terminal User Interface):** A clean, full-screen interface provides a clear overview:
   
-  - **Song & Part Titles:** Clearly displays the current song and part names, with customizable colors.
-    
-  - **Playlist Status:** Shows your current position in the setlist (e.g., [2/5]).
-    
-  - **Bar & Beat Countdown:** A large counter shows bars and beats remaining until the next transition.
-    
-  - **Bar Counter:** A persistent Bar: XX/YY display shows your current position within the part.
-    
-  - **Step Sequencer:** A visual block display of the bars in the current part.
-    
-  - **Status Line:** Shows clock status, elapsed time, BPM, and MIDI source.
-    
-  - **Action Status:** Displays the global quantization mode and details of any pending action.
-    
+
+  - **Song & Part Titles:** Clearly displays the current song and part names, with customizable colors.
+
+  - **Playlist Status:** Shows your current position in the setlist (e.g., [2/5]).
+
+  - **Bar & Beat Countdown:** A large counter shows bars and beats remaining until the next transition.
+
+  - **Bar Counter:** A persistent Bar: XX/YY display shows your current position within the part.
+
+  - **Step Sequencer:** A visual block display of the bars in the current part.
+
+  - **Status Line:** Shows clock status, elapsed time, BPM, and MIDI source.
+
+  - **Action Status:** Displays the global quantization mode and details of any pending action.
+
 - **Flexible Control Scheme:** Control MIDItema from your keyboard or external MIDI messages.
-  
-  - **MIDI Control:** Map MIDI Program Change, Song Select, Note On, and Control Change messages for complete hands-free operation.
+
+  - **MIDI Control:** Map MIDI Program Change, Song Select, Note On, and Control Change messages for complete hands-free operation.
+
 - **Extensive OSC Broadcasting:** Sends detailed OSC messages on part changes and at configurable rhythmic intervals (bar, 4-bar, 8-bar triggers).
   
 - **MIDI Output & Forwarding:**
   
-  - **Remote Transport:** Send MIDI Start/Stop commands to a master device.
-    
-  - **Program Change Output:** Send a PC message when a part starts.
-    
-  - **Song Select Output:** Send a Song Select message when a song starts.
-    
+
+  - **Remote Transport:** Send MIDI Start/Stop commands to a master device.
+
+  - **Program Change Output:** Send a PC message when a part starts.
+
+  - **Song Select Output:** Send a Song Select message when a song starts.
+
 - **Extensive OSC Broadcasting:**
-  
-  - **Song Change Messages:** Broadcasts the song name and index when a new song begins.
-    
-  - **Part Change Messages:** Broadcasts details of the part that is now beginning.
-    
-  - **Bar & Block Trigger Messages:** Sends messages at configurable rhythmic intervals.
-    
+
+  - **Song Change Messages:** Broadcasts the song name and index when a new song begins.
+
+  - **Part Change Messages:** Broadcasts details of the part that is now beginning.
+
+  - **Bar & Block Trigger Messages:** Sends messages at configurable rhythmic intervals.
+
 - **External Configuration:** All I/O ports and OSC settings are defined in a single miditema.conf.json file.
-  
 
 ## Installation
 
 MIDItema is designed to run from a terminal and requires Python 3.
 
 1. **Clone the repository:**
-  
-  ```
-  git clone https://github.com/your-username/miditema.git
-  cd miditema
-  ```
-  
-2. **Install dependencies:**  
-  It's recommended to use a Python virtual environment.
-  
-  ```
-  # Create and activate a virtual environment (optional but recommended)
-  python3 -m venv venv
-  source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-  
-  # Install the required packages
-  pip install mido python-osc prompt-toolkit python-rtmidi json5
-  ```
-  
+
+  ```
+
+  git clone https://github.com/your-username/miditema.git
+
+  cd miditema
+
+  ```
+
+2. **Install dependencies:**  
+
+  It's recommended to use a Python virtual environment.
+
+  ```
+
+  # Create and activate a virtual environment (optional but recommended)
+
+  python3 -m venv venv
+
+  source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+
+  # Install the required packages
+
+  pip install mido python-osc prompt-toolkit python-rtmidi json5
+
+  ```
 
 ## Configuration
 
@@ -99,34 +111,63 @@ This file, located in the root directory, defines all your MIDI and OSC connecti
 
 ```
 // miditema.conf.json
+
 // Main configuration for MIDI and OSC connections.
+
 // JSON5 format allows for comments and trailing commas.
+
 {
-    // --- MIDI Clock and Transport ---
-    "clock_source": "MasterClock",
-    "transport_out": "DAW_Transport_In",
 
-    // --- MIDI Control and Output ---
-    "midi_configuration": {
-        "device_in": "Controller_Port",
-        "device_out": "Synth_Module_1",
-        "channel_out": 1
-    },
+    // --- MIDI Clock and Transport ---
 
-    // --- OSC (Open Sound Control) Output ---
-    "osc_configuration": {
-        "send": {
-            "ip": "127.0.0.1",
-            "port": 9000,
-            "address": "/miditema/part/change",
-            "address_song_change": "/miditema/song/change",
-            "address_song_end": "/miditema/song/end",
-            "bar_triggers": [
-                { "block_size": 1, "address": "/miditema/trigger/bar" },
-                { "block_size": 4, "address": "/miditema/trigger/block4" }
-            ]
-        }
-    }
+    "clock_source": "MasterClock",
+
+    "transport_out": "DAW_Transport_In",
+
+
+
+    // --- MIDI Control and Output ---
+
+    "midi_configuration": {
+
+        "device_in": "Controller_Port",
+
+        "device_out": "Synth_Module_1",
+
+        "channel_out": 1
+
+    },
+
+
+
+    // --- OSC (Open Sound Control) Output ---
+
+    "osc_configuration": {
+
+        "send": {
+
+            "ip": "127.0.0.1",
+
+            "port": 9000,
+
+            "address": "/miditema/part/change",
+
+            "address_song_change": "/miditema/song/change",
+
+            "address_song_end": "/miditema/song/end",
+
+            "bar_triggers": [
+
+                { "block_size": 1, "address": "/miditema/trigger/bar" },
+
+                { "block_size": 4, "address": "/miditema/trigger/block4" }
+
+            ]
+
+        }
+
+    }
+
 }
 ```
 
@@ -138,33 +179,34 @@ This file, located in the root directory, defines all your MIDI and OSC connecti
   
 - "midi_configuration": (Optional) This entire section enables advanced MIDI control and output.
   
-  - "device_in": A substring of the MIDI input port for receiving control messages (Program Change, Control Change, etc.).
-    
-    - **Note:** If this is the same as "clock_source", MIDItema will use a single port for both clock and control. If it's different, it will open a dedicated second port.
-  - "device_out": A substring of the MIDI output port for sending Program Change and Song Select messages.
-    
-  - "channel_out": The MIDI channel (1-16) on which to send Program Change messages. Defaults to 1 if omitted.
-    
+
+  - "device_in": A substring of the MIDI input port for receiving control messages (Program Change, Control Change, etc.).
+
+    - **Note:** If this is the same as "clock_source", MIDItema will use a single port for both clock and control. If it's different, it will open a dedicated second port.
+
+  - "device_out": A substring of the MIDI output port for sending Program Change and Song Select messages.
+
+  - "channel_out": The MIDI channel (1-16) on which to send Program Change messages. Defaults to 1 if omitted.
+
 - "osc_configuration": (Optional) This section configures all OSC output.
-  
-  - "send":
-    
-    - "ip": The target IP address for OSC messages. Defaults to "127.0.0.1" (for the same machine).
-      
-    - "port": The target port for OSC messages. This is mandatory if you want to send any OSC data.
-      
-    - "address": The OSC address for **part change** messages.
-      
-    - "address_song_change": (Optional) The OSC address for **song change** messages, sent when a new song from a playlist is loaded.
-      
-    - "address_song_end": (Optional) The OSC address for the **end of playlist** message.
-      
-    - "bar_triggers": (Optional) A list of rules for sending messages on rhythmic boundaries. Each rule is an object with:
-      
-      - "block_size" (integer): How many bars to count before sending a message.
-        
-      - "address" (string): The OSC address to use for this trigger.
-        
+
+  - "send":
+
+    - "ip": The target IP address for OSC messages. Defaults to "127.0.0.1" (for the same machine).
+
+    - "port": The target port for OSC messages. This is mandatory if you want to send any OSC data.
+
+    - "address": The OSC address for **part change** messages.
+
+    - "address_song_change": (Optional) The OSC address for **song change** messages, sent when a new song from a playlist is loaded.
+
+    - "address_song_end": (Optional) The OSC address sent when a song finishes (either at the end of a single song, or before transitioning to the next one in a playlist).
+
+    - "bar_triggers": (Optional) A list of rules for sending messages on rhythmic boundaries. Each rule is an object with:
+
+      - "block_size" (integer): How many bars to count before sending a message.
+
+      - "address" (string): The OSC address to use for this trigger.
 
 ### 2. Song and Playlist Files (temas/)
 
@@ -176,15 +218,25 @@ A standard song file defines a single piece of music.
 
 ```
 // temas/my_song.json
+
 {
-    "song_name": "My Awesome Track",
-    "color": "blue", // Optional: sets the color for the song title bar
-    "time_signature": "4/4",
-    "parts": [
-        { "name": "Intro", "bars": 8, "color": "cyan", "repeat_pattern": false },
-        { "name": "Verse", "bars": 16, "color": "green" },
-        { "name": "Chorus", "bars": 16, "color": "red", "repeat_pattern": true }
-    ]
+
+    "song_name": "My Awesome Track",
+
+    "color": "blue", // Optional: sets the color for the song title bar
+
+    "time_signature": "4/4",
+
+    "parts": [
+
+        { "name": "Intro", "bars": 8, "color": "cyan", "repeat_pattern": false },
+
+        { "name": "Verse", "bars": 16, "color": "green" },
+
+        { "name": "Chorus", "bars": 16, "color": "red", "repeat_pattern": true }
+
+    ]
+
 }
 ```
 
@@ -199,25 +251,45 @@ A playlist file arranges multiple songs. It is identified by the presence of a 
 
 ```
 // temas/my_setlist.json
+
 {
-  "playlist_name": "My Live Set",
-  "songs": [
-    // 1. External Song: Referenced from another file
-    { "filepath": "my_song.json" },
 
-    // 2. Embedded Song: Defined directly inside the playlist
-    {
-      "song_name": "Ambient Interlude",
-      "color": "magenta",
-      "parts": [
-        { "name": "Pad Drone", "bars": 8, "color": "cyan" },
-        { "name": "Riser FX", "bars": 4, "color": "yellow" }
-      ]
-    },
+  "playlist_name": "My Live Set",
 
-    // 3. Another External Song
-    { "filepath": "another_track.json" }
-  ]
+  "songs": [
+
+    // 1. External Song: Referenced from another file
+
+    { "filepath": "my_song.json" },
+
+
+
+    // 2. Embedded Song: Defined directly inside the playlist
+
+    {
+
+      "song_name": "Ambient Interlude",
+
+      "color": "magenta",
+
+      "parts": [
+
+        { "name": "Pad Drone", "bars": 8, "color": "cyan" },
+
+        { "name": "Riser FX", "bars": 4, "color": "yellow" }
+
+      ]
+
+    },
+
+
+
+    // 3. Another External Song
+
+    { "filepath": "another_track.json" }
+
+  ]
+
 }
 ```
 
@@ -225,10 +297,12 @@ A playlist file arranges multiple songs. It is identified by the presence of a 
   
 - **songs**: (Mandatory) A list of song objects. Each object can be:
   
-  - **An external song reference:** { "filepath": "filename.json" }. MIDItema will load this file from the temas/ directory.
-    
-  - **An embedded song:** A full song object defined directly within the list, containing its own song_name, color, and parts.
-    
+
+  - **An external song reference:** { "filepath": "filename.json" }. MIDItema will load this file from the temas/ directory.
+
+  - **An embedded song:** A full song object defined directly within the list, containing its own song_name, color, and parts.
+
+- **mode**: (Optional) Sets the default playback mode for the playlist. Can be `"loop"` (respects `repeat_pattern`) or `"song"` (forces linear progression). This setting is overridden by the `--loop-mode` or `--song-mode` command-line arguments.
 
 ## Usage
 
@@ -238,20 +312,26 @@ A playlist file arranges multiple songs. It is identified by the presence of a 
   
 3. **Run MIDItema from your terminal.** You can either launch it and select a song from an interactive list, or specify a song file directly.
   
-  ```
-  # Run and select a song from the interactive list
-  python miditema.py
-  
-  # Or, specify a song file directly (without the .json extension)
-  python miditema.py my_song_file
-  
-  # Or, launch with a specific default quantization mode
-  python miditema.py my_song_file --quant 8
-  # Valid --quant values: bar, 4, 8, 16, 32, instant
-  ```
-  
+
+  ```
+
+  # Run and select a song from the interactive list
+
+  python miditema.py
+
+  # Or, specify a song file directly (without the .json extension)
+
+  python miditema.py my_song_file
+
+  # Or, launch with a specific default quantization mode
+
+  python miditema.py my_song_file --quant 8
+
+  # Valid --quant values: bar, 4, 8, 16, 32, instant
+
+  ```
+
 4. **Start the master clock.** MIDItema will detect the clock, synchronize, and begin stepping through the song parts as defined in your JSON file.
-  
 
 ## Controls
 
@@ -260,22 +340,39 @@ MIDItema can be controlled via computer keyboard or external MIDI messages. Most
 ### Keyboard Controls
 
 | Key(s) | Action | Details / Quantization |
+
 | --- | --- | --- |
-| **Global Transport** |     |     |
+
+| **Global Transport** |     |     |
+
 | Space / Enter | Send Start/Stop | Sends a MIDI Start/Stop command immediately. |
+
 | q / Ctrl+C | Quit | Exits the application cleanly. |
-| **Part Navigation** |     |     |
+
+| **Part Navigation** |     |     |
+
 | → / ← | Jump Next / Previous Part | Programs a relative jump within the current song. Uses the **global** quantize mode. |
-| ↑   | Restart Part | Restarts the current part. Uses the **global** quantize mode. |
+
+| ↑   | Restart Part | Restarts the current part. Uses the **global** quantize mode. |
+
 | . or , then [num] Enter | Go to Part | Jumps to a specific part number within the current song. Uses the **global** quantize mode. |
-| **Playlist Navigation** |     |     |
-| PageDown / PageUp | Next / Previous Song | Jumps to the next or previous song in the playlist. Uses the **global** quantize mode. |
-| **General Actions** |     |     |
-| ↓   | Cancel Action | Immediately cancels any pending action. |
-| r   | Toggle Playback Mode | Switches between Loop Mode (respects part repeats) and Song Mode (forces linear progression). |
-| **Quick Jumps (Fixed Quantization)** |     |     |
+
+| **Playlist Navigation** | | |
+| `PageDown` / `PageUp` | Next / Previous Song | Jumps to the next or previous song in the playlist. Uses the **global** quantize mode. |
+| `Home` / `End` | Go to First / Last Song | Jumps to the first or last song in the playlist. Uses the **global** quantize mode. |
+
+| **General Actions** |     |     |
+
+| ↓   | Cancel Action | Immediately cancels any pending action. |
+
+| r   | Toggle Playback Mode | Switches between Loop Mode (respects part repeats) and Song Mode (forces linear progression). |
+
+| **Quick Jumps (Fixed Quantization)** |     |     |
+
 | 0 - 3 | Quick Jump +1 | Jumps to the next part with fixed quantization (Next Bar, Next 4, Next 8, Next 16). |
-| **Global Quantize Mode Selection** |     |     |
+
+| **Global Quantize Mode Selection** |     |     |
+
 | 4 - 7, 9 | Set Global Quantize | Sets the global mode (Next 4, Next 8, Next 16, Next Bar, Instant). |
 
 ### MIDI Controls
@@ -285,17 +382,25 @@ To use MIDI controls, configure "device_in" in miditema.conf.json.
 #### Absolute Jumps
 
 | Message | Action | Details / Quantization |
+
 | --- | --- | --- |
+
 | **Program Change** N | Go to Part N+1 | Jumps to a specific part in the current song. Uses the **global** quantize mode. |
+
 | **Song Select** N | Go to Song N+1 | Jumps to a specific song in the current playlist. Uses the **global** quantize mode. |
 
 #### Relative Navigation & Actions
 
 | Message | Action | Details / Quantization |
+
 | --- | --- | --- |
+
 | **Note On** 125 | Next Part | Jumps to the next part. Uses the **global** quantize mode. |
+
 | **Note On** 124 | Previous Part | Jumps to the previous part. Uses the **global** quantize mode. |
+
 | **Note On** 127 | Next Song | Jumps to the next song in the playlist. Uses the **global** quantize mode. |
+
 | **Note On** 126 | Previous Song | Jumps to the previous song in the playlist. Uses the **global** quantize mode. |
 
 #### General Functions via CC #0
@@ -304,82 +409,18 @@ All actions below are triggered by sending a Control Change message on **CC #
 
 | CC #0 Value | Action | Details / Quantization |
 | --- | --- | --- |
-| 0 - 3 | Quick Jump +1 | Jumps to the next part with fixed quantization (Instant, Next Bar, Next 8, Next 16). |
-| 4 - 7, 9 | Set Global Quantize | Sets the global mode (Next 4, Next 8, Next 16, Next Bar, Instant). |
-| 10  | Previous Part | Jumps to the previous part. Uses the **global** quantize mode. |
-| 11  | Next Part | Jumps to the next part. Uses the **global** quantize mode. |
-| 12  | Restart Part | Restarts the current part. Uses the **global** quantize mode. |
-| 13  | Previous Song | Jumps to the previous song in the playlist. Uses the **global** quantize mode. |
-| 14  | Next Song | Jumps to the next song in the playlist. Uses the **global** quantize mode. |
-| 15  | Restart Song | Restarts the current song from its first part. Uses the **global** quantize mode. |
-| 16  | Cancel Action | Immediately cancels any pending action.Controls |
-| 17  | Toggle Playback Mode | Switches between Loop Mode and Song Mode |
-
-MIDItema can be controlled via computer keyboard or external MIDI messages. Most actions are scheduled as a **pending action** and executed with musical quantization.
-
-### Keyboard Controls
-
-These controls are active when the MIDItema terminal window is in focus.
-
-| Key(s) | Action | Details / Quantization |
-| --- | --- | --- |
-| **Global Transport** |     |     |
-| Space / Enter | Send Start/Stop | Sends a MIDI Start/Stop command immediately to the port defined in "transport_out". |
-| q / Ctrl+C | Quit | Exits the application cleanly. |
-| **Live Navigation** |     |     |
-| → / ← | Jump Next / Previous | Programs a relative jump. Uses the **global** quantize mode. Pressing multiple times accumulates the jump (e.g., → → → programs a +3 jump). |
-| ↑   | Restart Part | Restarts the current part from its beginning. Uses the **global** quantize mode. |
-| ↓   | Cancel Action | Immediately cancels any pending jump or restart action. |
-| . or , then [num] Enter | Go to Part | Enters "Go to" mode. Type a part number (1-based, e.g., .4 for the 4th part) and press Enter to program the jump. Uses the **global** quantize mode. |
-| **Quick Jumps (Fixed Quantization)** |     |     |
-| 0   | Quick Jump +1 | Jumps to the next valid part. **Fixed Quantization: Next Bar**. |
-| 1   | Quick Jump +1 | Jumps to the next valid part. **Fixed Quantization: Next 4 Bars**. |
-| 2   | Quick Jump +1 | Jumps to the next valid part. **Fixed Quantization: Next 8 Bars**. |
-| 3   | Quick Jump +1 | Jumps to the next valid part. **Fixed Quantization: Next 16 Bars**. |
-| **Global Quantize Mode Selection** |     |     |
-| 4   | Set Global Quantize | Sets the global mode to **Next 4 Bars**. |
-| 5   | Set Global Quantize | Sets the global mode to **Next 8 Bars**. |
-| 6   | Set Global Quantize | Sets the global mode to **Next 16 Bars**. |
-| 7   | Set Global Quantize | Sets the global mode to **Next Bar**. |
-| 9   | Set Global Quantize | Sets the global mode to **Instant**. |
-
-### MIDI Controls
-
-To use MIDI controls, you must configure "device_in" in miditema.conf.json.
-
-#### Program Change (PC) Messages
-
-- **Action:** Jump to a specific part.
-  
-- **Details:** Sending a Program Change message with value N will schedule a jump to the N+1-th part of the song (PC messages are 0-127, parts are 1-based). For example, PC 0 jumps to Part 1, PC 1 jumps to Part 2, etc.
-  
-- **Quantization:** Uses the currently active **global** quantize mode.
-  
-
-#### Control Change (CC) Messages
-
-All control actions are mapped to **CC#0**. The action performed depends on the value of the CC message.
-
-| CC#0 Value | Action | Details / Quantization |
-| --- | --- | --- |
-| **Quick Jumps (Fixed Quantization)** |     |     |
-| 0   | Quick Jump +1 | Jumps to the next valid part. **Fixed Quantization: Instant**. |
-| 1   | Quick Jump +1 | Jumps to the next valid part. **Fixed Quantization: Next Bar**. |
-| 2   | Quick Jump +1 | Jumps to the next valid part. **Fixed Quantization: Next 8 Bars**. |
-| 3   | Quick Jump +1 | Jumps to the next valid part. **Fixed Quantization: Next 16 Bars**. |
-| **Global Quantize Mode Selection** |     |     |
-| 4   | Set Global Quantize | Sets the global mode to **Next 4 Bars**. |
-| 5   | Set Global Quantize | Sets the global mode to **Next 8 Bars**. |
-| 6   | Set Global Quantize | Sets the global mode to **Next 16 Bars**. |
-| 7   | Set Global Quantize | Sets the global mode to **Next Bar**. |
-| 9   | Set Global Quantize | Sets the global mode to **Instant**. |
-| **Live Navigation (Global Quantization)** |     |     |
-| 10  | Jump Previous | Programs a -1 relative jump. Uses the **global** quantize mode. |
-| 11  | Jump Next | Programs a +1 relative jump. Uses the **global** quantize mode. |
-| 12  | Restart Part | Restarts the current part from its beginning. Uses the **global** quantize mode. |
-| 13  | Cancel Action | Immediately cancels any pending jump or restart action. |
-
-##
+| 0 - 3 | Quick Jump +1 | Jumps to the next part with fixed quantization (Instant, Next Bar, Next 8, Next 16). |
+| 4 - 9 | Set Global Quantize | Sets the global mode (`4`:Next 4, `5`:Next 8, `6`:Next 16, `7`:Next Bar, `8`:End of Part, `9`:Instant). |
+| 10  | Previous Part | Jumps to the previous part. Uses the **global** quantize mode. |
+| 11  | Next Part | Jumps to the next part. Uses the **global** quantize mode. |
+| 12  | Previous Song | Jumps to the previous song in the playlist. Uses the **global** quantize mode. |
+| 13  | Next Song | Jumps to the next song in the playlist. Uses the **global** quantize mode. |
+| 14  | Go to First Song | Jumps to the first song in the playlist. Uses the **global** quantize mode. |
+| 15  | Go to Last Song | Jumps to the last song in the playlist. Uses the **global** quantize mode. |
+| 16  | Restart Song | Restarts the current song from its first part. Uses the **global** quantize mode. |
+| 17  | Restart Part | Restarts the current part. Uses the **global** quantize mode. |
+| 18  | Cancel Action | Immediately cancels any pending action. |
+| 19  | Toggle Playback Mode | Switches between Loop Mode and Song Mode. |
 
 ## MIDI Output
 
@@ -424,12 +465,12 @@ This is a core feature for integrating MIDItema with other software. All OSC mes
   
 - **Arguments:**
   
-  1. **Song Name** (string): The name of the song that is about to begin.
-    
-  2. **Song Index** (integer): The zero-based index of this song in the playlist.
-    
+
+  1. **Song Name** (string): The name of the song that is about to begin.
+
+  2. **Song Index** (integer): The zero-based index of this song in the playlist.
+
 - **Example:** /miditema/song/change "Main Track" 1
-  
 
 ### Part Change Message
 
@@ -439,16 +480,16 @@ This is a core feature for integrating MIDItema with other software. All OSC mes
   
 - **Arguments:**
   
-  1. **Song Name** (string): The name of the currently loaded song.
-    
-  2. **Part Name** (string): The name of the part that is now beginning.
-    
-  3. **Part Bars** (integer): The total number of bars in this new part.
-    
-  4. **Part Index** (integer): The zero-based index of this part in the song's parts array.
-    
+
+  1. **Song Name** (string): The name of the currently loaded song.
+
+  2. **Part Name** (string): The name of the part that is now beginning.
+
+  3. **Part Bars** (integer): The total number of bars in this new part.
+
+  4. **Part Index** (integer): The zero-based index of this part in the song's parts array.
+
 - **Example:** /miditema/part/change "Main Track" "Verse 2" 16 2
-  
 
 ### Song End Message
 
@@ -458,10 +499,12 @@ This is a core feature for integrating MIDItema with other software. All OSC mes
   
 - **Arguments:**
   
-  1. **Song Name** (string): The name of the last song that has just ended.
+
+  1. **Song Name** (string): The name of the last song that has just ended.
+
 - **Example:** /miditema/song/end "Outro Track"
-  /miditema/song/end "Live Set"
-  
+
+  /miditema/song/end "Live Set"
 
 ### Bar & Block Trigger Messages
 
@@ -473,17 +516,20 @@ These are powerful, rhythmically-timed messages configured via the "bar_trigger
   
 - **Arguments:** Each trigger message contains two arguments:
   
-  1. **Completed Bar Number** (integer): The number of the bar that just finished within the current part (1-based).
-    
-  2. **Completed Block Number** (integer): The number of blocks of this size that have been completed. Calculated as Completed Bar Number / block_size.
-    
+
+  1. **Completed Bar Number** (integer): The number of the bar that just finished within the current part (1-based).
+
+  2. **Completed Block Number** (integer): The number of blocks of this size that have been completed. Calculated as Completed Bar Number / block_size.
 
 **Example bar_triggers Configuration:**
 
 ```
 "bar_triggers": [
-    { "block_size": 1, "address": "/miditema/trigger/bar" },
-    { "block_size": 4, "address": "/miditema/trigger/block4" }
+
+    { "block_size": 1, "address": "/miditema/trigger/bar" },
+
+    { "block_size": 4, "address": "/miditema/trigger/block4" }
+
 ]
 ```
 
@@ -497,27 +543,19 @@ These are powerful, rhythmically-timed messages configured via the "bar_trigger
   
 - At the end of bar 4:
   
-  - /miditema/trigger/bar 4 4
-    
-  - /miditema/trigger/block4 4 1 (This is the **1st** block of 4 bars)
-    
+
+  - /miditema/trigger/bar 4 4
+
+  - /miditema/trigger/block4 4 1 (This is the **1st** block of 4 bars)
+
 - At the end of bar 8:
-  
-  - /miditema/trigger/bar 8 8
-    
-  - /miditema/trigger/block4 8 2 (This is the **2nd** block of 4 bars)
-    
 
-### Testing OSC
+  - /miditema/trigger/bar 8 8
 
-A simple Python script, test_osc_receiver.py, is included in the repository to help you test and verify that OSC messages are being sent correctly. Run it in a separate terminal to see a formatted printout of all incoming messages from MIDItema.
+  - /miditema/trigger/block4 8 2 (This is the **2nd** block of 4 bars)
 
-```
-python test_osc_receiver.py
-```
 
-This will listen on 127.0.0.1:9000 by default.
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details.
+GNU AGPLv3 License. See LICENSE file.

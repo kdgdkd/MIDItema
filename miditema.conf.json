@@ -1,30 +1,66 @@
 {
-    "clock_source": "CLOCK",
+    // --- Configuración de MIDI Clock y Transporte ---
+    // 'clock_source': Subcadena del nombre del puerto MIDI de ENTRADA que envía el MIDI Clock y los mensajes de Start/Stop.
+    "clock_source": "CLOCK",    
+    // 'transport_out': Subcadena del nombre del puerto MIDI de SALIDA al que MIDItema enviará comandos de Start/Stop.
     "transport_out": "TPT",
+    // --- Configuración de Control MIDI y Program Change ---
     "midi_configuration": {
-        "device_in": "MIDImod_OUT",
+        // 'device_in': Subcadena del nombre del puerto MIDI de ENTRADA para recibir mensajes de Program Change (PC) y Control Change (CC).
+        // Si es el mismo que 'clock_source', se usará un solo puerto compartido.
+        "device_in": "MIDItema",
+        // 'device_out': Subcadena del nombre del puerto MIDI de SALIDA al que MIDItema enviará mensajes de Program Change (PC).
+        // Útil para cambiar parches en sintetizadores externos o efectos al cambiar de parte.
         "device_out": "MIDImod_IN",
+        // 'channel_out': Canal MIDI (1-16) en el que se enviarán los Program Change.
+        // Por defecto es 1 si se omite.
         "channel_out": 1
     },
+    // --- Configuración de Salida OSC (Open Sound Control) ---
+    // 'osc_configuration': Sección opcional para enviar mensajes OSC a otras aplicaciones.
     "osc_configuration": {
         "send": {
+            // 'ip': Dirección IP del destino de los mensajes OSC.
+            // "127.0.0.1" es localhost (la misma máquina).
+            // Si tu receptor está en otra máquina, usa su IP de red (ej. "192.168.1.100").
             "ip": "127.0.0.1",
+            // 'port': Puerto UDP del destino de los mensajes OSC.
+            // DEBE coincidir con el puerto en el que tu aplicación receptora OSC está escuchando.
             "port": 9000,
+            // 'address': Dirección OSC principal para los mensajes de CAMBIO DE PARTE.
+            // Se envía cuando una nueva parte de la canción comienza.
+
+            // Argumentos: (string) Nombre de la Canción, (string) Nombre de la Parte, (int) Compases de la Parte, (int) Índice de la Parte (0-based).
             "address": "/miditema/part/change",
+            
+            // 'address_song_end': Dirección OSC para el mensaje de FIN DE CANCIÓN. (Opcional)
+            // Se envía cuando la secuencia de la canción ha terminado (no hay más partes válidas).
+            // Argumentos: (string) Nombre de la Canción.
             "address_song_end": "/miditema/song/end",
             
+            // 'address_song_change': Dirección OSC para los mensajes de CAMBIO DE CANCIÓN. (Opcional)
+            // Se envía cuando una nueva canción de la playlist se carga.
+            // Argumentos: (string) Nombre Canción, (int) Índice Canción.
+            "address_song_change": "/miditema/song/change",
+
+            // 'bar_triggers': Lista de reglas para enviar mensajes OSC en límites de compases/bloques. (Opcional)
+            // Cada objeto en la lista define una regla.
             "bar_triggers": [
                 {
+                    // 'block_size': Envía un mensaje cada 'X' compases.
+                    // 1 = cada compás, 4 = cada 4 compases, etc.
                     "block_size": 1,
-                    "address": "/miditema/trigger/bar"
+                    // 'address': Dirección OSC para este trigger específico.
+                    // Argumentos: (int) Número de Compás Completado (1-based), (int) Número de Bloque Completado.
+                    "address": "/miditema/bar_trigger/bar"
                 },
                 {
                     "block_size": 4,
-                    "address": "/miditema/trigger/block4"
+                    "address": "/miditema/bar_trigger/block4"
                 },
                 {
                     "block_size": 8,
-                    "address": "/miditema/trigger/block8"
+                    "address": "/miditema/bar_trigger/block8"
                 }
             ]
         }
