@@ -380,6 +380,76 @@ def find_next_valid_part_index(direction: str, start_index: int, start_pass_coun
     return None, None
 
 
+def resolve_global_part_index(global_index: int):
+    """
+    Convierte un índice de parte global (a través de toda la playlist)
+    en un par (índice_de_canción, índice_de_parte_local).
+    """
+    if not playlist_state.is_active:
+        return None, None
+
+    cumulative_parts = 0
+    for song_idx, element in enumerate(playlist_state.playlist_elements):
+        parts_in_song = _get_parts_from_playlist_element(element)
+        num_parts = len(parts_in_song)
+        
+        if global_index < cumulative_parts + num_parts:
+            local_part_index = global_index - cumulative_parts
+            return song_idx, local_part_index
+        
+        cumulative_parts += num_parts
+        
+    return None, None # Índice fuera de rango
+
+
+def execute_global_part_jump():
+    """
+    Ejecuta un salto a una parte específica en una canción específica de la playlist.
+    """
+    global pending_action
+    if not pending_action:
+        return
+
+    target_song_idx = pending_action.get("target_song")
+    target_part_idx = pending_action.get("target_part")
+
+    if target_song_idx is None or target_part_idx is None:
+        pending_action = None
+        return
+
+    if load_song_from_playlist(target_song_idx):
+        reset_song_state_on_stop()
+        song_state.pass_count = 0 # Un salto directo resetea el ciclo de pases
+        setup_part(target_part_idx)
+    
+    pending_action = None
+
+
+def halve_quantization(current_quantize: str) -> str:
+    """
+    Reduce la cuantización a un nivel más rápido según una jerarquía fija.
+    Devuelve el siguiente nivel de cuantización.
+    """
+    hierarchy = ["next_32", "next_16", "next_8", "next_4", "next_bar"]
+    try:
+        # Encontrar el índice del modo actual en la jerarquía
+        current_index = hierarchy.index(current_quantize)
+        # Si no es el último (el más rápido), devolver el siguiente
+        if current_index < len(hierarchy) - 1:
+            return hierarchy[current_index + 1]
+    except ValueError:
+        # Si el modo actual no está en la jerarquía (ej. "instant", "end_of_part"),
+        # se devuelve el más rápido por defecto.
+        return "next_bar"
+    
+    # Si ya está en el modo más rápido, no cambia
+    return "next_bar"
+
+
+
+
+
+
 def execute_part_jump ():
     """Ejecuta el salto de PARTE modificando el estado de la canción."""
     global pending_action
@@ -493,7 +563,9 @@ def execute_pending_action():
     if not pending_action:
         return
 
-    if pending_action.get("target_type") == "song":
+    if pending_action.get("target_type") == "global_part":
+        execute_global_part_jump()
+    elif pending_action.get("target_type") == "song":
         execute_song_jump()
     else:
         execute_part_jump()
@@ -508,7 +580,9 @@ def check_and_execute_pending_action():
     if not pending_action or clock_state.status != "PLAYING":
         return False
 
-    quantize = pending_action.get("quantize")
+    # Usa la cuantización dinámica si es un salto de cue, si no, la normal.
+    quantize = pending_action.get("dynamic_quantize") or pending_action.get("quantize")
+    
     
     # Contexto musical actual
     sig_num = song_state.time_signature_numerator
@@ -620,6 +694,49 @@ def trigger_song_jump(action_dict):
         pending_action = action_dict
         execute_song_jump()
 
+
+
+def trigger_cue_jump(cue_num: int):
+    """
+    Gestiona la lógica para disparar un salto a un Cue, incluyendo la
+    cuantización dinámica si se dispara repetidamente.
+    """
+    global pending_action, ui_feedback_message
+
+    target_part_index = None
+    for index, part in enumerate(song_state.parts):
+        if part.get("cue") == cue_num:
+            target_part_index = index
+            break
+    
+    if target_part_index is None:
+        ui_feedback_message = f"Cue {cue_num} no encontrado en esta canción."
+        return
+
+    part_name = song_state.parts[target_part_index].get("name", "N/A")
+
+    # Comprobar si ya hay una acción pendiente para este mismo cue
+    if (pending_action and 
+        pending_action.get("target_type") == "cue_jump" and
+        pending_action.get("cue_num") == cue_num):
+        
+        # Acelerar la cuantización existente
+        new_quantize = halve_quantization(pending_action["dynamic_quantize"])
+        pending_action["dynamic_quantize"] = new_quantize
+        ui_feedback_message = f"Cue {cue_num} ({part_name}) acelerado a {new_quantize.upper()}."
+
+    else:
+        # Crear una nueva acción de salto a cue
+        pending_action = {
+            "target_type": "cue_jump",
+            "target": target_part_index,
+            "cue_num": cue_num,
+            "dynamic_quantize": quantize_mode # Empezar con la cuantización global
+        }
+        ui_feedback_message = f"Ir a Cue {cue_num}: {part_name}"
+
+
+
 def process_control_message(msg):
     """Procesa un único mensaje de control MIDI (PC, CC, Note, Song Select)."""
     global pending_action, quantize_mode, ui_feedback_message, repeat_override_active
@@ -659,6 +776,27 @@ def process_control_message(msg):
             action = {"target_type": "song", "target": target, "quantize": quantize_mode}
             trigger_song_jump(action)
             ui_feedback_message = f"Note Recibido: {'Siguiente' if value == 1 else 'Anterior'} Canción."
+
+    elif msg.type == 'control_change' and msg.control == 1:
+        if not playlist_state.is_active:
+            ui_feedback_message = "CC#1 ignorado (no hay playlist activa)."
+            return
+
+        target_song_idx, target_part_idx = resolve_global_part_index(msg.value)
+
+        if target_song_idx is not None:
+            pending_action = {
+                "target_type": "global_part",
+                "target_song": target_song_idx,
+                "target_part": target_part_idx,
+                "quantize": quantize_mode
+            }
+            ui_feedback_message = f"CC#1 Recibido: Ir a parte global {msg.value + 1}."
+        else:
+            ui_feedback_message = f"CC#1 Error: Parte global {msg.value + 1} no existe."
+
+    elif msg.type == 'control_change' and msg.control == 2:
+        trigger_cue_jump(msg.value)
 
     elif msg.type == 'control_change' and msg.control == 0:
         val = msg.value
@@ -926,8 +1064,6 @@ def get_feedback_text():
     return HTML(f"<style fg='#888888'>{ui_feedback_message}</style>")
 
 
-
-
 def get_action_status_text():
     """Muestra el modo de cuantización, la acción pendiente y el estado de repetición."""
     global ui_feedback_message
@@ -935,39 +1071,70 @@ def get_action_status_text():
     
     action_str = "Ø"
     if pending_action:
-        target = pending_action.get("target")
-        quant = pending_action.get("quantize", "").replace("_", " ").upper()
+        quant = (pending_action.get("dynamic_quantize") or pending_action.get("quantize", "")).replace("_", " ").upper()
         
-        part_name = ""
-        
-        if isinstance(target, dict) and target.get("type") == "relative":
-            value = target.get("value", 0)
-            if value != 0:
-                direction = "+1" if value > 0 else "-1"
-                
-                final_index = song_state.current_part_index
-                final_pass_count = song_state.pass_count
-                for _ in range(abs(value)):
-                    if final_index is not None:
-                        final_index, final_pass_count = find_next_valid_part_index(direction, final_index, final_pass_count)
+        # --- Lógica para determinar el texto de la acción pendiente ---
 
-                if final_index is None:
-                    part_name = "End"
-                else:
-                    part_name = song_state.parts[final_index].get('name', 'N/A')
-                
-                prefix = "Jump to" if value > 0 else "Jump back to"
-                action_str = f"{prefix} ({value:+}): {part_name} ({quant})"
-            else:
-                action_str = "Cancelled"
-
-        elif target == "restart":
-            part_name = song_state.parts[song_state.current_part_index].get('name', 'N/A')
-            action_str = f"Restart: {part_name} ({quant})"
-        elif isinstance(target, int):
-            if 0 <= target < len(song_state.parts):
-                part_name = song_state.parts[target].get('name', 'N/A')
+        # 1. Salto de Cue
+        if pending_action.get("target_type") == "cue_jump":
+            target_index = pending_action.get("target")
+            part_name = song_state.parts[target_index].get("name", "N/A")
             action_str = f"Go to: {part_name} ({quant})"
+
+        # 2. Salto a Parte Global
+        elif pending_action.get("target_type") == "global_part":
+            song_idx = pending_action.get("target_song")
+            part_idx = pending_action.get("target_part")
+            song_element = playlist_state.playlist_elements[song_idx]
+            parts = _get_parts_from_playlist_element(song_element)
+            
+            song_name = song_element.get("song_name", Path(song_element.get("filepath", "N/A")).stem)
+            part_name = parts[part_idx].get("name", "N/A") if part_idx < len(parts) else "N/A"
+            
+            action_str = f"Go to Global Part: {html.escape(song_name)} - {html.escape(part_name)} ({quant})"
+
+        # 3. Salto de Canción
+        elif pending_action.get("target_type") == "song":
+            target = pending_action.get("target")
+            target_song_idx = playlist_state.current_song_index
+            
+            if isinstance(target, int):
+                target_song_idx = target
+            elif isinstance(target, dict) and target.get("type") == "relative":
+                target_song_idx += target.get("value", 0)
+            
+            if 0 <= target_song_idx < len(playlist_state.playlist_elements):
+                element = playlist_state.playlist_elements[target_song_idx]
+                song_name = element.get("song_name", Path(element.get("filepath", "N/A")).stem)
+                action_str = f"Go to Song: {html.escape(song_name)} ({quant})"
+            else:
+                action_str = "Jump to End of Setlist"
+
+        # 4. Salto de Parte (Normal)
+        else:
+            target = pending_action.get("target")
+            part_name = ""
+            if isinstance(target, dict) and target.get("type") == "relative":
+                value = target.get("value", 0)
+                if value != 0:
+                    direction = "+1" if value > 0 else "-1"
+                    final_index, _ = find_next_valid_part_index(direction, song_state.current_part_index, song_state.pass_count)
+                    if final_index is None:
+                        part_name = "End"
+                    else:
+                        part_name = song_state.parts[final_index].get('name', 'N/A')
+                    prefix = "Jump to" if value > 0 else "Jump back to"
+                    action_str = f"{prefix} ({value:+}): {part_name} ({quant})"
+                else:
+                    action_str = "Cancelled"
+
+            elif target == "restart":
+                part_name = song_state.parts[song_state.current_part_index].get('name', 'N/A')
+                action_str = f"Restart: {part_name} ({quant})"
+            elif isinstance(target, int):
+                if 0 <= target < len(song_state.parts):
+                    part_name = song_state.parts[target].get('name', 'N/A')
+                action_str = f"Go to: {part_name} ({quant})"
     
     if goto_input_active:
         ui_feedback_message = ""
@@ -986,10 +1153,9 @@ def get_action_status_text():
 
 def get_key_legend_text():
     """Muestra la leyenda de los controles de teclado."""
-    line1 = "<b>[←→:</b> Part Nav] <b>[↑:</b> Restart Part] <b>[↓:</b> Cancel] "
-    line2 = "<b>[PgUp/PgDn:</b> Song Nav] <b>[r:</b> Toggle Mode] "
-    line3 = "<b>[.:</b> Go to Part] <b>[0-9:</b> Quantize/Jump]"
-    return HTML(f"<style fg='#666666'>{line1}{line2}{line3}</style>")
+    line1 = "<b>[←→:</b> Part Nav] <b>[↑:</b> Restart Part] <b>[↓:</b> Cancel] <b>[PgUp/PgDn:</b> Song Nav]"
+    line2 = "<b>[r:</b> Mode] <b>[.:</b> Goto] <b>[0-3:</b> Q-Jump] <b>[4-9:</b> Set Quant]"
+    return HTML(f"<style fg='#666666'>{line1}\n{line2}</style>")
 
 # --- UI Functions ---
 def get_part_name_text():
@@ -1117,23 +1283,32 @@ def get_dynamic_endpoint():
     o el punto de ejecución de una acción pendiente.
     Devuelve el número del compás final (1-based).
     """
+    if not pending_action or clock_state.status != "PLAYING" or song_state.current_part_index == -1:
+        # Si no hay acción o no estamos en una parte válida, el final es el final real.
+        if song_state.current_part_index != -1:
+            return song_state.parts[song_state.current_part_index].get("bars", 0)
+        return 0
+
     current_part = song_state.parts[song_state.current_part_index]
     total_bars_in_part = current_part.get("bars", 0)
-
-    if not pending_action or clock_state.status != "PLAYING":
-        return total_bars_in_part
 
     # Calcular la posición actual
     sig_num = song_state.time_signature_numerator
     beats_into_part = (total_bars_in_part * sig_num) - song_state.remaining_beats_in_part
     current_bar_index = beats_into_part // sig_num # 0-based
 
-    quantize = pending_action.get("quantize")
+    # --- LÍNEA MODIFICADA ---
+    # Busca la cuantización dinámica primero, si no, la normal.
+    quantize = pending_action.get("dynamic_quantize") or pending_action.get("quantize")
     
-    if quantize in ["instant", "next_bar"]:
+    if quantize in ["instant", "next_bar", "end_of_part"]:
+        # Para estos modos, el salto es inminente o al final.
+        # "end_of_part" visualmente se comporta como el final de la parte.
+        if quantize == "end_of_part":
+            return total_bars_in_part
         return current_bar_index + 1
     
-    quantize_map = {"next_4": 4, "next_8": 8, "next_16": 16}
+    quantize_map = {"next_4": 4, "next_8": 8, "next_16": 16, "next_32": 32}
     if quantize in quantize_map:
         boundary = quantize_map[quantize]
         # Calcula el próximo múltiplo de 'boundary' desde el compás actual
@@ -1787,6 +1962,11 @@ def main():
             quantize_mode = quant_map[key]
             ui_feedback_message = f"Modo de cuantización global cambiado a: {quantize_mode.upper()}."
 
+    # Atajos de Teclas de Función (F1-F12) para Cues
+    for i in range(1, 13):
+        @kb.add(f'f{i}', filter=~is_goto_mode)
+        def _(event, key_num=i):
+            trigger_cue_jump(key_num)
     # --- Activación del modo "Ir a Parte" ---
     @kb.add('.', filter=~is_goto_mode)
 
@@ -1895,8 +2075,8 @@ def main():
         
         # Bloque de estado inferior
         Window(content=FormattedTextControl(text=get_action_status_text)),
+        Window(content=FormattedTextControl(text=get_key_legend_text), height=2),
         Window(content=FormattedTextControl(text=get_feedback_text)),
-        Window(content=FormattedTextControl(text=get_key_legend_text), height=1),
 
     ], style="bg:#111111 #cccccc")
 

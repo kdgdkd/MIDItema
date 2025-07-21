@@ -24,6 +24,8 @@ You can pre-define the sections of your song (Intro, Verse, Chorus, etc.) and th
 - **Dual Playback Mode (Loop/Song):** Toggle between two modes on the fly. **Loop Mode** respects the `repeat_pattern` of each part, allowing for loops and vamping. **Song Mode** overrides these patterns, forcing the arrangement to always advance linearly to the next part, perfect for progressing through a song's structure.
   
 - **Quantized Actions:** All jumps are scheduled as a **pending action** and executed with musical precision on the next beat, bar, or larger musical divisions.
+
+- **Cue Jumps & Dynamic Quantization:** Assign key parts to Cues for instant, one-press access via F-Keys (F1-F12) or MIDI CC#2. Repeatedly trigger a pending cue to dynamically shorten its quantization, allowing for expressive, on-the-fly transitions from a long musical phrase down to the next bar.
   
 - **Comprehensive TUI (Terminal User Interface):** A clean, full-screen interface provides a clear overview:
   
@@ -339,68 +341,40 @@ MIDItema can be controlled via computer keyboard or external MIDI messages. Most
 
 ### Keyboard Controls
 
+
 | Key(s) | Action | Details / Quantization |
-
 | --- | --- | --- |
-
-| **Global Transport** |     |     |
-
+| **Global Transport** |     |     |
 | Space / Enter | Send Start/Stop | Sends a MIDI Start/Stop command immediately. |
-
 | q / Ctrl+C | Quit | Exits the application cleanly. |
-
-| **Part Navigation** |     |     |
-
+| **Part Navigation** |     |     |
 | → / ← | Jump Next / Previous Part | Programs a relative jump within the current song. Uses the **global** quantize mode. |
-
-| ↑   | Restart Part | Restarts the current part. Uses the **global** quantize mode. |
-
+| ↑   | Restart Part | Restarts the current part. Uses the **global** quantize mode. |
 | . or , then [num] Enter | Go to Part | Jumps to a specific part number within the current song. Uses the **global** quantize mode. |
-
-| **Playlist Navigation** | | |
-| `PageDown` / `PageUp` | Next / Previous Song | Jumps to the next or previous song in the playlist. Uses the **global** quantize mode. |
-| `Home` / `End` | Go to First / Last Song | Jumps to the first or last song in the playlist. Uses the **global** quantize mode. |
-
-| **General Actions** |     |     |
-
-| ↓   | Cancel Action | Immediately cancels any pending action. |
-
-| r   | Toggle Playback Mode | Switches between Loop Mode (respects part repeats) and Song Mode (forces linear progression). |
-
-| **Quick Jumps (Fixed Quantization)** |     |     |
-
-| 0 - 3 | Quick Jump +1 | Jumps to the next part with fixed quantization (Next Bar, Next 4, Next 8, Next 16). |
-
-| **Global Quantize Mode Selection** |     |     |
-
-| 4 - 7, 9 | Set Global Quantize | Sets the global mode (Next 4, Next 8, Next 16, Next Bar, Instant). |
+| **Playlist Navigation** |     |     |
+| PageDown / PageUp | Next / Previous Song | Jumps to the next or previous song in the playlist. Uses the **global** quantize mode. |
+| Home / End | Go to First / Last Song | Jumps to the first or last song in the playlist. Uses the **global** quantize mode. |
+| **General Actions** |     |     |
+| ↓   | Cancel Action | Immediately cancels any pending action. |
+| r   | Toggle Playback Mode | Switches between Loop Mode (respects part repeats) and Song Mode (forces linear progression). |
+| **Quick Jumps (Fixed Quantization)** |     |     |
+| 0 - 3 | Quick Jump +1 | Jumps to the next part with fixed quantization (Next Bar, Next 4, Next 8, Next 16). |
+| **Global Quantize Mode Selection** |     |     |
+| 4 - 9 | Set Global Quantize | Sets the global mode (Next 4, Next 8, Next 16, Next Bar, End of Part, Instant). |
 
 ### MIDI Controls
 
 To use MIDI controls, configure "device_in" in miditema.conf.json.
 
-#### Absolute Jumps
-
 | Message | Action | Details / Quantization |
-
 | --- | --- | --- |
-
+| **Absolute Jumps** |     |     |
 | **Program Change** N | Go to Part N+1 | Jumps to a specific part in the current song. Uses the **global** quantize mode. |
-
 | **Song Select** N | Go to Song N+1 | Jumps to a specific song in the current playlist. Uses the **global** quantize mode. |
-
-#### Relative Navigation & Actions
-
-| Message | Action | Details / Quantization |
-
-| --- | --- | --- |
-
+| **Relative Navigation** |     |     |
 | **Note On** 125 | Next Part | Jumps to the next part. Uses the **global** quantize mode. |
-
 | **Note On** 124 | Previous Part | Jumps to the previous part. Uses the **global** quantize mode. |
-
 | **Note On** 127 | Next Song | Jumps to the next song in the playlist. Uses the **global** quantize mode. |
-
 | **Note On** 126 | Previous Song | Jumps to the previous song in the playlist. Uses the **global** quantize mode. |
 
 #### General Functions via CC #0
@@ -428,6 +402,41 @@ This is a powerful feature for navigating large setlists. It allows you to jump 
 
 - **Action:** Jump to a specific part in the entire setlist.
 - **Details:** The `value` of the CC #1 message (0-127) corresponds to the global, zero-based index of the part you want to jump to. MIDItema calculates which song and part this index corresponds to. - `CC #1, Value 0`: Jumps to the first part of the first song. - `CC #1, Value 1`: Jumps to the second part of the first song (if it exists). - If the first song has 5 parts, `CC #1, Value 5` will jump to the first part of the *second* song. - **Quantization:** Uses the currently active **global** quantize mode.
+
+### Cue Jumps (F1-F12 and CC #2)
+
+Cues provide a fast and expressive way to jump to pre-defined key parts of your song. This system also introduces **dynamic quantization**, allowing you to accelerate a jump on the fly.
+
+- **Action:** Jump to a specific part marked as a "Cue".
+  
+- **Defining Cues:** In your song file, add a "cue": N key-value pair to any part you want to access directly. N is the cue number.
+  
+  ```
+  "parts": [
+    { "name": "Verse", "bars": 16, "cue": 1 },
+    { "name": "Chorus", "bars": 16, "cue": 2 },
+    { "name": "Drop", "bars": 32, "cue": 100 }
+  ]
+  ```
+  
+- **Triggering Cues:**
+  
+  - **F-Keys:** Pressing F1 through F12 on your keyboard will trigger cue: 1 through cue: 12.
+    
+  - **MIDI CC #2:** Sending a Control Change message on **CC #2** with a value of N will trigger cue: N. This allows access to up to 128 cues per song.
+    
+
+#### Dynamic Quantization
+
+This is a unique feature of Cue Jumps. Repeatedly triggering the same cue while it is pending will speed up its quantization.
+
+- **First Trigger:** The jump is scheduled using the current **global** quantize mode (e.g., Next 8).
+  
+- **Second Trigger:** The pending jump's quantization is halved (e.g., from Next 8 to Next 4).
+  
+- **Subsequent Triggers:** Each trigger continues to halve the quantization until it reaches the fastest level (Next Bar).
+  
+- **This change is temporary** and only affects the current pending cue jump. The global quantize mode remains unchanged. The TUI will display the dynamic quantization in real-time.
 
 ## MIDI Output
 
