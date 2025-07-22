@@ -95,6 +95,8 @@ song_state = SongState()
 playlist_state = PlaylistState()
 pending_action = None
 repeat_override_active = False
+part_loop_active = False
+part_loop_index = -1
 quantize_mode = "next_8" # Modo de cuantización por defecto
 goto_input_active = False
 goto_input_buffer = ""
@@ -275,6 +277,11 @@ def setup_part(part_index):
 
 def start_next_part():
     """La lógica principal para determinar qué parte de la canción reproducir a continuación."""
+    if part_loop_active and song_state.current_part_index == part_loop_index:
+        # El bucle está activo para la parte que acaba de terminar, así que la reiniciamos.
+        setup_part(song_state.current_part_index)
+        return # Salimos para evitar la lógica de avance normal
+    
     # Encuentra el siguiente índice válido partiendo del estado actual
     next_index, next_pass_count = find_next_valid_part_index(
         "+1", song_state.current_part_index, song_state.pass_count
@@ -696,6 +703,14 @@ def trigger_song_jump(action_dict):
         execute_song_jump()
 
 
+def cancel_part_loop():
+    """Desactiva el modo de bucle de parte si está activo."""
+    global part_loop_active, part_loop_index, ui_feedback_message
+    if part_loop_active:
+        part_loop_active = False
+        part_loop_index = -1
+        ui_feedback_message = "Part loop cancelled."
+
 
 def trigger_cue_jump(cue_num: int):
     """
@@ -752,7 +767,7 @@ def trigger_cue_jump(cue_num: int):
 
 def process_control_message(msg):
     """Procesa un único mensaje de control MIDI (PC, CC, Note, Song Select)."""
-    global pending_action, quantize_mode, ui_feedback_message, repeat_override_active
+    global pending_action, quantize_mode, ui_feedback_message, repeat_override_active, part_loop_active, part_loop_index
     
     if msg.type == 'program_change':
         # Los saltos de parte siempre son cuantizados y solo tienen sentido si se está reproduciendo
@@ -834,8 +849,8 @@ def process_control_message(msg):
             target = {"type": "relative", "value": 1}
             pending_action = {"target": target, "quantize": quantize_mode}
             ui_feedback_message = "CC#0 Recibido: Saltar Parte Siguiente."
-        elif 12 <= val <= 19:
-            if val in [12, 13, 14, 15, 16] and not playlist_state.is_active:
+        elif 12 <= val <= 20: # Rango ampliado a 20
+            if val in [12, 13, 14, 15, 20] and not playlist_state.is_active: # Añadido 20 a la comprobación
                 ui_feedback_message = f"CC#0({val}) ignorado (no hay playlist activa)."
                 return
             
@@ -855,15 +870,20 @@ def process_control_message(msg):
                 last_song_index = len(playlist_state.playlist_elements) - 1
                 action = {"target_type": "song", "target": last_song_index, "quantize": quantize_mode}
                 ui_feedback_message = "CC#0 Recibido: Ir a Última Canción."
-            elif val == 16: # Reiniciar Canción
-                action = {"target_type": "song", "target": "restart", "quantize": quantize_mode}
-                ui_feedback_message = "CC#0 Recibido: Reiniciar Canción."
-
-            if action:
-                trigger_song_jump(action)
-                return
-
-            if val == 17: # Reiniciar Parte
+            
+            # --- NUEVA LÓGICA PARA EL VALOR 16 ---
+            elif val == 16: # Toggle Part Loop
+                if part_loop_active and song_state.current_part_index == part_loop_index:
+                    cancel_part_loop()
+                elif clock_state.status == "PLAYING" and song_state.current_part_index != -1:
+                    part_loop_active = True
+                    part_loop_index = song_state.current_part_index
+                    part_name = song_state.parts[part_loop_index].get('name', 'N/A')
+                    ui_feedback_message = f"Loop activado para parte: {part_name}"
+                else:
+                    ui_feedback_message = "No se puede activar el bucle (reproducción detenida)."
+            
+            elif val == 17: # Reiniciar Parte
                 if clock_state.status == "PLAYING":
                     pending_action = {"target": "restart", "quantize": quantize_mode}
                     ui_feedback_message = "CC#0 Recibido: Reiniciar Parte."
@@ -877,6 +897,15 @@ def process_control_message(msg):
                 repeat_override_active = not repeat_override_active
                 mode_str = "Song Mode" if repeat_override_active else "Loop Mode"
                 ui_feedback_message = f"CC#0 Recibido: Modo cambiado a {mode_str}"
+            
+            # --- "REINICIAR CANCIÓN" MOVIDO AL VALOR 20 ---
+            elif val == 20: # Reiniciar Canción
+                action = {"target_type": "song", "target": "restart", "quantize": quantize_mode}
+                ui_feedback_message = "CC#0 Recibido: Reiniciar Canción."
+
+            if action:
+                trigger_song_jump(action)
+                return
 
 
 def midi_control_listener():
@@ -1144,14 +1173,16 @@ def get_action_status_text():
     if goto_input_active:
         return HTML(f"<style bg='ansiyellow' fg='ansiblack'>Ir a Parte: {goto_input_buffer}_</style>")
 
-    # --- Lógica de ensamblado final ---
-    if repeat_override_active:
-        mode_part = "<style fg='ansigreen' bold='true'>Song Mode</style>"
-    else:
-        mode_part = "<style fg='ansiblue' bold='true'>Loop Mode</style>"
     
     quant_part = f"<b>Quant:</b> <style bg='#333333'>[{quant_str}]</style>"
     action_part = f"<b>Pending Action:</b> <style bg='#333333'>[{html.escape(action_str)}]</style>"
+
+    if part_loop_active:
+        mode_part = "<style bg='ansired' fg='ansiwhite' bold='true'>Loop Part</style>"
+    elif repeat_override_active:
+        mode_part = "<style fg='ansigreen' bold='true'>Song Mode</style>"
+    else:
+        mode_part = "<style fg='ansiblue' bold='true'>Loop Mode</style>"
 
     return HTML(f"{mode_part} | {quant_part} | {action_part}")
 
@@ -1206,20 +1237,33 @@ def get_part_name_text():
         name = part_to_display.get('name', '---')
         bars = part_to_display.get('bars', 0)
         total_parts = len(song_state.parts)
-        safe_part_name = html.escape(name)
-        centered_part_name = safe_part_name.center(80)
-        final_part_title_str = centered_part_name
-        part_prefix = f"[{part_index_to_show + 1}/{total_parts}] {bars} "
-        title_chars = list(centered_part_name)
-        for i in range(len(part_prefix)):
-            if i < len(title_chars):
-                title_chars[i] = part_prefix[i]
-        final_part_title_str = "".join(title_chars)
-        color_name = part_to_display.get('color')
-        part_style_str = TITLE_COLOR_PALETTE.get(color_name, TITLE_COLOR_PALETTE['default'])
+        
+        if part_loop_active and part_index_to_show == part_loop_index:
+            looped_name = f"[{html.escape(name)}]"
+            part_prefix = f"[{part_index_to_show + 1}/{total_parts}] {bars} "
+            final_part_title_str = looped_name.center(80)
+            title_chars = list(final_part_title_str)
+            for i in range(len(part_prefix)):
+                if i < len(title_chars): title_chars[i] = part_prefix[i]
+            final_part_title_str = "".join(title_chars)
+            part_style_str = "bg='ansired' fg='ansiwhite' bold='true'"
+        else:
+            safe_part_name = html.escape(name)
+            centered_part_name = safe_part_name.center(80)
+            final_part_title_str = centered_part_name
+            part_prefix = f"[{part_index_to_show + 1}/{total_parts}] {bars} "
+            title_chars = list(centered_part_name)
+            for i in range(len(part_prefix)):
+                if i < len(title_chars): title_chars[i] = part_prefix[i]
+            final_part_title_str = "".join(title_chars)
+            color_name = part_to_display.get('color')
+            # Asegurarse de que el estilo por defecto también sea bold
+            part_style_str = TITLE_COLOR_PALETTE.get(color_name, TITLE_COLOR_PALETTE['default']) + " bold='true'"
+        
         part_info_str = final_part_title_str
 
-    part_name_line = f"<style {part_style_str} bold='true'>{part_info_str}</style>"
+    # Se elimina el 'bold="true"' extra de esta línea
+    part_name_line = f"<style {part_style_str}>{part_info_str}</style>"
 
     # --- LÍNEAS 4 y 5: TABLA CON TIEMPO AL PRINCIPIO ---
     col_width = 19
@@ -1382,6 +1426,12 @@ def get_next_part_text():
     o el siguiente paso natural si no hay acción.
     """
     global song_state
+
+    if part_loop_active:
+        style_str = "fg='ansired' bold='true'"
+        centered_text = ">> Loop Part".center(80)
+        return HTML(f"<style {style_str}>{centered_text}</style>")
+    
     if clock_state.status != "PLAYING":
         return ""
 
@@ -1880,6 +1930,7 @@ def main():
     @kb.add('right', filter=~is_goto_mode)
     def _(event):
         global pending_action, ui_feedback_message
+        cancel_part_loop()
         
         if (pending_action and 
             isinstance(pending_action.get("target"), dict) and 
@@ -1913,22 +1964,38 @@ def main():
 
     @kb.add('up', filter=~is_goto_mode)
     def _(event):
-        global pending_action, ui_feedback_message
-        pending_action = {"target": "restart", "quantize": quantize_mode}
-        ui_feedback_message = "Restart current part."
+        global part_loop_active, part_loop_index, ui_feedback_message
+        
+        # Si ya hay un bucle activo en la parte actual, lo cancela.
+        if part_loop_active and song_state.current_part_index == part_loop_index:
+            cancel_part_loop()
+        # Si no, activa un bucle para la parte actual (solo si se está reproduciendo).
+        elif clock_state.status == "PLAYING" and song_state.current_part_index != -1:
+            part_loop_active = True
+            part_loop_index = song_state.current_part_index
+            part_name = song_state.parts[part_loop_index].get('name', 'N/A')
+            ui_feedback_message = f"Loop activado para parte: {part_name}"
+        else:
+            ui_feedback_message = "No se puede activar el bucle (reproducción detenida)."
+
 
     @kb.add('down', filter=~is_goto_mode)
     def _(event):
         global pending_action, ui_feedback_message
+        # Primero intenta cancelar una acción pendiente.
         if pending_action:
             pending_action = None
-            ui_feedback_message = "Pending action cancelled."
+            ui_feedback_message = "Acción pendiente cancelada."
+        # Si no hay acción pendiente, intenta cancelar un bucle de parte.
+        else:
+            cancel_part_loop()
 
     # --- Controles Numéricos (Modo Normal) ---
     for i in "0123":
         @kb.add(i, filter=~is_goto_mode)
         def _(event):
             global pending_action, ui_feedback_message
+            cancel_part_loop()
             key = event.key_sequence[0].data
             quant_map = {"0": "next_bar", "1": "next_4", "2": "next_8", "3": "next_16"}
             quant = quant_map[key]
@@ -1960,6 +2027,7 @@ def main():
     for i in range(1, 13):
         @kb.add(f'f{i}', filter=~is_goto_mode)
         def _(event, key_num=i):
+            cancel_part_loop()
             trigger_cue_jump(key_num)
     # --- Activación del modo "Ir a Parte" ---
     @kb.add('.', filter=~is_goto_mode)
@@ -1995,6 +2063,7 @@ def main():
     @kb.add('enter', filter=is_goto_mode)
     def _(event):
         global goto_input_active, goto_input_buffer, pending_action, ui_feedback_message
+        cancel_part_loop()
         if goto_input_buffer.isdigit():
             part_num = int(goto_input_buffer)
             if 1 <= part_num <= len(song_state.parts):

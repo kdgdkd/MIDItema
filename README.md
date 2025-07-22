@@ -333,14 +333,14 @@ MIDItema can be controlled via computer keyboard or external MIDI messages. Most
 | q / Ctrl+C | Quit | Exits the application cleanly. |
 | **Part Navigation** |     |     |
 | → / ← | Jump Next / Previous Part | Programs a relative jump within the current song. Uses the **global** quantize mode. |
-| ↑   | Restart Part | Restarts the current part. Uses the **global** quantize mode. |
+| `↑` | Toggle Part Loop | Toggles a loop on the currently playing part. Pressing it again on the same part cancels the loop. |
 | . or , then [num] Enter | Go to Part | Jumps to a specific part number within the current song. Uses the **global** quantize mode. |
 | **Playlist Navigation** |     |     |
 | PageDown / PageUp | Next / Previous Song | Jumps to the next or previous song in the playlist. Uses the **global** quantize mode. |
 | Home / End | Go to First / Last Song | Jumps to the first or last song in the playlist. Uses the **global** quantize mode. |
 | **General Actions** |     |     |
 | ↓   | Cancel Action | Immediately cancels any pending action. |
-| r   | Toggle Playback Mode | Switches between Loop Mode (respects part repeats) and Song Mode (forces linear progression). |
+| m   | Toggle Playback Mode | Switches between Loop Mode (respects part repeats) and Song Mode (forces linear progression). |
 | **Quick Jumps (Fixed Quantization)** |     |     |
 | 0 - 3 | Quick Jump +1 | Jumps to the next part with fixed quantization (Next Bar, Next 4, Next 8, Next 16). |
 | **Global Quantize Mode Selection** |     |     |
@@ -366,19 +366,20 @@ To use MIDI controls, configure "device_in" in miditema.conf.json.
 All actions below are triggered by sending a Control Change message on **CC #0** with a specific value.
 
 | CC #0 Value | Action | Details / Quantization |
-| --- | --- | --- |
+| :--- | :--- | :--- |
 | 0 - 3 | Quick Jump +1 | Jumps to the next part with fixed quantization (Instant, Next Bar, Next 8, Next 16). |
 | 4 - 9 | Set Global Quantize | Sets the global mode (`4`:Next 4, `5`:Next 8, `6`:Next 16, `7`:Next Bar, `8`:End of Part, `9`:Instant). |
-| 10  | Previous Part | Jumps to the previous part. Uses the **global** quantize mode. |
-| 11  | Next Part | Jumps to the next part. Uses the **global** quantize mode. |
-| 12  | Previous Song | Jumps to the previous song in the playlist. Uses the **global** quantize mode. |
-| 13  | Next Song | Jumps to the next song in the playlist. Uses the **global** quantize mode. |
-| 14  | Go to First Song | Jumps to the first song in the playlist. Uses the **global** quantize mode. |
-| 15  | Go to Last Song | Jumps to the last song in the playlist. Uses the **global** quantize mode. |
-| 16  | Restart Song | Restarts the current song from its first part. Uses the **global** quantize mode. |
-| 17  | Restart Part | Restarts the current part. Uses the **global** quantize mode. |
-| 18  | Cancel Action | Immediately cancels any pending action. |
-| 19  | Toggle Playback Mode | Switches between Loop Mode and Song Mode. |
+| 10 | Previous Part | Jumps to the previous part. Uses the **global** quantize mode. |
+| 11 | Next Part | Jumps to the next part. Uses the **global** quantize mode. |
+| 12 | Previous Song | Jumps to the previous song in the playlist. Uses the **global** quantize mode. |
+| 13 | Next Song | Jumps to the next song in the playlist. Uses the **global** quantize mode. |
+| 14 | Go to First Song | Jumps to the first song in the playlist. Uses the **global** quantize mode. |
+| 15 | Go to Last Song | Jumps to the last song in the playlist. Uses the **global** quantize mode. |
+| 16 | Toggle Part Loop | Toggles a loop on the currently playing part. |
+| 17 | Restart Part | Restarts the current part. Uses the **global** quantize mode. |
+| 18 | Cancel Action | Immediately cancels any pending action. |
+| 19 | Toggle Playback Mode | Switches between Loop Mode and Song Mode. |
+| 20 | Restart Song | Restarts the current song from its first part. Uses the **global** quantize mode. |
 
 #### Global Navigation (CC #1 & Cues)
 
