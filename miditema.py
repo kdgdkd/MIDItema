@@ -563,7 +563,8 @@ def execute_pending_action():
     if not pending_action:
         return
 
-    if pending_action.get("target_type") == "global_part":
+    # Los Cues ahora se tratan como saltos de parte globales.
+    if pending_action.get("target_type") in ["global_part", "cue_jump"]:
         execute_global_part_jump()
     elif pending_action.get("target_type") == "song":
         execute_song_jump()
@@ -699,21 +700,33 @@ def trigger_song_jump(action_dict):
 def trigger_cue_jump(cue_num: int):
     """
     Gestiona la lógica para disparar un salto a un Cue, incluyendo la
-    cuantización dinámica si se dispara repetidamente.
+    cuantización dinámica. La búsqueda del cue es global a toda la playlist.
     """
     global pending_action, ui_feedback_message
 
-    target_part_index = None
-    for index, part in enumerate(song_state.parts):
-        if part.get("cue") == cue_num:
-            target_part_index = index
-            break
-    
-    if target_part_index is None:
-        ui_feedback_message = f"Cue {cue_num} no encontrado en esta canción."
+    if not playlist_state.is_active:
+        ui_feedback_message = f"Cues ignorados (no hay playlist activa)."
         return
 
-    part_name = song_state.parts[target_part_index].get("name", "N/A")
+    # --- LÓGICA DE BÚSQUEDA GLOBAL ---
+    target_song_idx = None
+    target_part_idx = None
+    part_name = "N/A"
+
+    for s_idx, element in enumerate(playlist_state.playlist_elements):
+        parts = _get_parts_from_playlist_element(element)
+        for p_idx, part in enumerate(parts):
+            if part.get("cue") == cue_num:
+                target_song_idx = s_idx
+                target_part_idx = p_idx
+                part_name = part.get("name", "N/A")
+                break # Salir del bucle de partes
+        if target_song_idx is not None:
+            break # Salir del bucle de canciones
+    
+    if target_song_idx is None:
+        ui_feedback_message = f"Cue {cue_num} no encontrado en la playlist."
+        return
 
     # Comprobar si ya hay una acción pendiente para este mismo cue
     if (pending_action and 
@@ -729,12 +742,12 @@ def trigger_cue_jump(cue_num: int):
         # Crear una nueva acción de salto a cue
         pending_action = {
             "target_type": "cue_jump",
-            "target": target_part_index,
+            "target_song": target_song_idx,
+            "target_part": target_part_idx,
             "cue_num": cue_num,
             "dynamic_quantize": quantize_mode # Empezar con la cuantización global
         }
         ui_feedback_message = f"Ir a Cue {cue_num}: {part_name}"
-
 
 
 def process_control_message(msg):
@@ -1066,23 +1079,16 @@ def get_feedback_text():
 
 def get_action_status_text():
     """Muestra el modo de cuantización, la acción pendiente y el estado de repetición."""
-    global ui_feedback_message
     quant_str = quantize_mode.replace("_", " ").upper()
     
     action_str = "Ø"
     if pending_action:
         quant = (pending_action.get("dynamic_quantize") or pending_action.get("quantize", "")).replace("_", " ").upper()
         
-        # --- Lógica para determinar el texto de la acción pendiente ---
+        # --- Lógica de visualización unificada ---
 
-        # 1. Salto de Cue
-        if pending_action.get("target_type") == "cue_jump":
-            target_index = pending_action.get("target")
-            part_name = song_state.parts[target_index].get("name", "N/A")
-            action_str = f"Go to: {part_name} ({quant})"
-
-        # 2. Salto a Parte Global
-        elif pending_action.get("target_type") == "global_part":
+        # 1. Saltos que especifican canción y parte (Global Part y Cues)
+        if pending_action.get("target_type") in ["global_part", "cue_jump"]:
             song_idx = pending_action.get("target_song")
             part_idx = pending_action.get("target_part")
             song_element = playlist_state.playlist_elements[song_idx]
@@ -1091,18 +1097,18 @@ def get_action_status_text():
             song_name = song_element.get("song_name", Path(song_element.get("filepath", "N/A")).stem)
             part_name = parts[part_idx].get("name", "N/A") if part_idx < len(parts) else "N/A"
             
-            action_str = f"Go to Global Part: {html.escape(song_name)} - {html.escape(part_name)} ({quant})"
+            # Distinguir el texto si es un cue o un salto global directo
+            prefix = "Go to Cue" if pending_action.get("target_type") == "cue_jump" else "Go to Global Part"
+            action_str = f"{prefix}: {html.escape(song_name)} - {html.escape(part_name)} ({quant})"
 
-        # 3. Salto de Canción
+        # 2. Salto de Canción
         elif pending_action.get("target_type") == "song":
             target = pending_action.get("target")
             target_song_idx = playlist_state.current_song_index
-            
             if isinstance(target, int):
                 target_song_idx = target
             elif isinstance(target, dict) and target.get("type") == "relative":
                 target_song_idx += target.get("value", 0)
-            
             if 0 <= target_song_idx < len(playlist_state.playlist_elements):
                 element = playlist_state.playlist_elements[target_song_idx]
                 song_name = element.get("song_name", Path(element.get("filepath", "N/A")).stem)
@@ -1110,7 +1116,7 @@ def get_action_status_text():
             else:
                 action_str = "Jump to End of Setlist"
 
-        # 4. Salto de Parte (Normal)
+        # 3. Salto de Parte (dentro de la canción actual)
         else:
             target = pending_action.get("target")
             part_name = ""
@@ -1127,7 +1133,6 @@ def get_action_status_text():
                     action_str = f"{prefix} ({value:+}): {part_name} ({quant})"
                 else:
                     action_str = "Cancelled"
-
             elif target == "restart":
                 part_name = song_state.parts[song_state.current_part_index].get('name', 'N/A')
                 action_str = f"Restart: {part_name} ({quant})"
@@ -1137,44 +1142,38 @@ def get_action_status_text():
                 action_str = f"Go to: {part_name} ({quant})"
     
     if goto_input_active:
-        ui_feedback_message = ""
         return HTML(f"<style bg='ansiyellow' fg='ansiblack'>Ir a Parte: {goto_input_buffer}_</style>")
 
+    # --- Lógica de ensamblado final ---
+    if repeat_override_active:
+        mode_part = "<style fg='ansigreen' bold='true'>Song Mode</style>"
+    else:
+        mode_part = "<style fg='ansiblue' bold='true'>Loop Mode</style>"
+    
     quant_part = f"<b>Quant:</b> <style bg='#333333'>[{quant_str}]</style>"
     action_part = f"<b>Pending Action:</b> <style bg='#333333'>[{html.escape(action_str)}]</style>"
-    
-    repeat_part = ""
-    if repeat_override_active:
-        repeat_part = " | <style fg='ansigreen' bold='true'>Song Mode</style>"
-    else:
-        repeat_part = " | <style fg='ansiblue' bold='true'>Loop Mode</style>"
 
-    return HTML(f"{quant_part} | {action_part}{repeat_part}")
+    return HTML(f"{mode_part} | {quant_part} | {action_part}")
 
 def get_key_legend_text():
     """Muestra la leyenda de los controles de teclado."""
     line1 = "<b>[←→:</b> Part Nav] <b>[↑:</b> Restart Part] <b>[↓:</b> Cancel] <b>[PgUp/PgDn:</b> Song Nav]"
-    line2 = "<b>[r:</b> Mode] <b>[.:</b> Goto] <b>[0-3:</b> Q-Jump] <b>[4-9:</b> Set Quant]"
+    line2 = "<b>[m:</b> Mode] <b>[.:</b> Goto] <b>[0-3:</b> Q-Jump] <b>[4-9:</b> Set Quant]"
     return HTML(f"<style fg='#666666'>{line1}\n{line2}</style>")
 
 # --- UI Functions ---
 def get_part_name_text():
     """Genera el bloque de encabezado completo."""
     
-    # --- Línea 1: Estado ---
-    app_name = "miditema".ljust(14)
-    status = clock_state.status.ljust(10)
-    elapsed_str = "--:--"
-    if clock_state.start_time > 0 and clock_state.status != "FINISHED":
-        elapsed_seconds = time.time() - clock_state.start_time
-        minutes, seconds = divmod(int(elapsed_seconds), 60)
-        elapsed_str = f"{minutes:02d}:{seconds:02d}"
-    bpm = f"{clock_state.bpm:.0f} BPM".ljust(12)
-    source = f"Clock: {clock_state.source_name}"
-    status_text = f"{app_name} | {status} | {elapsed_str} | {bpm} | {source}"
-    status_line = f"<style fg='ansiwhite'>{status_text.center(80)}</style>"
+    # --- LÍNEA 1: ORDEN ACTUAL ---
+    app_name = "miditema".center(18)
+    source = f"Clock: {clock_state.source_name}".center(25)
+    status = clock_state.status.center(12)
+    bpm = f"{clock_state.bpm:.0f} BPM".center(12)
+    status_text = f"{app_name}|{source}|{status}|{bpm}"
+    status_line = f"<style fg='ansiwhite'>{status_text}</style>"
 
-    # --- Línea 2: Título de la Canción ---
+    # --- LÍNEA 2: Título de la Canción (sin cambios) ---
     song_color_name = song_state.song_color
     song_style_str = TITLE_COLOR_PALETTE.get(song_color_name, "bg='#aaaaaa' fg='ansiblack'")
     safe_song_name = html.escape(song_state.song_name)
@@ -1185,61 +1184,50 @@ def get_part_name_text():
         current = playlist_state.current_song_index + 1
         total = len(playlist_state.playlist_elements)
         playlist_prefix = f"[{current}/{total}] "
-        # Convertir a lista de caracteres para poder modificarla
         title_chars = list(centered_song_name)
-        # Sobrescribir los primeros caracteres con el prefijo
         for i in range(len(playlist_prefix)):
             if i < len(title_chars):
                 title_chars[i] = playlist_prefix[i]
-        
         final_title_str = "".join(title_chars)
 
     song_title_line = f"<style {song_style_str} bold='true'>{final_title_str}</style>"
 
-
+    # --- LÍNEA 3: Título de la Parte (sin cambios) ---
     part_info_str = "---".center(80)
     part_to_display = None
     part_style_str = TITLE_COLOR_PALETTE['default']
     
-    # Determinar qué parte mostrar (la actual o la primera como preview)
     part_index_to_show = song_state.current_part_index
     if part_index_to_show == -1 and song_state.parts:
         part_index_to_show = 0
         
     if part_index_to_show != -1:
         part_to_display = song_state.parts[part_index_to_show]
-        
         name = part_to_display.get('name', '---')
         bars = part_to_display.get('bars', 0)
         total_parts = len(song_state.parts)
-        
         safe_part_name = html.escape(name)
         centered_part_name = safe_part_name.center(80)
-        
         final_part_title_str = centered_part_name
-        
-        # 2. Crear el prefijo y sobrescribirlo al principio
         part_prefix = f"[{part_index_to_show + 1}/{total_parts}] {bars} "
-        
         title_chars = list(centered_part_name)
         for i in range(len(part_prefix)):
             if i < len(title_chars):
                 title_chars[i] = part_prefix[i]
-        
         final_part_title_str = "".join(title_chars)
-        
         color_name = part_to_display.get('color')
         part_style_str = TITLE_COLOR_PALETTE.get(color_name, TITLE_COLOR_PALETTE['default'])
         part_info_str = final_part_title_str
 
     part_name_line = f"<style {part_style_str} bold='true'>{part_info_str}</style>"
 
-    # --- Líneas 4 y 5: Nueva tabla de información ---
-    col_width = 12
+    # --- LÍNEAS 4 y 5: TABLA CON TIEMPO AL PRINCIPIO ---
+    col_width = 19
     header_song = "Song".center(col_width)
     header_part = "Part".center(col_width)
     header_bar = "Bar".center(col_width)
-    table_header = f"{header_song}|{header_part}|{header_bar}"
+    header_time = "Time".center(col_width)
+    table_header = f"{header_time}|{header_song}|{header_part}|{header_bar}" 
     
     song_index_str = "--/--"
     if playlist_state.is_active:
@@ -1259,14 +1247,20 @@ def get_part_name_text():
             display_bar = current_bar + 1
         bar_str = f"{display_bar:02d}/{total_bars:02d}"
 
+    elapsed_str = "--:--"
+    if clock_state.start_time > 0 and clock_state.status != "FINISHED":
+        elapsed_seconds = time.time() - clock_state.start_time
+        minutes, seconds = divmod(int(elapsed_seconds), 60)
+        elapsed_str = f"{minutes:02d}:{seconds:02d}"
+
     value_song = song_index_str.center(col_width)
     value_part = part_index_str.center(col_width)
     value_bar = bar_str.center(col_width)
-    table_values = f"{value_song}|{value_part}|{value_bar}"
+    value_time = elapsed_str.center(col_width)
+    table_values = f"{value_time}|{value_song}|{value_part}|{value_bar}" # <-- ORDEN CAMBIADO AQUÍ
 
     table_line_1 = f"<style fg='ansiwhite'>{table_header.center(80)}</style>"
     table_line_2 = f"<style fg='ansiwhite' bold='true'>{table_values.center(80)}</style>"
-
 
     return HTML(
         f"{status_line}\n"
@@ -2048,7 +2042,7 @@ def main():
         trigger_song_jump(action)
         ui_feedback_message = "Playlist: Go to Last Song."
 
-    @kb.add('r', filter=~is_goto_mode)
+    @kb.add('m', filter=~is_goto_mode)
     def _(event):
         """Activa o desactiva la anulación de los patrones de repetición."""
         global repeat_override_active, ui_feedback_message

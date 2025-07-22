@@ -25,7 +25,7 @@ You can pre-define the sections of your song (Intro, Verse, Chorus, etc.) and th
   
 - **Quantized Actions:** All jumps are scheduled as a **pending action** and executed with musical precision on the next beat, bar, or larger musical divisions.
 
-- **Cue Jumps & Dynamic Quantization:** Assign key parts to Cues for instant, one-press access via F-Keys (F1-F12) or MIDI CC#2. Repeatedly trigger a pending cue to dynamically shorten its quantization, allowing for expressive, on-the-fly transitions from a long musical phrase down to the next bar.
+- **Global Cues & Dynamic Quantization:** Assign key parts across your **entire setlist** to Cues for instant, one-press access. Trigger them via F-Keys (F1-F12) or MIDI CC#2 to jump to any designated part, in any song, at any time. Repeatedly trigger a pending cue to dynamically shorten its quantization, allowing for expressive, on-the-fly transitions.
   
 - **Comprehensive TUI (Terminal User Interface):** A clean, full-screen interface provides a clear overview:
   
@@ -73,33 +73,23 @@ You can pre-define the sections of your song (Intro, Verse, Chorus, etc.) and th
 
 MIDItema is designed to run from a terminal and requires Python 3.
 
-1. **Clone the repository:**
 
-  ```
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/your-username/miditema.git
+    cd miditema
+    ```
 
-  git clone https://github.com/your-username/miditema.git
+2.  **Install dependencies:**
+    It's recommended to use a Python virtual environment.
+    ```bash
+    # Create and activate a virtual environment (optional but recommended)
+    python3 -m venv venv
+    source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
 
-  cd miditema
-
-  ```
-
-2. **Install dependencies:**  
-
-  It's recommended to use a Python virtual environment.
-
-  ```
-
-  # Create and activate a virtual environment (optional but recommended)
-
-  python3 -m venv venv
-
-  source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-
-  # Install the required packages
-
-  pip install mido python-osc prompt-toolkit python-rtmidi json5
-
-  ```
+    # Install the required packages
+    pip install mido python-osc prompt-toolkit python-rtmidi json5
+    ```
 
 ## Configuration
 
@@ -315,23 +305,17 @@ A playlist file arranges multiple songs. It is identified by the presence of a 
 3. **Run MIDItema from your terminal.** You can either launch it and select a song from an interactive list, or specify a song file directly.
   
 
-  ```
+```bash
+# Run and select a song from the interactive list
+python miditema.py
 
-  # Run and select a song from the interactive list
+# Or, specify a song file directly (without the .json extension)
+python miditema.py my_song_file
 
-  python miditema.py
-
-  # Or, specify a song file directly (without the .json extension)
-
-  python miditema.py my_song_file
-
-  # Or, launch with a specific default quantization mode
-
-  python miditema.py my_song_file --quant 8
-
-  # Valid --quant values: bar, 4, 8, 16, 32, instant
-
-  ```
+# Or, launch with a specific default quantization mode
+python miditema.py my_song_file --quant 8
+# Valid --quant values: bar, 4, 8, 16, 32, instant
+````
 
 4. **Start the master clock.** MIDItema will detect the clock, synchronize, and begin stepping through the song parts as defined in your JSON file.
 
@@ -396,47 +380,24 @@ All actions below are triggered by sending a Control Change message on **CC #
 | 18  | Cancel Action | Immediately cancels any pending action. |
 | 19  | Toggle Playback Mode | Switches between Loop Mode and Song Mode. |
 
-#### Global Part Jumps (CC #1)
+#### Global Navigation (CC #1 & Cues)
 
-This is a powerful feature for navigating large setlists. It allows you to jump to any part across your entire playlist with a single message.
+These are powerful features for navigating large setlists, allowing you to jump to any part across your entire playlist. **These features require a playlist to be active.**
 
-- **Action:** Jump to a specific part in the entire setlist.
-- **Details:** The `value` of the CC #1 message (0-127) corresponds to the global, zero-based index of the part you want to jump to. MIDItema calculates which song and part this index corresponds to. - `CC #1, Value 0`: Jumps to the first part of the first song. - `CC #1, Value 1`: Jumps to the second part of the first song (if it exists). - If the first song has 5 parts, `CC #1, Value 5` will jump to the first part of the *second* song. - **Quantization:** Uses the currently active **global** quantize mode.
+| Trigger | Action | Details | Quantization |
+| :--- | :--- | :--- | :--- |
+| **CC #1** (Value `N`) | Go to Global Part `N` | Jumps to a part based on its absolute index in the setlist (0-127). If song 1 has 5 parts, value `5` jumps to the first part of song 2. | Global |
+| **F1-F12** | Go to Cue `1-12` | Jumps to the part marked with the corresponding `"cue": N` number in any song file within the playlist. | Dynamic |
+| **CC #2** (Value `N`) | Go to Cue `N` | Jumps to the part marked with `"cue": N`. Allows access to 128 cues. | Dynamic |
 
-### Cue Jumps (F1-F12 and CC #2)
+**Dynamic Quantization (for Cues only):**
 
-Cues provide a fast and expressive way to jump to pre-defined key parts of your song. This system also introduces **dynamic quantization**, allowing you to accelerate a jump on the fly.
+This is a unique feature of Cue Jumps. Repeatedly triggering the *same cue* while it is pending will speed up its quantization for that specific jump.
 
-- **Action:** Jump to a specific part marked as a "Cue".
-  
-- **Defining Cues:** In your song file, add a "cue": N key-value pair to any part you want to access directly. N is the cue number.
-  
-  ```
-  "parts": [
-    { "name": "Verse", "bars": 16, "cue": 1 },
-    { "name": "Chorus", "bars": 16, "cue": 2 },
-    { "name": "Drop", "bars": 32, "cue": 100 }
-  ]
-  ```
-  
-- **Triggering Cues:**
-  
-  - **F-Keys:** Pressing F1 through F12 on your keyboard will trigger cue: 1 through cue: 12.
-    
-  - **MIDI CC #2:** Sending a Control Change message on **CC #2** with a value of N will trigger cue: N. This allows access to up to 128 cues per song.
-    
-
-#### Dynamic Quantization
-
-This is a unique feature of Cue Jumps. Repeatedly triggering the same cue while it is pending will speed up its quantization.
-
-- **First Trigger:** The jump is scheduled using the current **global** quantize mode (e.g., Next 8).
-  
-- **Second Trigger:** The pending jump's quantization is halved (e.g., from Next 8 to Next 4).
-  
-- **Subsequent Triggers:** Each trigger continues to halve the quantization until it reaches the fastest level (Next Bar).
-  
-- **This change is temporary** and only affects the current pending cue jump. The global quantize mode remains unchanged. The TUI will display the dynamic quantization in real-time.
+-   **First Trigger:** The jump is scheduled using the current **global** quantize mode (e.g., `Next 8`).
+-   **Second Trigger:** The pending jump's quantization is halved (e.g., from `Next 8` to `Next 4`).
+-   **Subsequent Triggers:** Each trigger continues to halve the quantization until it reaches the fastest level (`Next Bar`).
+-   The TUI will display the dynamic quantization in real-time.
 
 ## MIDI Output
 
