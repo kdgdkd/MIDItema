@@ -276,8 +276,11 @@ def setup_part(part_index):
     if part_index == 0:
         song_state.start_time = time.time()
 
+    # Envía el mensaje OSC inmediato. El MIDI PC ya se envió por adelantado.
+    send_osc_part_change(song_state.song_name, song_state.current_part_index, part)
+    
+    # El MIDI PC solo se envía aquí si el envío por adelantado está desactivado.
     if part_change_advanced == 0:
-        send_osc_part_change(song_state.song_name, song_state.current_part_index, part)
         send_midi_program_change(part_index)
 
     # Si una parte válida tiene 0 compases, la saltamos para evitar bucles infinitos
@@ -321,7 +324,7 @@ def process_song_tick():
         if next_part_index is not None:
             # Caso 1: Hay una siguiente parte en la misma canción.
             next_part = song_state.parts[next_part_index]
-            send_osc_part_change(song_state.song_name, next_part_index, next_part)
+            send_osc_part_change_advanced(song_state.song_name, next_part_index, next_part, part_change_advanced)
             send_midi_program_change(next_part_index)
         
         elif playlist_state.is_active:
@@ -342,7 +345,7 @@ def process_song_tick():
                     # Enviar TODOS los mensajes por adelantado
                     send_osc_song_change(next_song_index, next_song_name)
                     send_midi_song_select(next_song_index)
-                    send_osc_part_change(next_song_name, first_part_idx, first_part_data)
+                    send_osc_part_change_advanced(next_song_name, first_part_idx, first_part_data, part_change_advanced)
                     send_midi_program_change(first_part_idx)
 
     # Comprobar si hay un salto pendiente y si se debe ejecutar ahora
@@ -725,7 +728,7 @@ def check_and_execute_pending_action():
                         dest_song_name = song_state.song_name
 
                     # Enviar los mensajes de cambio de parte (siempre se envía)
-                    send_osc_part_change(dest_song_name, dest_part_idx, dest_part)
+                    send_osc_part_change_advanced(dest_song_name, dest_part_idx, dest_part, part_change_advanced)
                     send_midi_program_change(dest_part_idx)
                     pending_action["early_send_fired"] = True
 
@@ -1180,6 +1183,35 @@ def send_osc_part_change(song_name: str, part_index: int, part: dict):
             osc_clients[i].send(msg)
         except Exception as e:
             set_feedback_message(f"Error OSC (Destino {i+1}): {e}")
+
+
+
+def send_osc_part_change_advanced(song_name: str, part_index: int, part: dict, advanced_beats: int):
+    """
+    Construye y envía el mensaje OSC de cambio de parte ADELANTADO,
+    incluyendo un 5º argumento con los beats de avance.
+    """
+    if not osc_clients:
+        return
+
+    for i, config in enumerate(osc_configs):
+        address = config.get("address_part_change_advanced")
+        if not address:
+            continue
+
+        try:
+            builder = osc_message_builder.OscMessageBuilder(address=address)
+            builder.add_arg(song_name, 's')
+            builder.add_arg(part.get("name", "N/A"), 's')
+            builder.add_arg(part.get("bars", 0), 'i')
+            builder.add_arg(part_index, 'i')
+            # --- AÑADIR EL 5º ARGUMENTO ---
+            builder.add_arg(advanced_beats, 'i')
+            msg = builder.build()
+            osc_clients[i].send(msg)
+        except Exception as e:
+            set_feedback_message(f"Error OSC Adv (Destino {i+1}): {e}")
+
 
 def send_osc_song_change(song_index: int, song_name: str):
     """Construye y envía un mensaje OSC a todos los destinos configurados cuando cambia una canción."""
@@ -2150,13 +2182,28 @@ def main():
                 style=lambda: f"bg:{get_song_title_text()[1]['bg']}",
                 align=WindowAlign.CENTER
             ),
-            Window(
-                content=FormattedTextControl(
-                    lambda: HTML(f"<style fg='{get_part_title_text()[1]['fg']}' bold='true'>{get_part_title_text()[0]}</style>")
+            HSplit([
+                # 1. TITULO DE PARTE: Línea superior vacía
+                Window(
+                    style=lambda: f"bg:{get_part_title_text()[1]['bg']}",
+                    height=1
                 ),
-                style=lambda: f"bg:{get_part_title_text()[1]['bg']}",
-                align=WindowAlign.CENTER
-            ),
+                # 2. TITULO DE PARTE: Línea central con el texto
+                Window(
+                    content=FormattedTextControl(
+                        lambda: HTML(f"<style fg='{get_part_title_text()[1]['fg']}' bold='true'>{get_part_title_text()[0]}</style>")
+                    ),
+                    style=lambda: f"bg:{get_part_title_text()[1]['bg']}",
+                    height=1,
+                    align=WindowAlign.CENTER
+                ),
+                # 3. TITULO DE PARTE: Línea inferior vacía
+                Window(
+                    style=lambda: f"bg:{get_part_title_text()[1]['bg']}",
+                    height=1
+                ),
+            ]),
+
         ]),
         Window(height=1, char=border_char),
 

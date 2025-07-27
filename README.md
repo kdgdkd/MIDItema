@@ -1,12 +1,16 @@
-MIDItema: Live Performance Sequencer
+# MIDItema: Live Performance Sequencer
 
 A terminal-based, live performance song arranger and bar counter. MIDItema acts as a MIDI clock slave, stepping through song structures and broadcasting state changes via MIDI and OSC, giving you powerful, quantized control over your song's flow.
 
 ## Core Concept
 
-In a typical linear workflow, your song arrangement is fixed to a timeline. MIDItema decouples your arrangement from the timeline. It listens to a master clock source (like a DAW, hardware sequencer, or our companion tool [MIDImaster](https://www.google.com/url?sa=E&q=https%3A%2F%2Fgithub.com%2Fpablomartin%2Fmidimaster)) but lets you decide the song's structure on the fly.
+MIDItema is a master sequencer and automation hub for live performance. Its core purpose is to structure your entire set into a clear hierarchy: **Setlists** are composed of **Songs**, and Songs are composed of **Parts**.
 
-You can pre-define the sections of your song (Intro, Verse, Chorus, etc.) and then, during a live performance, jump between them, repeat them, or skip them on command. All your actions are musically quantized, ensuring every transition is perfectly in time. It's designed for improvisation, live remixing, and adding a dynamic, human element to electronic music performance.
+Acting as a MIDI clock slave, it listens to an external clock source and provides clear visual feedback on your current position within the setlist. As it progresses through the song structure, its main job is to send precisely timed **MIDI events and OSC messages**. This transforms MIDItema into the central brain of your performance, allowing you to **synchronize automations** in other programs or external secuencers, trigger visual effects, change synth patches, and control lighting rigs.
+
+It also facilitates live performance by giving you powerful, quantized navigation controls to create loops or jump between parts and songs. Furthermore, it allows you to define global **Cues**—direct access points to critical parts across your entire setlist—making complex, non-linear jumps reliable and perfectly quantized.
+
+(You could use [MIDImod](https://github.com/kdgdkd/MIDImod) to read MIDItema's OSC messages, transform them into any kind of MIDI event, and route it to your preferred destination; you could send to your sequencer Song Select events upon song changes, and Program Change for part changes, or automate new CC values for your synth for each song or a particular part of a song.)
 
 ## Features
 
@@ -132,6 +136,7 @@ This file, located in the root directory, defines all your MIDI and OSC connecti
                 "ip": "127.0.0.1",
                 "port": 9000,
                 "address_part_change": "/miditema/part/change",
+                "address_part_change_advanced": "/miditema/part/change_advanced",
                 "address_song_change": "/miditema/song/change",
                 "address_song_end": "/miditema/song/end",
                 "bar_triggers": [
@@ -181,6 +186,8 @@ This file, located in the root directory, defines all your MIDI and OSC connecti
 
     - "address_song_change": (Optional) The OSC address for **song change** messages.
 
+    - "address_part_change_advanced": (Optional) The OSC address for **advanced part change** messages, sent ahead of time according to the `part_change_advanced` setting.
+
     - "address_song_end": (Optional) The OSC address sent only when the entire playlist or single song playback finishes completely.
 
     - "bar_triggers": (Optional) A list of rules for sending messages on rhythmic boundaries. Each rule is an object with:
@@ -202,7 +209,7 @@ A standard song file defines a single piece of music.
 
 {
 
-    "song_name": "My Awesome Track",
+    "song_name": "Genocide in Palestine",
 
     "color": "blue", // Optional: sets the color for the song title bar
 
@@ -210,20 +217,55 @@ A standard song file defines a single piece of music.
 
     "parts": [
 
-        { "name": "Intro", "bars": 8, "color": "cyan", "repeat_pattern": false },
+        { "name": "Intro - OUR land", "bars": 8, "color": "cyan", "repeat_pattern": false },
 
-        { "name": "Verse", "bars": 16, "color": "green" },
+        { "name": "Verse - Nazis in sheep's clothing", "bars": 16, "color": "green" },
 
-        { "name": "Chorus", "bars": 16, "color": "red", "repeat_pattern": true }
+        { "name": "Chorus - Free Palestine", "bars": 16, "color": "yellow", "repeat_pattern": true, "cue": 1 }
+
+        { "name": "Outro - We'll never forget", "bars": 8, "color": "red", "repeat_pattern": true }
 
     ]
 
 }
 ```
 
-- **color (at root level):** (Optional) Sets the background color for the song's title bar in the UI. Available colors: default, red, green, yellow, blue, magenta, cyan. If omitted, a default grey style is used.
+**Root-Level Parameters:**
+
+- **song_name**: (Optional) The name of the song. If omitted, the filename (without the extension) is used.
   
-- (El resto de parámetros de canción son correctos como están en tu versión actual).
+- **color**: (Optional) Sets the background color for the song's title bar in the UI. Available colors: default, red, green, yellow, blue, magenta, cyan.
+  
+- **time_signature**: (Optional) The time signature of the song (e.g., "4/4", "3/4"). Only the numerator is currently used to calculate the number of beats per bar. Defaults to "4/4".
+  
+- **time_division**: (Optional) Defines the "beat" of the song relative to the MIDI clock's 24 pulses per quarter note (PPQN).
+  
+  - "1/4": A song beat is a quarter note (24 ticks). This is the default.
+    
+  - "1/8": A song beat is an eighth note (12 ticks).
+    
+  - "1/16": A song beat is a sixteenth note (6 ticks).
+    
+- **parts**: (Mandatory) A list of part objects that define the structure of the song.
+  
+
+**Part-Level Parameters (within the parts list):**
+
+- **name** (string): The name of the part (e.g., "Verse 1").
+  
+- **bars** (integer): The length of the part in bars. A part with 0 bars will be skipped.
+  
+- **color** (string, optional): Sets the color for this part's title bar and for its entry in the >> Next Part display. Uses the same color palette as the song-level color.
+  
+- **repeat_pattern** (optional): Controls the looping behavior of the part when in **Loop Mode**.
+  
+  - **true or omitted:** The part will repeat indefinitely until a jump is triggered.
+    
+  - **false:** The part will play only once on the first pass through the song structure.
+    
+  - **[true, false, true, true] (list of booleans):** Defines a complex pattern. The part will play or be skipped based on the boolean at the current pass index (pass_count % list_length).
+    
+- **cue** (integer, optional): Assigns a global cue number (e.g., 1-128) to this part. This makes the part directly accessible from anywhere in the playlist via F-Keys or MIDI CC#2. Each cue number should be unique across the entire setlist to avoid ambiguity.
   
 
 #### Playlist File Example
@@ -452,11 +494,28 @@ This is a core feature for integrating MIDItema with other software. All OSC mes
 
   2. **Part Name** (string): The name of the part that is now beginning.
 
-  3. **Part Bars** (integer): The total number of bars in this new part.
+  3. **Part Bars** (integer): The total number of bars in this new part. 
 
   4. **Part Index** (integer): The zero-based index of this part in the song's parts array.
 
 - **Example:** /miditema/part/change "Main Track" "Verse 2" 16 2
+
+### Advanced Part Change Message
+
+- **Address:** Defined by the `"address_part_change_advanced"` key.
+- **Trigger:** Sent *before* a new part begins, according to the `part_change_advanced` setting in `midi_configuration`.
+- **Arguments:**
+  1. **Song Name** (string): The name of the song containing the upcoming part.
+  
+  2. **Part Name** (string): The name of the part that is about to begin.
+
+  3. **Part Bars** (integer): The total number of bars in the upcoming part.
+
+  4. **Part Index** (integer): The zero-based index of the upcoming part.
+
+  5. **Advanced Beats** (integer): The number of beats of advance notice, as defined by `part_change_advanced`.
+  
+- **Example:** `/miditema/part/prepare "Main Track" "Chorus" 16 2 1` (Sent 1 beat in advance)
 
 ### Song End Message
 
