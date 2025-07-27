@@ -65,6 +65,7 @@ class ClockState:
         self.tick_times = [] # Para promediar el BPM
         self.last_tick_time = 0
         self.start_time = 0
+        self.paused_set_elapsed_time = 0
 
 class SongState:
     """Almacena el estado de la canción y la secuencia."""
@@ -78,6 +79,7 @@ class SongState:
         self.midi_clock_tick_counter = 0
         self.current_bar_in_part = 0 
         self.start_time = 0
+        self.paused_song_elapsed_time = 0
         # Valores derivados de la canción
         self.time_signature_numerator = 4
         self.ticks_per_song_beat = MIDI_PPQN
@@ -256,6 +258,7 @@ def reset_song_state_on_stop():
     song_state.current_part_index = -1
     song_state.remaining_beats_in_part = 0
     song_state.start_time = 0
+    song_state.paused_song_elapsed_time = 0
     song_state.pass_count = 0
     song_state.midi_clock_tick_counter = 0
     song_state.current_bar_in_part = 0
@@ -313,7 +316,7 @@ def start_next_part():
 def process_song_tick():
     """Llamado en cada "beat" de la canción (definido por time_division)."""
     global beat_flash_end_time
-    if clock_state.status != "PLAYING":
+    if clock_state.status != "PLAYING" or song_state.current_part_index == -1:
         return
     
     # --- Lógica de envío por adelantado para TODAS las transiciones naturales ---
@@ -456,7 +459,17 @@ def predict_jump_destination(action: dict):
         steps = target.get("value", 0)
         direction = "+1" if steps > 0 else "-1"
         for _ in range(abs(steps)):
-            current_sim_parts = _get_parts_from_playlist_element(playlist_state.playlist_elements[sim_song_idx])
+            # Determinar de dónde obtener la lista de partes para la simulación
+            current_sim_parts = []
+            if playlist_state.is_active:
+                # Modo Playlist: obtener partes del elemento de la playlist
+                if not (0 <= sim_song_idx < len(playlist_state.playlist_elements)):
+                    return None, None # Salida segura si el índice de canción es inválido
+                current_sim_parts = _get_parts_from_playlist_element(playlist_state.playlist_elements[sim_song_idx])
+            else:
+                # Modo Canción Única: usar las partes de la canción actual
+                current_sim_parts = song_state.parts
+
             next_part_idx, next_pass_count = _find_next_valid_part_index(current_sim_parts, direction, sim_part_idx, sim_pass_count, repeat_override_active)
             
             if next_part_idx is not None:
@@ -758,6 +771,42 @@ def check_and_execute_pending_action():
     return False
 
 
+def handle_start():
+    """Lógica para procesar un comando START."""
+    global clock_state
+    if clock_state.status == "PLAYING": return # Evitar múltiples inicios
+
+    clock_state.status = "PLAYING"
+    clock_state.start_time = time.time()
+    clock_state.paused_set_elapsed_time = 0
+    reset_song_state_on_stop()
+    start_next_part()
+
+def handle_stop():
+    """Lógica para procesar un comando STOP."""
+    global clock_state, song_state
+    if clock_state.status == "STOPPED": return # Evitar múltiples paradas
+
+    if clock_state.status == "PLAYING":
+        current_time = time.time()
+        if clock_state.start_time > 0:
+            clock_state.paused_set_elapsed_time += current_time - clock_state.start_time
+        if song_state.start_time > 0:
+            song_state.paused_song_elapsed_time += current_time - song_state.start_time
+    
+    clock_state.status = "STOPPED"
+
+def handle_continue():
+    """Lógica para procesar un comando CONTINUE."""
+    global clock_state, song_state
+    if clock_state.status == "PLAYING": return # Evitar múltiples inicios
+
+    clock_state.status = "PLAYING"
+    current_time = time.time()
+    clock_state.start_time = current_time
+    if song_state.current_part_index != -1:
+        song_state.start_time = current_time
+
 def midi_input_listener():
     """El hilo principal que escucha los mensajes MIDI y actualiza el estado."""
     global midi_input_port, clock_state, song_state
@@ -776,20 +825,13 @@ def midi_input_listener():
             continue
 
         # --- Lógica de Clock ---
+
         if msg.type == 'start':
-            # print("DEBUG: midi_input_listener (start) -> cambiando estado a PLAYING")
-            clock_state.status = "PLAYING"
-            clock_state.start_time = time.time()
-            reset_song_state_on_stop()
-            start_next_part()
+            handle_start()
         elif msg.type == 'stop':
-            # print("DEBUG: midi_input_listener (stop) -> cambiando estado a STOPPED")    
-            clock_state.status = "STOPPED"
-            clock_state.start_time = 0
-            reset_song_state_on_stop()
+            handle_stop()
         elif msg.type == 'continue':
-            # print("DEBUG: midi_input_listener (continue) -> cambiando estado a PLAYING")
-            clock_state.status = "PLAYING"
+            handle_continue()
         elif msg.type == 'clock':
             if clock_state.status == "STOPPED":
                 # print("DEBUG: midi_input_listener (clock) -> cambiando estado a PLAYING")
@@ -1470,29 +1512,39 @@ def get_next_part_text():
             })
 
         if dest_part_idx is not None:
-            # 1. Obtener los datos y el color de la parte de destino. Esta es la fuente de verdad.
-            dest_song_element = playlist_state.playlist_elements[dest_song_idx]
-            dest_song_parts = _get_parts_from_playlist_element(dest_song_element)
-            dest_part_data = dest_song_parts[dest_part_idx]
-            
-            color_name = dest_part_data.get('color', 'default')
-            style_str = FG_COLOR_PALETTE.get(color_name, FG_COLOR_PALETTE['default'])
-
-            # 2. Construir el texto apropiado.
-            name = dest_part_data.get('name', 'N/A')
-            bars = dest_part_data.get('bars', 0)
-
-            if dest_song_idx != playlist_state.current_song_index:
-                # El destino está en otra canción.
-                song_name = dest_song_element.get("song_name", Path(dest_song_element.get("filepath", "N/A")).stem)
-                part_info_str = f" [{html.escape(name)} ({bars})]"
-                raw_text = f">> Next Song: {html.escape(song_name)}{part_info_str}"
+            dest_part_data = None
+            # --- Bloque a cambiar ---
+            if not playlist_state.is_active:
+                # MODO CANCIÓN ÚNICA: El destino siempre está en la canción actual.
+                if 0 <= dest_part_idx < len(song_state.parts):
+                    dest_part_data = song_state.parts[dest_part_idx]
             else:
-                # El destino está en la misma canción.
-                raw_text = f">> {html.escape(name)} ({bars})"
+                # MODO PLAYLIST: El destino puede estar en otra canción.
+                if 0 <= dest_song_idx < len(playlist_state.playlist_elements):
+                    dest_song_element = playlist_state.playlist_elements[dest_song_idx]
+                    dest_song_parts = _get_parts_from_playlist_element(dest_song_element)
+                    if 0 <= dest_part_idx < len(dest_song_parts):
+                        dest_part_data = dest_song_parts[dest_part_idx]
+
+            if dest_part_data:
+                color_name = dest_part_data.get('color', 'default')
+                style_str = FG_COLOR_PALETTE.get(color_name, FG_COLOR_PALETTE['default'])
+                
+                name = dest_part_data.get('name', 'N/A')
+                bars = dest_part_data.get('bars', 0)
+
+                if playlist_state.is_active and dest_song_idx != playlist_state.current_song_index:
+                    song_name = playlist_state.playlist_elements[dest_song_idx].get("song_name", Path(playlist_state.playlist_elements[dest_song_idx].get("filepath", "N/A")).stem)
+                    part_info_str = f" [{html.escape(name)} ({bars})]"
+                    raw_text = f">> Next Song: {html.escape(song_name)}{part_info_str}"
+                else:
+                    raw_text = f">> {html.escape(name)} ({bars})"
+            else:
+                raw_text = ">> End of Setlist" if playlist_state.is_active else ">> End of Song"
         else:
             # No hay un destino válido, usar el texto por defecto.
             raw_text = ">> End of Setlist" if playlist_state.is_active else ">> End of Song"
+
 
     if not raw_text:
         return ""
@@ -1752,22 +1804,70 @@ def main():
             try:
                 client = udp_client.SimpleUDPClient(ip, port)
                 osc_clients.append(client)
-                osc_configs.append(target_config) # Guardamos la config para este cliente
+                osc_configs.append(target_config) 
                 print(f"    - Destino #{i+1} configurado para enviar a {ip}:{port}")
             except Exception as e:
                 print(f"    - Error configurando el destino #{i+1} ({ip}:{port}): {e}")
 
 
-    # 2. Seleccionar Canción o Playlist
-    selected_file_path = None
-    if args.song_file:
-        path = SONGS_DIR / f"{args.song_file}.json"
-        if path.is_file():
-            selected_file_path = path
-        else:
-            print(f"[!] El archivo '{args.song_file}' no se encontró.")
+    # 2. Seleccionar y Cargar Canción, Playlist o Directorio
     
-    if not selected_file_path:
+    # Esta variable global se modifica si se pasa un directorio como argumento
+    global SONGS_DIR 
+    
+    playlist_was_loaded = False
+
+    if args.song_file:
+        user_path = Path(args.song_file)
+        
+        # Caso 1: El argumento es un directorio
+        if user_path.is_dir():
+            print(f"[*] Directorio '{user_path.name}' detectado. Cargando como playlist...")
+            SONGS_DIR = user_path # Reasignar el directorio base de canciones
+            
+            json_files = sorted(list(SONGS_DIR.glob("*.json")))
+            if not json_files:
+                print(f"[!] Error: El directorio '{user_path.name}' no contiene archivos .json.")
+                return
+
+            playlist_state.is_active = True
+            playlist_state.playlist_name = user_path.name
+            playlist_state.playlist_elements = [{"filepath": f.name} for f in json_files]
+            loaded_filename = user_path.name
+            playlist_was_loaded = True
+            
+            # Los argumentos de modo tienen prioridad
+            if args.song_mode:
+                repeat_override_active = True
+                print("[*] Inicio en SONG MODE.")
+            elif args.loop_mode:
+                repeat_override_active = False
+                print("[*] Inicio en LOOP MODE.")
+            
+            if not load_song_from_playlist(0):
+                print("[!] La playlist generada está vacía o la primera canción no es válida. Saliendo.")
+                return
+
+        # Caso 2: El argumento es un archivo
+        else:
+            filename = user_path.name if user_path.name.lower().endswith(".json") else f"{user_path.name}.json"
+            selected_file_path = SONGS_DIR / filename
+            if not selected_file_path.is_file():
+                print(f"[!] El archivo '{args.song_file}' no se encontró en la carpeta '{SONGS_DIR_NAME}'.")
+                # Forzar el selector interactivo si el archivo no se encuentra
+                args.song_file = None 
+            else:
+                try:
+                    with selected_file_path.open('r', encoding='utf-8') as f:
+                        initial_data = json5.load(f)
+                    loaded_filename = selected_file_path.stem
+                    playlist_was_loaded = "songs" in initial_data and isinstance(initial_data["songs"], list)
+                except Exception as e:
+                    print(f"Error al leer el archivo '{selected_file_path.name}': {e}")
+                    return
+
+    # Caso 3: Sin argumento de archivo o el archivo no se encontró -> Selector interactivo
+    if not args.song_file:
         SONGS_DIR.mkdir(exist_ok=True)
         available_files = [f.stem for f in SONGS_DIR.glob("*.json")]
         if not available_files:
@@ -1780,47 +1880,42 @@ def main():
         if not selected_file_name:
             print("[!] No se seleccionó ningún archivo. Saliendo.")
             return
+        
         selected_file_path = SONGS_DIR / f"{selected_file_name}.json"
-
-    # Cargar el archivo inicial y determinar si es una playlist o una canción
-    try:
-        with selected_file_path.open('r', encoding='utf-8') as f:
-            initial_data = json5.load(f)
-        loaded_filename = selected_file_path.stem
-    except Exception as e:
-        print(f"Error al leer el archivo inicial '{selected_file_path.name}': {e}")
-        return
-
-    if "songs" in initial_data and isinstance(initial_data["songs"], list):
-        # Es una playlist
-        playlist_state.is_active = True
-        playlist_state.playlist_name = initial_data.get("playlist_name", selected_file_path.stem)
-        playlist_state.playlist_elements = initial_data["songs"]
-        print(f"[*] Playlist '{playlist_state.playlist_name}' cargada con {len(playlist_state.playlist_elements)} canciones.")
-        
-        # 1. Leer la configuración del archivo JSON como valor inicial
-        playlist_mode = initial_data.get("mode", "loop") # Por defecto es 'loop'
-        if playlist_mode.lower() == "song":
-            repeat_override_active = True
-        else:
-            repeat_override_active = False
-        
-        # 2. Los argumentos de línea de comandos tienen prioridad y anulan el JSON
-        if args.song_mode:
-            repeat_override_active = True
-            print("[*] Inicio en SONG MODE.")
-        elif args.loop_mode:
-            repeat_override_active = False
-            print("[*] Inicio en LOOP MODE.")
-
-        # Cargar la primera canción de la playlist
-        if not load_song_from_playlist(0):
-            print("[!] La playlist está vacía o la primera canción no es válida. Saliendo.")
+        try:
+            with selected_file_path.open('r', encoding='utf-8') as f:
+                initial_data = json5.load(f)
+            loaded_filename = selected_file_path.stem
+            playlist_was_loaded = "songs" in initial_data and isinstance(initial_data["songs"], list)
+        except Exception as e:
+            print(f"Error al leer el archivo '{selected_file_path.name}': {e}")
             return
-    else:
-        # Es una canción normal. Pasamos los datos que ya hemos leído.
-        if not load_song_file(filepath=selected_file_path, data=initial_data):
-            return # Salir si la canción no es válida
+
+    # Cargar los datos si no se cargaron desde un directorio
+    if not playlist_was_loaded:
+        if "songs" in initial_data and isinstance(initial_data["songs"], list):
+            # Es una playlist
+            playlist_state.is_active = True
+            playlist_state.playlist_name = initial_data.get("playlist_name", loaded_filename)
+            playlist_state.playlist_elements = initial_data["songs"]
+            print(f"[*] Playlist '{playlist_state.playlist_name}' cargada con {len(playlist_state.playlist_elements)} canciones.")
+            
+            playlist_mode = initial_data.get("mode", "loop")
+            repeat_override_active = playlist_mode.lower() == "song"
+            
+            if args.song_mode: repeat_override_active = True
+            elif args.loop_mode: repeat_override_active = False
+            
+            mode_str = "SONG MODE" if repeat_override_active else "LOOP MODE"
+            print(f"[*] Inicio en {mode_str}.")
+
+            if not load_song_from_playlist(0):
+                print("[!] La playlist está vacía o la primera canción no es válida. Saliendo.")
+                return
+        else:
+            # Es una canción normal
+            if not load_song_file(data=initial_data):
+                return
         
 
     # 3. Iniciar MIDI y Lógica
@@ -1852,14 +1947,27 @@ def main():
     def _(event):
         event.app.exit()
 
+
     @kb.add('enter', filter=~is_goto_mode)
+    def _(event):
+        """Actúa sobre el estado interno y envía Start/Stop."""
+        if clock_state.status == "STOPPED":
+            handle_start()
+            send_midi_command('start') # Opcional: seguir controlando otros dispositivos
+        else:
+            handle_stop()
+            send_midi_command('stop')
+
     @kb.add(' ', filter=~is_goto_mode)
     def _(event):
-        """Envía Start/Stop."""
+        """Actúa sobre el estado interno y envía Continue/Stop."""
         if clock_state.status == "STOPPED":
-            send_midi_command('start')
+            handle_continue()
+            send_midi_command('continue') # Opcional: seguir controlando otros dispositivos
         else:
+            handle_stop()
             send_midi_command('stop')
+
 
     # --- Lógica de Salto (Modo Normal) ---
     @kb.add('right', filter=~is_goto_mode)
@@ -1917,13 +2025,27 @@ def main():
     @kb.add('down', filter=~is_goto_mode)
     def _(event):
         global pending_action, ui_feedback_message
-        # Primero intenta cancelar una acción pendiente.
-        if pending_action:
-            pending_action = None
-            set_feedback_message("Pending Action cancelled.")
-        # Si no hay acción pendiente, intenta cancelar un bucle de parte.
+        
+        # Si estamos en pausa, la flecha abajo es un RESET TOTAL.
+        if clock_state.status == "STOPPED":
+            # Resetear contadores de tiempo
+            clock_state.paused_set_elapsed_time = 0
+            clock_state.start_time = 0
+            reset_song_state_on_stop()
+
+            # Volver al inicio del setlist si existe
+            if playlist_state.is_active:
+                load_song_from_playlist(0)
+            
+            set_feedback_message("Setlist reiniciado.")
+        
+        # Si estamos reproduciendo, la flecha abajo es CANCELAR.
         else:
-            cancel_part_loop()
+            if pending_action:
+                pending_action = None
+                set_feedback_message("Pending Action cancelled.")
+            else:
+                cancel_part_loop()
 
     # --- Controles Numéricos (Modo Normal) ---
     for i in "0123":
@@ -2111,14 +2233,24 @@ def main():
 
 
     def get_counter_text(counter_type: str):
+
         if counter_type == "set":
-            if clock_state.start_time > 0 and clock_state.status != "FINISHED":
-                minutes, seconds = divmod(int(time.time() - clock_state.start_time), 60)
+            total_seconds = clock_state.paused_set_elapsed_time
+            if clock_state.status == "PLAYING" and clock_state.start_time > 0:
+                total_seconds += time.time() - clock_state.start_time
+            
+            if total_seconds > 0 or clock_state.status == "PLAYING":
+                minutes, seconds = divmod(int(total_seconds), 60)
                 return f"{minutes:02d}:{seconds:02d}"
             return "--:--"
+
         elif counter_type == "song": 
-            if song_state.start_time > 0 and clock_state.status != "FINISHED":
-                minutes, seconds = divmod(int(time.time() - song_state.start_time), 60)
+            total_seconds = song_state.paused_song_elapsed_time
+            if clock_state.status == "PLAYING" and song_state.start_time > 0:
+                total_seconds += time.time() - song_state.start_time
+
+            if total_seconds > 0 or (clock_state.status == "PLAYING" and song_state.current_part_index != -1):
+                minutes, seconds = divmod(int(total_seconds), 60)
                 return f"{minutes:02d}:{seconds:02d}"
             return "--:--"
         elif counter_type == "song/set":

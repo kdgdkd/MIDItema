@@ -14,7 +14,7 @@ It also facilitates live performance by giving you powerful, quantized navigatio
 
 ## Features
 
-- **Playlist / Setlist Mode:** Structure an entire live set by creating playlists that link multiple song files or even contain embedded song sections. Navigate between songs automatically or manually.
+- **Playlist / Setlist Mode:** Structure an entire live set in multiple ways: create explicit **Playlist files** that link songs, or simply **load a directory** of song files on the fly to generate an instant playlist. Navigate between songs automatically or manually.
 - **MIDI Clock Slave:** Synchronizes perfectly to any standard MIDI clock source.
 - **Advanced Song & Playlist Structure:** Define your songs and playlists in simple, human-readable json5 files, which allows for comments. Specify parts, lengths, colors for both songs and parts, and complex repetition logic.
  - **Repetition Patterns:** Control exactly how parts repeat within a song.
@@ -151,7 +151,7 @@ This file, located in the root directory, defines all your MIDI and OSC connecti
 
 ### 2. Song and Playlist Files (temas/)
 
-You can load two types of files: individual **Song files** or **Playlist files** that arrange multiple songs.
+MIDItema can load content in three ways: as individual **Song files**, as **Playlist files** that arrange multiple songs, or by loading an entire **Directory** of songs as a virtual playlist.
 
 #### Song File Example
 
@@ -250,26 +250,39 @@ A playlist file arranges multiple songs. It is identified by the presence of a "
 
 ## Usage
 
-1. **Start your master clock source.** This could be your DAW (e.g., Ableton Live, Logic Pro), a hardware sequencer, or a software clock like [MIDImaster](https://github.com/kdgdkd/MIDImaster). Ensure it is configured to send MIDI Clock.
+1. **Start your master clock source.** This could be your DAW, a hardware sequencer, or a software clock like [MIDImaster](https://github.com/kdgdkd/MIDImaster). Ensure it is configured to send MIDI Clock.
   
 2. **Configure miditema.conf.json** to listen to the correct MIDI ports for clock and control, and to send data to the correct output ports.
   
-3. **Run MIDItema from your terminal.** You can either launch it and select a song from an interactive list, or specify a song file directly.
+3. **Run MIDItema from your terminal.** It can be launched in several ways depending on your needs:
+
+    -   **Interactive Mode (No arguments):** MIDItema will show a list of all `.json` files in the `temas/` directory for you to choose from.
+        ```bash
+        python miditema.py
+        ```
+
+    -   **File Mode (Provide a filename):** Loads a specific song or playlist file from the `temas/` directory. You can provide the name with or without the `.json` extension.
+        ```bash
+        # Both of these commands work
+        python miditema.py my_song_file
+        python miditema.py my_setlist.json
+        ```
+
+    -   **Directory Mode (provide a path ending in `/` or `\`):** Loads all `.json` files from the specified directory, sorted alphabetically, as a virtual playlist.
+        ```bash
+        # Loads all songs from the 'my_live_set' folder
+        python miditema.py my_live_set/
+        ```
   
 
-```
-# Run and select a song from the interactive list
-python miditema.py
+        You can also combine file/directory mode with command-line arguments:
+        ```bash
+        # Launch with a specific default quantization mode
+        python miditema.py my_song_file --quant 8
+        # Valid --quant values: bar, 4, 8, 16, 32, instant
+        ```
 
-# Or, specify a song file directly (without the .json extension)
-python miditema.py my_song_file
-
-# Or, launch with a specific default quantization mode
-python miditema.py my_song_file --quant 8
-# Valid --quant values: bar, 4, 8, 16, 32, instant
-```
-
-4. **Start the master clock.** MIDItema will detect the clock, synchronize, and begin stepping through the song parts as defined in your JSON file.
+4.  **Start the master clock.** MIDItema will detect the clock, synchronize, and begin stepping through the song parts as defined.
 
 ## Controls
 
