@@ -109,57 +109,44 @@ This file, located in the root directory, defines all your MIDI and OSC connecti
 // JSON5 format allows for comments and trailing commas.
 
 {
+    // --- MIDI Clock y Transporte ---
+    "clock_source": "KeyStep",
+    "transport_out": "TPT",
 
-    // --- MIDI Clock and Transport ---
+    // --- Control MIDI y Salida ---
+    "midi_configuration": {
+        "device_in": "MIDItema",
+        "device_out": "Synth_Module_1",
+        // El canal ahora se define como 0-15.
+        "channel_out": 0,
+        // Envía los mensajes de cambio de parte X beats antes.
+        "part_change_advanced": 1
+    },
 
-    "clock_source": "MasterClock",
-
-    "transport_out": "DAW_Transport_In",
-
-
-
-    // --- MIDI Control and Output ---
-
-    "midi_configuration": {
-
-        "device_in": "Controller_Port",
-
-        "device_out": "Synth_Module_1",
-
-        "channel_out": 1
-
-    },
-
-
-
-    // --- OSC (Open Sound Control) Output ---
-
-    "osc_configuration": {
-
-        "send": {
-
-            "ip": "127.0.0.1",
-
-            "port": 9000,
-
-            "address": "/miditema/part/change",
-
-            "address_song_change": "/miditema/song/change",
-
-            "address_song_end": "/miditema/song/end",
-
-            "bar_triggers": [
-
-                { "block_size": 1, "address": "/miditema/trigger/bar" },
-
-                { "block_size": 4, "address": "/miditema/trigger/block4" }
-
-            ]
-
-        }
-
-    }
-
+    // --- Salida OSC (Open Sound Control) ---
+    "osc_configuration": {
+        // "send" ahora es una LISTA de destinos. Puedes tener uno o varios.
+        "send": [
+            {
+                // Destino 1: Aplicación principal
+                "ip": "127.0.0.1",
+                "port": 9000,
+                "address_part_change": "/miditema/part/change",
+                "address_song_change": "/miditema/song/change",
+                "address_song_end": "/miditema/song/end",
+                "bar_triggers": [
+                    { "block_size": 1, "address_bar_triggers": "/miditema/trigger/bar" },
+                    { "block_size": 4, "address_bar_triggers": "/miditema/trigger/block4" }
+                ]
+            },
+            {
+                // Destino 2: Otra aplicación (ej. control de luces)
+                "ip": "127.0.0.1",
+                "port": 9001,
+                "address_part_change": "/luces/escena"
+            }
+        ]
+    }
 }
 ```
 
@@ -178,27 +165,29 @@ This file, located in the root directory, defines all your MIDI and OSC connecti
 
   - "device_out": A substring of the MIDI output port for sending Program Change and Song Select messages.
 
-  - "channel_out": The MIDI channel (1-16) on which to send Program Change messages. Defaults to 1 if omitted.
+  - "channel_out": The MIDI channel (0-15) on which to send Program Change messages. Defaults to 0 if omitted.
+
+  - "part_change_advanced": (Optional) An integer that specifies how many beats *before* the end of a part the change messages (MIDI PC, OSC part change, etc.) should be sent. If set to `1`, messages are sent on the last beat. Defaults to `0` (messages are sent exactly when the new part starts).
 
 - "osc_configuration": (Optional) This section configures all OSC output.
 
-  - "send":
+  - "send": (Optional) This key now holds a **list** of destination objects. You can define one or multiple destinations, and each will be handled independently. Each object in the list contains:
 
-    - "ip": The target IP address for OSC messages. Defaults to "127.0.0.1" (for the same machine).
+    - "ip": The target IP address for OSC messages. Defaults to "127.0.0.1".
 
     - "port": The target port for OSC messages. This is mandatory if you want to send any OSC data.
 
-    - "address": The OSC address for **part change** messages.
+    - "address_part_change": (Optional) The OSC address for **part change** messages.
 
-    - "address_song_change": (Optional) The OSC address for **song change** messages, sent when a new song from a playlist is loaded.
+    - "address_song_change": (Optional) The OSC address for **song change** messages.
 
-    - "address_song_end": (Optional) The OSC address sent when a song finishes (either at the end of a single song, or before transitioning to the next one in a playlist).
+    - "address_song_end": (Optional) The OSC address sent only when the entire playlist or single song playback finishes completely.
 
     - "bar_triggers": (Optional) A list of rules for sending messages on rhythmic boundaries. Each rule is an object with:
 
       - "block_size" (integer): How many bars to count before sending a message.
 
-      - "address" (string): The OSC address to use for this trigger.
+      - "address_bar_triggers" (string): The OSC address to use for this specific trigger.
 
 ### 2. Song and Playlist Files (temas/)
 
@@ -298,7 +287,7 @@ A playlist file arranges multiple songs. It is identified by the presence of a 
 
 ## Usage
 
-1. **Start your master clock source.** This could be your DAW (e.g., Ableton Live, Logic Pro), a hardware sequencer, or a software clock like [MIDImaster](https://www.google.com/url?sa=E&q=https%3A%2F%2Fgithub.com%2Fpablomartin%2Fmidimaster). Ensure it is configured to send MIDI Clock.
+1. **Start your master clock source.** This could be your DAW (e.g., Ableton Live, Logic Pro), a hardware sequencer, or a software clock like [MIDImaster](https://github.com/kdgdkd/MIDImaster). Ensure it is configured to send MIDI Clock.
   
 2. **Configure miditema.conf.json** to listen to the correct MIDI ports for clock and control, and to send data to the correct output ports.
   
@@ -452,9 +441,9 @@ This is a core feature for integrating MIDItema with other software. All OSC mes
 
 ### Part Change Message
 
-- **Address:** Defined by the "address" key.
+- **Address:** Defined by the `"address_part_change"` key.
   
-- **Trigger:** Sent at the exact moment a new **part** of a song becomes active.
+- **Trigger:** Sent at the exact moment a new **part** of a song becomes active (or earlier if `part_change_advanced` is set)
   
 - **Arguments:**
   
@@ -473,7 +462,7 @@ This is a core feature for integrating MIDItema with other software. All OSC mes
 
 - **Address:** Defined by the "address_song_end" key.
   
-- **Trigger:** Sent when the entire playlist finishes.
+- **Trigger:** Sent only when the entire playlist finishes or when a single song (not in a playlist) finishes. It is **not** sent during transitions between songs in a playlist.
   
 - **Arguments:**
   
@@ -482,13 +471,12 @@ This is a core feature for integrating MIDItema with other software. All OSC mes
 
 - **Example:** /miditema/song/end "Outro Track"
 
-  /miditema/song/end "Live Set"
 
 ### Bar & Block Trigger Messages
 
 These are powerful, rhythmically-timed messages configured via the "bar_triggers" list in miditema.conf.json. They allow you to synchronize external events to the beat grid of your song.
 
-- **Address:** Defined by the "address" key within each trigger object.
+- **Address:** Defined by the "address_bar_triggers" key within each trigger object.
   
 - **Trigger:** Sent at the end of a bar, if that bar number is a multiple of the trigger's "block_size".
   
@@ -504,9 +492,9 @@ These are powerful, rhythmically-timed messages configured via the "bar_trigger
 ```
 "bar_triggers": [
 
-    { "block_size": 1, "address": "/miditema/trigger/bar" },
+    { "block_size": 1, "address_bar_triggers": "/miditema/trigger/bar" },
 
-    { "block_size": 4, "address": "/miditema/trigger/block4" }
+    { "block_size": 4, "address_bar_triggers": "/miditema/trigger/block4" }
 
 ]
 ```
