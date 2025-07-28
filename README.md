@@ -18,6 +18,7 @@ It also facilitates live performance by giving you powerful, quantized navigatio
 - **MIDI Clock Slave:** Synchronizes perfectly to any standard MIDI clock source.
 - **Advanced Song & Playlist Structure:** Define your songs and playlists in simple, human-readable json5 files, which allows for comments. Specify parts, lengths, colors for both songs and parts, and complex repetition logic.
  - **Repetition Patterns:** Control exactly how parts repeat within a song.
+ - **Follow Actions:** Define complex, probabilistic, or conditional logic for what happens automatically after a part finishes, enabling dynamic and non-linear song arrangements.
 - **Live Part & Song Navigation:** The core of MIDItema. Program quantized jumps to the next/previous part or song, restart the current section, or go to any specific part/song on command.
 - **Dual Playback Mode (Loop/Song):** Toggle between two modes on the fly. **Loop Mode** respects the `repeat_pattern` of each part, allowing for loops and vamping. **Song Mode** overrides these patterns, forcing the arrangement to always advance linearly to the next part, perfect for progressing through a song's structure.
 - **Quantized Actions:** All jumps are scheduled as a **pending action** and executed with musical precision on the next beat, bar, or larger musical divisions.
@@ -166,7 +167,10 @@ A standard song file defines a single piece of music.
         { "name": "Intro - OUR land", "bars": 8, "color": "cyan", "repeat_pattern": false },
         { "name": "Verse - Nazis in sheep's clothing", "bars": 16, "color": "green" },
         { "name": "Chorus - Free Palestine", "bars": 16, "color": "yellow", "repeat_pattern": true, "cue": 1 },
-        { "name": "Outro - We'll never forget", "bars": 8, "color": "red", "repeat_pattern": true }
+        { 
+          "name": "Outro - We'll never forget", "bars": 8, "color": "red",
+          "follow_action": { "action": "first_part" }
+        }
     ]
 }
 ```
@@ -208,6 +212,49 @@ A standard song file defines a single piece of music.
     
 - **cue** (integer, optional): Assigns a global cue number (e.g., 1-128) to this part. This makes the part directly accessible from anywhere in the playlist via F-Keys or MIDI CC#2. Each cue number should be unique across the entire setlist to avoid ambiguity.
   
+- **follow_action** (object, optional): Controls what happens automatically after a part finishes playing, overriding the default linear progression. This is a powerful tool for creating dynamic arrangements.
+  
+  - **probability** (float, optional): A value between 0.0 and 1.0 that determines the chance of the action being executed. If the check fails, the part will repeat itself. Defaults to 1.0 (100% chance).
+    
+  - **action** (string or object, optional): The action to perform. Defaults to "next".
+    
+    | Action Value | Type | Description |
+    | --- | --- | --- |
+    | **Basic Navigation** | | |
+    | `"next"` | string | Proceeds to the next valid part according to the current playback mode (Loop/Song). This is the default behavior. |
+    | `"prev"` | string | Proceeds to the previous valid part. |
+    | `"repeat"` | string | Repeats the current part. |
+    | **Absolute Jumps** | | |
+    | `{ "jump_to_part": N }` | object | Jumps directly to the part at index N (0-based) in the current song. |
+    | `{ "jump_to_cue": N }` | object | Jumps to the part marked with `"cue": N` in the current song. |
+    | `{ "random_part": [N, M] }` | object | Jumps to a randomly chosen part from the provided list of indices. |
+    | **Song Navigation** | | |
+    | `"first_part"` | string | Jumps to the first valid part of the current song. |
+    | `"last_part"` | string | Jumps to the last valid part of the current song. |
+    | **Playlist Navigation** | | (These actions require a playlist to be active) |
+    | `"next_song"` | string | Loads the next song in the playlist. |
+    | `"prev_song"` | string | Loads the previous song in the playlist. |
+    | `"first_song"` | string | Loads the first song in the playlist. |
+    | `"last_song"` | string | Loads the last song in the playlist. |
+    | **Mode Control** | | |
+    | `"loop_part"` | string | Activates a manual loop on the current part. The part will repeat indefinitely until the user cancels it or triggers another jump. |
+    | `"song_mode"` | string | Switches the global playback mode to **Song Mode** and then proceeds to the next part. |
+    | `"loop_mode"` | string | Switches the global playback mode to **Loop Mode** and then proceeds to the next part. |
+    
+    **Example:**
+    ```json
+    { 
+      "name": "Verse", "bars": 8,
+      "follow_action": {
+        "action": { "jump_to_cue": 5 },
+        "probability": 0.8 
+      }
+    }
+    // After this part, there's an 80% chance of jumping to cue 5.
+    // If not, the part repeats.
+    ```
+
+  
 
 #### Playlist File Example
 
@@ -217,6 +264,7 @@ A playlist file arranges multiple songs. It is identified by the presence of a "
 // temas/my_setlist.json
 {
   "playlist_name": "My Live Set",
+  "mode": "loop",
   "songs": [
     // 1. External Song: Referenced from another file
     { "filepath": "my_song.json" },
@@ -227,7 +275,10 @@ A playlist file arranges multiple songs. It is identified by the presence of a "
       "color": "magenta",
       "parts": [
         { "name": "Pad Drone", "bars": 8, "color": "cyan" },
-        { "name": "Riser FX", "bars": 4, "color": "yellow" }
+        { 
+          "name": "Riser FX", "bars": 4, "color": "yellow",
+          "follow_action": { "action": "next_song" }
+        }
       ]
     },
 

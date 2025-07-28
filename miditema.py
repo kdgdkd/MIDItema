@@ -10,6 +10,7 @@ import threading
 import math
 import html
 import json5
+import random
 from pythonosc import udp_client
 from pythonosc import osc_message_builder
 
@@ -291,14 +292,131 @@ def setup_part(part_index):
         start_next_part()
 
 
-
 def start_next_part():
-    """La lógica principal para determinar qué parte de la canción reproducir a continuación."""
+    """
+    Determina qué parte reproducir a continuación, basándose en la lógica de
+    bucle de parte, follow_actions de la parte actual, o el avance lineal/de loop.
+    """
+    global part_loop_active, part_loop_index, repeat_override_active
+
+    # 1. Prioridad máxima: El bucle de parte manual está activo.
     if part_loop_active and song_state.current_part_index == part_loop_index:
-        # El bucle está activo para la parte que acaba de terminar, así que la reiniciamos.
         setup_part(song_state.current_part_index)
-        return # Salimos para evitar la lógica de avance normal
-    
+        return
+
+    # 2. Lógica de Follow Action de la parte que acaba de terminar.
+    # Si estamos empezando (índice -1), no hay parte anterior, así que saltamos esto.
+    if song_state.current_part_index != -1:
+        current_part = song_state.parts[song_state.current_part_index]
+        follow_action_config = current_part.get("follow_action", {})
+
+        # Default a 'next' si no se especifica la acción
+        action = follow_action_config.get("action", "next")
+        probability = follow_action_config.get("probability", 1.0)
+
+        # Comprobar probabilidad
+        if random.random() > probability:
+            # La acción no se ejecuta, repetir la parte actual
+            setup_part(song_state.current_part_index)
+            return
+
+        # --- Despachador de Acciones ---
+
+        # Acciones que cambian de modo y luego avanzan
+        if action == "song_mode":
+            repeat_override_active = True
+            set_feedback_message("Follow Action: Song Mode activado.")
+            action = "next" # Forzar avance a la siguiente parte
+        elif action == "loop_mode":
+            repeat_override_active = False
+            set_feedback_message("Follow Action: Loop Mode activado.")
+            action = "next" # Forzar avance a la siguiente parte
+
+        # Acciones terminales (ejecutan una acción y terminan)
+        if isinstance(action, dict):
+            if "jump_to_part" in action:
+                target_idx = action["jump_to_part"]
+                if 0 <= target_idx < len(song_state.parts):
+                    setup_part(target_idx)
+                    return
+            elif "jump_to_cue" in action:
+                cue_num = action["jump_to_cue"]
+                for i, part in enumerate(song_state.parts):
+                    if part.get("cue") == cue_num:
+                        setup_part(i)
+                        return
+                # Si no se encuentra el cue, se procederá a la acción "next" por defecto
+            elif "random_part" in action:
+                choices = action["random_part"]
+                if choices and isinstance(choices, list):
+                    target_idx = random.choice(choices)
+                    if 0 <= target_idx < len(song_state.parts):
+                        setup_part(target_idx)
+                        return
+            # Si la acción del diccionario no es válida, se procede a "next"
+            action = "next"
+
+        elif action == "repeat":
+            setup_part(song_state.current_part_index)
+            return
+        elif action == "prev":
+            next_index, next_pass_count = find_next_valid_part_index("-1", song_state.current_part_index, song_state.pass_count)
+            if next_index is not None:
+                song_state.pass_count = next_pass_count
+                setup_part(next_index)
+            else:
+                handle_song_end()
+            return
+        elif action == "first_part":
+            next_index, next_pass_count = find_next_valid_part_index("+1", -1, 0)
+            if next_index is not None:
+                song_state.pass_count = next_pass_count
+                setup_part(next_index)
+            else:
+                handle_song_end()
+            return
+        elif action == "last_part":
+            next_index, next_pass_count = find_next_valid_part_index("-1", len(song_state.parts), 0)
+            if next_index is not None:
+                song_state.pass_count = next_pass_count
+                setup_part(next_index)
+            else:
+                handle_song_end()
+            return
+        elif action == "loop_part":
+            part_loop_active = True
+            part_loop_index = song_state.current_part_index
+            part_name = song_state.parts[part_loop_index].get('name', 'N/A')
+            set_feedback_message(f"Follow Action: Loop Part -> {part_name}")
+            setup_part(part_loop_index)
+            return
+        
+        # Acciones de Playlist
+        if playlist_state.is_active:
+            if action == "next_song":
+                handle_song_end() # Esto ya gestiona el paso a la siguiente canción
+                return
+            elif action == "prev_song":
+                prev_song_index = playlist_state.current_song_index - 1
+                if prev_song_index >= 0:
+                    if load_song_from_playlist(prev_song_index):
+                        start_next_part() # Inicia la nueva canción desde el principio
+                else:
+                    # Ya estamos en la primera canción, la reiniciamos
+                    if load_song_from_playlist(0):
+                        start_next_part()
+                return
+            elif action == "first_song":
+                if load_song_from_playlist(0):
+                    start_next_part()
+                return
+            elif action == "last_song":
+                last_index = len(playlist_state.playlist_elements) - 1
+                if last_index >= 0 and load_song_from_playlist(last_index):
+                    start_next_part()
+                return
+
+    # 3. Comportamiento por defecto o si la acción era "next"
     # Encuentra el siguiente índice válido partiendo del estado actual
     next_index, next_pass_count = find_next_valid_part_index(
         "+1", song_state.current_part_index, song_state.pass_count
@@ -311,7 +429,6 @@ def start_next_part():
         # Aplicar el nuevo estado de pase y configurar la parte
         song_state.pass_count = next_pass_count
         setup_part(next_index)
-
 
 def process_song_tick():
     """Llamado en cada "beat" de la canción (definido por time_division)."""
@@ -1893,29 +2010,47 @@ def main():
 
     # Cargar los datos si no se cargaron desde un directorio
     if not playlist_was_loaded:
-        if "songs" in initial_data and isinstance(initial_data["songs"], list):
-            # Es una playlist
-            playlist_state.is_active = True
-            playlist_state.playlist_name = initial_data.get("playlist_name", loaded_filename)
-            playlist_state.playlist_elements = initial_data["songs"]
-            print(f"[*] Playlist '{playlist_state.playlist_name}' cargada con {len(playlist_state.playlist_elements)} canciones.")
-            
-            playlist_mode = initial_data.get("mode", "loop")
-            repeat_override_active = playlist_mode.lower() == "song"
-            
-            if args.song_mode: repeat_override_active = True
-            elif args.loop_mode: repeat_override_active = False
-            
-            mode_str = "SONG MODE" if repeat_override_active else "LOOP MODE"
-            print(f"[*] Inicio en {mode_str}.")
+        # Si el archivo se cargó interactivamente o como argumento, 'initial_data' lo contiene
+        pass # La lógica se mueve fuera de este bloque
+    
+    # --- Lógica de Carga Unificada ---
+    # Ahora que 'initial_data' está cargado, decidimos cómo interpretarlo.
+    if "songs" in initial_data and isinstance(initial_data["songs"], list):
+        # Es una playlist
+        playlist_state.is_active = True
+        playlist_state.playlist_name = initial_data.get("playlist_name", loaded_filename)
+        playlist_state.playlist_elements = initial_data["songs"]
+        print(f"[*] Playlist '{playlist_state.playlist_name}' cargada con {len(playlist_state.playlist_elements)} canciones.")
+        
+        # Determinar modo de repetición
+        playlist_mode = initial_data.get("mode", "loop")
+        repeat_override_active = playlist_mode.lower() == "song"
+        
+        # Argumentos de línea de comando tienen prioridad
+        if args.song_mode: repeat_override_active = True
+        elif args.loop_mode: repeat_override_active = False
+        
+        mode_str = "SONG MODE" if repeat_override_active else "LOOP MODE"
+        print(f"[*] Inicio en {mode_str}.")
 
-            if not load_song_from_playlist(0):
-                print("[!] La playlist está vacía o la primera canción no es válida. Saliendo.")
-                return
-        else:
-            # Es una canción normal
-            if not load_song_file(data=initial_data):
-                return
+        # Cargar la primera canción de la playlist
+        if not load_song_from_playlist(0):
+            print("[!] La playlist está vacía o la primera canción no es válida. Saliendo.")
+            return
+    else:
+        # Es una canción normal
+        if not load_song_file(data=initial_data):
+            # Si la carga falla, la función load_song_file ya imprime el error
+            return
+        
+        # Argumentos de línea de comando para modo en canción única
+        if args.song_mode:
+            repeat_override_active = True
+            print("[*] Inicio en SONG MODE.")
+        elif args.loop_mode:
+            repeat_override_active = False
+            print("[*] Inicio en LOOP MODE.")
+
         
 
     # 3. Iniciar MIDI y Lógica
