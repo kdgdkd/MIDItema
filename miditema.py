@@ -13,16 +13,37 @@ import json5
 import random
 from pythonosc import udp_client
 from pythonosc import osc_message_builder
+from schema_validator import MIDItemaValidator, ValidationError
 
+try:
+    # Unix-like (Linux, macOS)
+    import tty
+    import termios
+    import select
+    def get_char_non_blocking():
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setcbreak(sys.stdin.fileno())
+            if select.select([sys.stdin], [], [], 0) == ([sys.stdin], [], []):
+                return sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return None
+except ImportError:
+    # Windows
+    import msvcrt
+    def get_char_non_blocking():
+        if msvcrt.kbhit():
+            try:
+                return msvcrt.getch().decode('utf-8')
+            except UnicodeDecodeError:
+                return None # Ignorar teclas no estándar
+        return None
+    
+from textual.color import Color
+import tui
 
-# --- UI Imports ---
-from prompt_toolkit import Application, HTML
-from prompt_toolkit.layout.containers import HSplit, Window, VSplit, WindowAlign, FloatContainer, Float
-from prompt_toolkit.layout.controls import FormattedTextControl
-from prompt_toolkit.layout.layout import Layout
-from prompt_toolkit.layout.dimension import Dimension
-from prompt_toolkit.key_binding import KeyBindings
-from prompt_toolkit.filters import Condition
 
 # --- Global Configuration ---
 SONGS_DIR_NAME = "temas"
@@ -35,24 +56,109 @@ MIDI_PPQN = 24  # MIDI Clock Standard, no configurable
 # --- Color Palette Definitions ---
 # Styles for part titles (background color)
 TITLE_COLOR_PALETTE = {
-    'default': {'bg': '#222222',    'fg': 'ansiwhite'},
-    'red':     {'bg': 'ansired',     'fg': 'ansiwhite'},
-    'green':   {'bg': 'ansigreen',   'fg': 'ansiwhite'},
-    'yellow':  {'bg': 'ansiyellow',  'fg': 'ansiblack'},
-    'blue':    {'bg': 'ansiblue',    'fg': 'ansiwhite'},
-    'magenta': {'bg': 'ansimagenta', 'fg': 'ansiwhite'},
-    'cyan':    {'bg': 'ansicyan',    'fg': 'ansiblack'},
+    'default': {'bg': '#222222', 'fg': 'white'},
+    'red': {'bg': 'darkred', 'fg': 'white'},
+    'green': {'bg': 'darkgreen', 'fg': 'white'},
+    'yellow': {'bg': 'yellow', 'fg': 'black'},
+    'blue': {'bg': 'blue', 'fg': 'white'},
+    'magenta': {'bg': 'magenta', 'fg': 'white'},
+    'cyan': {'bg': 'cyan', 'fg': 'black'},
+    'orange': {'bg': '#ff7e00', 'fg': 'white'},
+    'ruby_pink': {'bg': '#e30052', 'fg': 'white'},
+    'indigo_blue': {'bg': '#5564eb', 'fg': 'white'},
+    'purple': {'bg': '#800040', 'fg': 'white'},
+    'forest_green': {'bg': '#3d642d', 'fg': 'white'},
+    'ivory': {'bg': '#ffffbf', 'fg': 'black'},
+    # --- Variantes Eléctricas/Neón ---
+    'bright_red': {'bg': '#FF004D', 'fg': 'white'},
+    'neon_green': {'bg': '#39FF14', 'fg': 'black'},
+    'electric_blue': {'bg': '#0099FF', 'fg': 'white'},
+    'bright_yellow': {'bg': '#FFFF00', 'fg': 'black'},
+    'hot_pink': {'bg': '#FF1493', 'fg': 'white'},
+    'electric_cyan': {'bg': '#08E8DE', 'fg': 'black'},
+    'electric_orange': {'bg': '#FF3300', 'fg': 'white'},
+    # --- Escala de Grises / Monocromo ---
+    'dark_gray': {'bg': '#404040', 'fg': '#DDDDDD'},
+    'mid_gray': {'bg': '#888888', 'fg': 'black'},
+    'light_gray': {'bg': '#CCCCCC', 'fg': 'black'},
+    'white': {'bg': '#FFFFFF', 'fg': 'black'},
 }
 # Styles for foreground elements (text, sequencer blocks)
 FG_COLOR_PALETTE = {
-    'default': "fg='ansicyan' bold='true'",
-    'red':     "fg='ansired' bold='true'",
-    'green':   "fg='ansigreen' bold='true'",
-    'yellow':  "fg='ansiyellow' bold='true'",
-    'blue':    "fg='ansiblue' bold='true'",
-    'magenta': "fg='ansimagenta' bold='true'",
-    'cyan':    "fg='ansicyan' bold='true'",
+    'default': "cyan",
+    'red': "red",
+    'green': "green",
+    'yellow': "yellow",
+    'blue': "blue",
+    'magenta': "magenta",
+    'cyan': "cyan",
+    'orange': "#ff7e00",
+    'ruby_pink': "#e30052",
+    'indigo_blue': "#5564eb",
+    'purple': "#800040",
+    'forest_green': "#3d642d",
+    'ivory': "#cccca0",
+    # --- Variantes Eléctricas/Neón ---
+    'bright_red': "#FF004D",
+    'neon_green': "#39FF14",
+    'electric_blue': "#0099FF",
+    'bright_yellow': "#FFFF00",
+    'hot_pink': "#FF1493",
+    'electric_cyan': "#08E8DE",
+    'electric_orange': "#FF3300",
+    # --- Escala de Grises / Monocromo ---
+    'dark_gray': "#888888",
+    'mid_gray': "#B0B0B0",
+    'light_gray': "#D8D8D8",
+    'white': "white",
 }
+
+def _resolve_color_style(color_value: str, palette: dict, default_key: str = 'default'):
+    """
+    Resuelve un valor de color para obtener un estilo, adaptándose al tipo de paleta.
+    - Si la paleta contiene diccionarios (ej: TITLE_COLOR_PALETTE), devuelve un dict.
+    - Si la paleta contiene strings (ej: FG_COLOR_PALETTE), devuelve un str.
+    """
+    default_style = palette.get(default_key)
+        
+    # --- Lógica para paletas de strings (como FG_COLOR_PALETTE) ---
+    if isinstance(default_style, str):
+        # Prioridad 1: El color es una clave en la paleta
+        if color_value and color_value in palette:
+            return palette[color_value]
+        # Prioridad 2: El color es un valor hexadecimal directo
+        elif isinstance(color_value, str) and color_value.startswith('#'):
+            return color_value
+        # Fallback: Usar el color por defecto
+        else:
+            return default_style
+
+    # --- Lógica para paletas de diccionarios (como TITLE_COLOR_PALETTE) ---
+    style = {}
+    # Prioridad 1: El color es una clave en la paleta
+    if color_value and color_value in palette:
+        style = palette[color_value].copy()
+    # Prioridad 2: El color es un valor hexadecimal directo
+    elif isinstance(color_value, str) and color_value.startswith('#'):
+        style['bg'] = color_value
+    # Fallback: Usar el color por defecto
+    else:
+        style = default_style.copy() if default_style else {}
+
+    # Si el estilo resultante no tiene un color de texto ('fg') definido, lo calculamos.
+    if 'fg' not in style or not style['fg']:
+        try:
+            # Usamos un color de fondo por defecto si no está definido para el cálculo
+            bg_for_calc = style.get('bg', '#000000')
+            parsed_color = Color.parse(bg_for_calc)
+            # get_luminance_rgb() no existe, usamos get_luminance()
+            luminance = parsed_color.get_luminance()
+            style['fg'] = 'black' if luminance > 0.5 else 'white'
+        except Exception:
+            # Fallback en caso de error de parseo o si no hay default
+            style['fg'] = default_style.get('fg', 'white') if default_style else 'white'
+
+    return style
 
 
 # Control Change (CC) Numbers
@@ -109,7 +215,8 @@ class ClockState:
 class SongState:
     """Almacena el estado de la canción y la secuencia."""
     def __init__(self):
-        self.song_name = "Nada"
+        self.song_name = "Sin canción cargada"
+        self.song_name = "Elige canción/setlist en el menú"
         self.song_color = None
         self.parts = []
         self.current_part_index = -1
@@ -149,11 +256,38 @@ beat_flash_end_time = 0
 ui_feedback_message = ""
 feedback_expiry_time = 0
 loaded_filename = ""
+_last_used_device = None
 midi_inputs = {}
 midi_outputs = {}
 osc_outputs = {}
 
 # --- Helper Functions ---
+
+
+def _is_part_active_in_loop(part: dict, loop_pass: int) -> bool:
+    """
+    Determina si una parte debe sonar en una pasada de bucle específica.
+    El loop_pass es 1-based (la primera repetición es el paso 1).
+    """
+    pattern = part.get("repeat_pattern")
+    
+    if pattern is True or pattern == "repeat":
+        return True
+    if pattern is False or pattern is None:
+        return False
+    
+    if isinstance(pattern, list) and pattern:
+        # El patrón se repite. Usamos el módulo para ciclar.
+        # loop_pass es 1-based, lo convertimos a 0-based para el índice.
+        index = (loop_pass - 1) % len(pattern)
+        return pattern[index]
+
+    # Si el patrón es un string (como "repeat", "next_song") o un dict,
+    # no se considera parte del bucle de repetición estándar.
+    # Su lógica se maneja por separado como una acción especial.
+    return False
+
+
 def signal_handler(sig, frame):
     global SHUTDOWN_FLAG
     SHUTDOWN_FLAG = True
@@ -196,14 +330,7 @@ def setup_devices(config):
                 print(f"[!] Error abriendo puerto de Clock '{port_name}': {e}")
         else:
             print(f"[!] No se encontró el puerto de Clock con alias '{clock_alias}'.")
-    else:
-        # Lógica interactiva si no se define 'clock' (opcional, pero buena idea mantenerla)
-        print("[!] No se ha definido un alias para el puerto de 'clock'.")
-        selected_port_name = interactive_selector(available_in_ports, "Selecciona la fuente de MIDI Clock")
-        if selected_port_name:
-            midi_inputs["clock"] = mido.open_input(selected_port_name)
-            clock_state.source_name = selected_port_name
-            print(f"[*] Escuchando MIDI Clock en '{selected_port_name}'...")
+
 
     # Puerto de Control (opcional, ahora llamado 'midi_in')
     control_alias = midi_in_aliases.get("midi_in")
@@ -266,32 +393,61 @@ def _resolve_value(value, context):
 def _process_trigger_action(action, context):
     """
     Procesa una única acción de trigger, resolviendo sus valores y enviando
-    el mensaje MIDI u OSC correspondiente.
+    el mensaje MIDI u OSC correspondiente. Incluye lógica de inferencia de tipo.
     """
-    device_name = action.get("device_out")
-    if not device_name:
-        return
 
-    # Inferir el tipo de salida (MIDI u OSC) a partir del dispositivo
+
+    global _last_used_device
+
+    device_name = action.get("device")
+
+    if device_name:
+        # Si se especifica un dispositivo, lo usamos y lo guardamos como el último usado.
+        _last_used_device = device_name
+    else:
+        # Si no se especifica, heredamos el último que se usó.
+        if _last_used_device:
+            device_name = _last_used_device
+        else:
+            # No hay dispositivo en la acción y nunca se ha definido uno. No se puede procesar.
+            return
+
     if device_name in midi_outputs:
-        # --- Lógica de envío MIDI ---
         port = midi_outputs[device_name]
         try:
-            msg_params = {"type": action.get("event")}
-            
-            # Resolver parámetros comunes
-            for param in ["channel", "note", "velocity", "control", "value", "program", "song"]:
-                if param in action:
-                    msg_params[param] = _resolve_value(action[param], context)
+            # Hacemos una copia para no modificar el diccionario original
+            msg_params = action.copy()
 
-            # Lógica de valores implícitos
+            # Lógica de inferencia si 'type' no está definido
+            if "type" not in msg_params:
+                if "note" in msg_params:
+                    msg_params["type"] = "note_on"
+                    if "velocity" not in msg_params:
+                        msg_params["velocity"] = 127 # Valor por defecto
+                elif "control" in msg_params:
+                    msg_params["type"] = "control_change"
+                    if "value" not in msg_params:
+                        msg_params["value"] = 127 # Valor por defecto
+                elif "program" in msg_params:
+                    msg_params["type"] = "program_change"
+                elif "song" in msg_params:
+                    msg_params["type"] = "song_select"
+                else:
+                    return # No se puede inferir el tipo, se ignora la acción
+
+            # Resolver parámetros comunes usando el contexto
+            for param in ["channel", "note", "velocity", "control", "value", "program", "song"]:
+                if param in msg_params:
+                    msg_params[param] = _resolve_value(msg_params[param], context)
+
+            # Lógica de valores implícitos (se mantiene)
             if msg_params["type"] == "program_change" and "program" not in msg_params:
                 msg_params["program"] = context.get("part_index", 0)
             elif msg_params["type"] == "song_select" and "song" not in msg_params:
                 msg_params["song"] = context.get("song_index", 0)
             
             # Filtrar parámetros nulos y construir el mensaje
-            final_params = {k: v for k, v in msg_params.items() if v is not None}
+            final_params = {k: v for k, v in msg_params.items() if v is not None and k != 'device'}
             msg = mido.Message(**final_params)
             port.send(msg)
 
@@ -299,7 +455,7 @@ def _process_trigger_action(action, context):
             set_feedback_message(f"Error MIDI Trigger ({device_name}): {e}")
 
     elif device_name in osc_outputs:
-        # --- Lógica de envío OSC ---
+        # La lógica OSC no necesita inferencia y se mantiene igual
         client = osc_outputs[device_name]
         try:
             address = _resolve_value(action.get("address"), context)
@@ -315,41 +471,46 @@ def _process_trigger_action(action, context):
 
         except Exception as e:
             set_feedback_message(f"Error OSC Trigger ({device_name}): {e}")
-
             
-def fire_triggers(event_name, context, is_delayed_check=False, remaining_beats=0):
+def fire_triggers(event_name, context, is_delayed_check=False, remaining_beats=0, force_instant=False):
     """
-    Busca y ejecuta todos los triggers asociados a un evento.
-    - Si is_delayed_check es False, solo ejecuta triggers instantáneos.
-    - Si is_delayed_check es True, solo ejecuta triggers retardados que coincidan
-      con los beats restantes.
+    Busca y ejecuta todos los triggers asociados a un evento, tanto globales como locales.
     """
-    if "triggers" not in config or event_name not in config["triggers"]:
-        return
+    # 1. Procesar triggers globales (comportamiento original)
+    if "triggers" in config and event_name in config["triggers"]:
+        global_actions = config["triggers"][event_name]
+        for action in global_actions:
+            # ... (la lógica de delay se mantiene igual)
+            delay_in_beats = 0
+            if "bar" in action: delay_in_beats = action["bar"] * song_state.time_signature_numerator
+            elif "beats" in action: delay_in_beats = action["beats"]
 
-    actions = config["triggers"][event_name]
-    sig_num = song_state.time_signature_numerator
+            should_fire = False
+            if force_instant: should_fire = True
+            elif is_delayed_check:
+                if delay_in_beats > 0 and delay_in_beats == remaining_beats: should_fire = True
+            else:
+                if delay_in_beats == 0: should_fire = True
+            
+            if should_fire:
+                _process_trigger_action(action, context)
 
-    for action in actions:
-        delay_in_beats = 0
-        if "bar" in action:
-            delay_in_beats = action["bar"] * sig_num
-        elif "beats" in action:
-            delay_in_beats = action["beats"]
+    # 2. Procesar triggers locales de la parte (nueva funcionalidad)
+    # Solo se ejecutan en eventos instantáneos de cambio de parte.
+    if event_name == "part_change" and not is_delayed_check:
+        current_part_index = context.get("part_index")
+        if current_part_index is not None and 0 <= current_part_index < len(song_state.parts):
+            part_data = song_state.parts[current_part_index]
+            local_actions = part_data.get("output", []) # Esperamos una lista
+            
+            # Asegurarse de que siempre sea una lista para un procesamiento uniforme
+            if isinstance(local_actions, dict):
+                local_actions = [local_actions]
 
-        # Determinar si la acción debe ejecutarse ahora
-        should_fire = False
-        if is_delayed_check:
-            # Estamos en un chequeo por beat, solo nos interesan los retardados
-            if delay_in_beats > 0 and delay_in_beats == remaining_beats:
-                should_fire = True
-        else:
-            # Es un evento instantáneo, solo nos interesan los no retardados
-            if delay_in_beats == 0:
-                should_fire = True
-        
-        if should_fire:
-            _process_trigger_action(action, context)
+            if isinstance(local_actions, list):
+                for action in local_actions:
+                    # Los triggers locales no tienen delay, se procesan directamente.
+                    _process_trigger_action(action, context)
 
 
 def load_config(conf_filename: str):
@@ -370,6 +531,14 @@ def load_config(conf_filename: str):
         return {}
 
 
+def normalize_repeat_pattern(pattern):
+    """Convierte strings 'true'/'false' a booleanos en repeat_pattern."""
+    if pattern == "true":
+        return True
+    elif pattern == "false":
+        return False
+    return pattern
+
 def load_song_file(filepath: Path = None, data: dict = None):
     """
     Carga y valida una canción, actualizando el SongState.
@@ -381,18 +550,27 @@ def load_song_file(filepath: Path = None, data: dict = None):
     if data:
         # Priorizar los datos si se proporcionan directamente
         song_data = data
+        # Validar datos proporcionados
+        errors = MIDItemaValidator.validate_data(data)
+        if errors:
+            error_msg = "Errores de validación:\n" + "\n".join(str(e) for e in errors[:3])
+            if len(errors) > 3:
+                error_msg += f"\n... y {len(errors) - 3} errores más"
+            set_feedback_message(f"[!] {error_msg}")
+            return False
     elif filepath:
         # Si no hay datos, leer desde el archivo
-        try:
-            with filepath.open('r', encoding='utf-8') as f:
-                song_data = json5.load(f)
-        except Exception as e:
-            print(f"Error: No se pudo leer o parsear el archivo '{filepath.name}': {e}")
+        is_valid, errors, song_data = MIDItemaValidator.validate_file(filepath)
+        if not is_valid:
+            error_msg = "Errores en el archivo:\n" + "\n".join(str(e) for e in errors[:3])
+            if len(errors) > 3:
+                error_msg += f"\n... y {len(errors) - 3} errores más"
+            print(f"[!] {error_msg}")
+            set_feedback_message(f"[!] Error validando '{filepath.name}'")
             return False
     else:
         print("Error: Se debe proporcionar 'filepath' o 'data' para cargar la canción.")
         return False
-
 
     if not song_data:
         return False
@@ -402,6 +580,10 @@ def load_song_file(filepath: Path = None, data: dict = None):
     song_state.song_color = song_data.get("color") # <-- AÑADIR ESTA LÍNEA
     song_state.parts = song_data.get("parts", [])
 
+    for part in song_state.parts:
+        if "repeat_pattern" in part:
+            part["repeat_pattern"] = normalize_repeat_pattern(part["repeat_pattern"])
+   
     if not song_state.parts or not isinstance(song_state.parts, list):
         print(f"Error: La canción '{song_state.song_name}' no tiene una lista de 'parts' válida.")
         return False
@@ -425,10 +607,16 @@ def load_song_file(filepath: Path = None, data: dict = None):
 def load_song_from_playlist(song_index: int):
     """Carga una canción específica de la playlist activa y envía notificaciones."""
     global ui_feedback_message
-    if not playlist_state.is_active or not (0 <= song_index < len(playlist_state.playlist_elements)):
+    if not playlist_state.is_active:
+        set_feedback_message("[!] No hay playlist activa.")
         handle_song_end()
         return False
 
+    if not (0 <= song_index < len(playlist_state.playlist_elements)):
+        set_feedback_message(f"[!] Índice de canción {song_index} fuera de rango.")
+        handle_song_end()
+        return False
+    
     playlist_state.current_song_index = song_index
     element = playlist_state.playlist_elements[song_index]
     
@@ -439,11 +627,14 @@ def load_song_from_playlist(song_index: int):
         song_path = SONGS_DIR / element["filepath"]
         song_name_for_osc = song_path.stem
         if not song_path.is_file():
-            set_feedback_message(f"[!] Error: Archivo '{element['filepath']}' no encontrado.")
-            # Intentar cargar la siguiente canción de forma segura
-            # NOTA: Esto podría causar un bucle si todos los archivos faltan.
-            # Por ahora, es un comportamiento aceptable para la recuperación de errores.
-            return load_song_from_playlist(song_index + 1)
+            error_msg = f"Archivo '{element['filepath']}' no encontrado en {SONGS_DIR}"
+            print(f"[!] {error_msg}")
+            set_feedback_message(f"[!] {error_msg}")
+            # Intentar cargar la siguiente canción solo si no es la carga inicial
+            if song_index < len(playlist_state.playlist_elements) - 1:
+                print(f"[*] Intentando cargar la siguiente canción...")
+                return load_song_from_playlist(song_index + 1)
+            return False
         
         try:
             with song_path.open('r', encoding='utf-8') as f:
@@ -452,14 +643,19 @@ def load_song_from_playlist(song_index: int):
             if "song_name" in song_data_to_load:
                 song_name_for_osc = song_data_to_load["song_name"]
         except Exception as e:
-            set_feedback_message(f"[!] Error al leer '{element['filepath']}': {e}")
+            error_msg = f"Error al parsear '{element['filepath']}': {e}"
+            print(f"[!] {error_msg}")
+            set_feedback_message(f"[!] Error en archivo JSON")
             return False
             
     elif "parts" in element:
+        # Esto mantiene la compatibilidad con canciones incrustadas en la playlist
         song_data_to_load = element
         song_name_for_osc = song_data_to_load.get("song_name", "Canción Incrustada")
     else:
-        set_feedback_message(f"[!] Error: Elemento de playlist en índice {song_index} es inválido.")
+        error_msg = f"Elemento de playlist en índice {song_index} no tiene 'filepath' ni 'parts'"
+        print(f"[!] {error_msg}")
+        set_feedback_message(f"[!] Elemento de playlist inválido")
         return False
 
     context = {
@@ -469,16 +665,20 @@ def load_song_from_playlist(song_index: int):
     }
     fire_triggers("song_change", context)
 
-    # Ahora, cargar la canción en el estado global
+    # Ahora, cargar la canción en el estado global usando los datos recién leídos.
     if not load_song_file(data=song_data_to_load):
+        # El error específico ya se mostró en load_song_file
+        print(f"[!] No se pudo cargar la canción desde el elemento {song_index} de la playlist")
+        
         return False
 
     return True
 
-
 def reset_song_state_on_stop():
     """Resetea el estado de la secuencia cuando el reloj se detiene."""
     # print("DEBUG: reset_song_state_on_stop -> Reseteando contadores de canción")
+    global _last_used_device
+    _last_used_device = None 
     song_state.current_part_index = -1
     song_state.remaining_beats_in_part = 0
     song_state.start_time = 0
@@ -489,169 +689,6 @@ def reset_song_state_on_stop():
     clock_state.tick_times = []
     clock_state.bpm = 0.0
 
-def setup_part(part_index):
-    """Configura una parte específica para la reproducción y envía mensajes."""
-    if not (0 <= part_index < len(song_state.parts)):
-        return # Salida segura si el índice no es válido
-
-    song_state.current_part_index = part_index
-    part = song_state.parts[part_index]
-    song_state.remaining_beats_in_part = part.get("bars", 0) * song_state.time_signature_numerator
-    song_state.current_bar_in_part = 0
-
-    # Inicia el temporizador de la canción solo si es la primera parte
-    if part_index == 0:
-        song_state.start_time = time.time()
-
-
-    context = {
-        "song_index": playlist_state.current_song_index,
-        "song_name": song_state.song_name,
-        "song_color": song_state.song_color,
-        "part_index": part_index,
-        "part_name": part.get("name"),
-        "part_bars": part.get("bars"),
-        "part_color": part.get("color"),
-        "part_notes": part.get("notes"),
-        "part_cue": part.get("cue"),
-        "part_index_in_setlist": _get_global_part_index(playlist_state.current_song_index, part_index)
-    }
-    fire_triggers("part_change", context)
-
-    # Si una parte válida tiene 0 compases, la saltamos para evitar bucles infinitos
-    if song_state.remaining_beats_in_part <= 0:
-        start_next_part()
-
-
-def start_next_part():
-    """
-    Determina qué parte reproducir a continuación, usando `repeat_pattern` como
-    el motor de acciones principal.
-    """
-    global part_loop_active, part_loop_index, repeat_override_active
-
-    # 1. Prioridad máxima: El bucle de parte manual del usuario está activo.
-    if part_loop_active and song_state.current_part_index == part_loop_index:
-        setup_part(song_state.current_part_index)
-        return
-
-    action_to_execute = "next" # Comportamiento por defecto
-
-    # 2. Determinar la acción a ejecutar desde la parte que acaba de terminar.
-    if song_state.current_part_index != -1:
-        current_part = song_state.parts[song_state.current_part_index]
-        pattern = current_part.get("repeat_pattern")
-
-        if isinstance(pattern, list) and pattern:
-            # Obtener la acción de la lista usando el pass_count
-            action_to_execute = pattern[song_state.pass_count % len(pattern)]
-        elif isinstance(pattern, str):
-            # Usar la acción directamente si es un string
-            action_to_execute = pattern
-
-    # --- 3. Despachador de Acciones ---
-    action = action_to_execute
-
-    # Acciones que cambian de modo y luego avanzan
-    if action == "song_mode":
-        repeat_override_active = True
-        set_feedback_message("Repeat Pattern: Song Mode activado.")
-        action = "next" # Forzar avance
-    elif action == "loop_mode":
-        repeat_override_active = False
-        set_feedback_message("Repeat Pattern: Loop Mode activado.")
-        action = "next" # Forzar avance
-
-    # Acciones de salto directo (resetean el pass_count)
-    if isinstance(action, dict):
-        song_state.pass_count = 0 # Los saltos explícitos resetean el contador de pases
-        if "jump_to_part" in action:
-            target_idx = action["jump_to_part"]
-            if 0 <= target_idx < len(song_state.parts):
-                setup_part(target_idx)
-                return
-        elif "jump_to_cue" in action:
-            cue_num = action["jump_to_cue"]
-            for i, part in enumerate(song_state.parts):
-                if part.get("cue") == cue_num:
-                    setup_part(i)
-                    return
-        elif "random_part" in action:
-            choices = action["random_part"]
-            if choices and isinstance(choices, list):
-                target_idx = random.choice(choices) 
-                if 0 <= target_idx < len(song_state.parts):
-                    setup_part(target_idx)
-                    return
-        # Si la acción del diccionario no es válida, se procede a "next"
-        action = "next"
-
-    # Acciones de navegación y control
-    if action == "repeat":
-        setup_part(song_state.current_part_index)
-        return
-    elif action == "prev":
-        next_index, next_pass_count = find_next_valid_part_index("-1", song_state.current_part_index, song_state.pass_count)
-        if next_index is not None:
-            song_state.pass_count = next_pass_count
-            setup_part(next_index)
-        else:
-            handle_song_end()
-        return
-    elif action == "first_part":
-        song_state.pass_count = 0
-        next_index, _ = find_next_valid_part_index("+1", -1, 0)
-        if next_index is not None:
-            setup_part(next_index)
-        else:
-            handle_song_end()
-        return
-    elif action == "last_part":
-        song_state.pass_count = 0
-        next_index, _ = find_next_valid_part_index("-1", len(song_state.parts), 0)
-        if next_index is not None:
-            setup_part(next_index)
-        else:
-            handle_song_end()
-        return
-    elif action == "loop_part":
-        part_loop_active = True
-        part_loop_index = song_state.current_part_index
-        set_feedback_message(f"Repeat Pattern: Loop Part activado.")
-        setup_part(part_loop_index)
-        return
-    
-    # Acciones de Playlist
-    if playlist_state.is_active:
-        if action == "next_song":
-            handle_song_end()
-            return
-        elif action == "prev_song":
-            prev_idx = playlist_state.current_song_index - 1
-            if prev_idx >= 0 and load_song_from_playlist(prev_idx):
-                start_next_part()
-            return
-        elif action == "first_song":
-            if load_song_from_playlist(0):
-                start_next_part()
-            return
-        elif action == "last_song":
-            last_idx = len(playlist_state.playlist_elements) - 1
-            if last_idx >= 0 and load_song_from_playlist(last_idx):
-                start_next_part()
-            return
-
-    # 4. Comportamiento por defecto o si la acción era "next"
-    next_index, next_pass_count = find_next_valid_part_index(
-        "+1", song_state.current_part_index, song_state.pass_count
-    )
-    
-    if next_index is None:
-        handle_song_end()
-    else:
-        song_state.pass_count = next_pass_count
-        setup_part(next_index)
-
 
 def process_song_tick():
     """Llamado en cada "beat" de la canción (definido por time_division)."""
@@ -660,9 +697,17 @@ def process_song_tick():
         return
 
     # --- 1. Lógica de Triggers Retardados (Disparados por adelantado) ---
-    dest_song_idx, dest_part_idx = predict_jump_destination(
-        pending_action or {"target_type": "part", "target": {"type": "relative", "value": 1}}
-    )
+    # Determina la acción a predecir: el salto pendiente o la progresión lineal por defecto.
+    action_to_predict = pending_action or {"target_type": "part", "target": {"type": "relative", "value": 1}}
+    dest_song_idx, dest_part_idx = predict_jump_destination(action_to_predict)
+
+    # Calcula el tiempo restante real hasta el próximo evento (salto o fin de parte)
+    sig_num = song_state.time_signature_numerator
+    endpoint_bar = get_dynamic_endpoint()
+    endpoint_beat_absolute = endpoint_bar * sig_num
+    total_beats_in_part = song_state.parts[song_state.current_part_index].get("bars", 0) * sig_num
+    beats_into_part = total_beats_in_part - song_state.remaining_beats_in_part
+    remaining_beats_to_event = endpoint_beat_absolute - beats_into_part
 
     if dest_part_idx is not None:
         is_cross_song_jump = playlist_state.is_active and dest_song_idx != playlist_state.current_song_index
@@ -670,24 +715,30 @@ def process_song_tick():
         
         if 0 <= dest_part_idx < len(dest_parts):
             dest_part_data = dest_parts[dest_part_idx]
+            dest_song_name = song_state.song_name
+            dest_song_color = song_state.song_color
+            if is_cross_song_jump:
+                dest_song_element = playlist_state.playlist_elements[dest_song_idx]
+                dest_song_name = dest_song_element.get("song_name", Path(dest_song_element.get("filepath", "N/A")).stem)
+                dest_song_color = dest_song_element.get("color")
+
             context = {
-                "song_index": dest_song_idx,
-                "song_name": (playlist_state.playlist_elements[dest_song_idx].get("song_name", Path(playlist_state.playlist_elements[dest_song_idx].get("filepath", "N/A")).stem) if is_cross_song_jump else song_state.song_name),
-                "song_color": (playlist_state.playlist_elements[dest_song_idx].get("color") if is_cross_song_jump else song_state.song_color),
+                "song_index": dest_song_idx, "song_name": dest_song_name, "song_color": dest_song_color,
                 "part_index": dest_part_idx, "part_name": dest_part_data.get("name"), "part_bars": dest_part_data.get("bars"),
                 "part_color": dest_part_data.get("color"), "part_notes": dest_part_data.get("notes"), "part_cue": dest_part_data.get("cue"),
                 "part_index_in_setlist": _get_global_part_index(dest_song_idx, dest_part_idx)
             }
+            
             if is_cross_song_jump:
-                fire_triggers("song_change", context, is_delayed_check=True, remaining_beats=song_state.remaining_beats_in_part)
-            fire_triggers("part_change", context, is_delayed_check=True, remaining_beats=song_state.remaining_beats_in_part)
+                fire_triggers("song_change", context, is_delayed_check=True, remaining_beats=remaining_beats_to_event)
+            fire_triggers("part_change", context, is_delayed_check=True, remaining_beats=remaining_beats_to_event)
 
     elif playlist_state.is_active:
         next_song_index = playlist_state.current_song_index + 1
         if next_song_index < len(playlist_state.playlist_elements):
             next_song_element = playlist_state.playlist_elements[next_song_index]
             context = { "song_index": next_song_index, "song_name": next_song_element.get("song_name", Path(next_song_element.get("filepath", "N/A")).stem), "song_color": next_song_element.get("color") }
-            fire_triggers("song_change", context, is_delayed_check=True, remaining_beats=song_state.remaining_beats_in_part)
+            fire_triggers("song_change", context, is_delayed_check=True, remaining_beats=remaining_beats_to_event)
 
     # --- 2. Ejecutar Salto Pendiente ---
     jump_executed = check_and_execute_pending_action()
@@ -696,19 +747,15 @@ def process_song_tick():
 
     # --- 3. Avanzar el Estado de la Canción ---
     song_state.remaining_beats_in_part -= 1
-    sig_num = song_state.time_signature_numerator
-    current_part = song_state.parts[song_state.current_part_index]
-    total_beats_in_part = current_part.get("bars", 0) * sig_num
-    beats_into_part = total_beats_in_part - song_state.remaining_beats_in_part
+    beats_into_part += 1 # Actualizar el contador local para el resto de la función
 
     # --- 4. Disparar Triggers Cíclicos y Actualizar UI ---
     if beats_into_part > 0 and beats_into_part % sig_num == 0:
         song_state.current_bar_in_part = beats_into_part // sig_num
         
-        # Disparar bar_triggers
         bar_context = {
             "completed_bar": song_state.current_bar_in_part, "current_song_name": song_state.song_name,
-            "current_part_name": current_part.get("name"), "current_part_index": song_state.current_part_index
+            "current_part_name": song_state.parts[song_state.current_part_index].get("name"), "current_part_index": song_state.current_part_index
         }
         for action in config.get("triggers", {}).get("bar_triggers", []):
             bar_interval = action.get("each_bar")
@@ -721,18 +768,15 @@ def process_song_tick():
             beat_flash_end_time = time.time() + 0.1
 
     # Disparar countdown_triggers en cada beat
-    endpoint_bar = get_dynamic_endpoint()
-    endpoint_beat_absolute = endpoint_bar * sig_num
     remaining_to_endpoint = endpoint_beat_absolute - (beats_into_part -1)
     
     countdown_context = {
         "remaining_beats": remaining_to_endpoint, "remaining_bars": math.ceil(remaining_to_endpoint / sig_num),
-        "current_song_name": song_state.song_name, "current_part_name": current_part.get("name"),
+        "current_song_name": song_state.song_name, "current_part_name": song_state.parts[song_state.current_part_index].get("name"),
         "current_part_index": song_state.current_part_index
     }
     for action in config.get("triggers", {}).get("countdown_triggers", []):
         beat_interval = action.get("each_beat")
-        # El -1 en remaining_to_endpoint ajusta para que el trigger se envíe en el beat exacto
         if beat_interval and (remaining_to_endpoint -1) < beat_interval:
              _process_trigger_action(action, countdown_context)
 
@@ -742,30 +786,16 @@ def process_song_tick():
 
 # --- Dynamic Part-Jumping Logic ---
 
-
 def _find_next_valid_part_index(parts: list, direction: str, start_index: int, start_pass_count: int, repeat_override: bool):
     """
     Encuentra el índice y el pass_count de la siguiente parte válida.
-    Simplificado: ahora solo busca una parte con bars > 0, respetando el modo.
+    (Réplica de la lógica original)
     """
     if not parts:
         return None, None
 
     step = 1 if direction == "+1" else -1
     
-    # En Song Mode, la búsqueda es estrictamente lineal y no da la vuelta.
-    if repeat_override:
-        current_index = start_index
-        for _ in range(len(parts)):
-            current_index += step
-            if 0 <= current_index < len(parts):
-                if parts[current_index].get("bars", 0) > 0:
-                    return current_index, start_pass_count # El pass_count no cambia en Song Mode
-            else:
-                break # Se alcanzó el final o el principio
-        return None, None
-
-    # En Loop Mode, la búsqueda da la vuelta.
     temp_index = start_index
     temp_pass_count = start_pass_count
     for _ in range(len(parts) * 2): # Bucle de seguridad
@@ -773,19 +803,55 @@ def _find_next_valid_part_index(parts: list, direction: str, start_index: int, s
 
         # Lógica de bucle y actualización de pass_count
         if temp_index >= len(parts):
+            if repeat_override: return None, None
             temp_index = 0
             temp_pass_count += 1
         elif temp_index < 0:
+            if repeat_override: return None, None
             temp_index = len(parts) - 1
-            # El pass_count no debería volverse negativo al ir hacia atrás
             temp_pass_count = max(0, temp_pass_count - 1) 
 
         part = parts[temp_index]
         if part.get("bars", 0) > 0:
-            return temp_index, temp_pass_count
+            # En el pase inicial (pass_count 0) o en Song Mode, cualquier parte con compases es válida
+            if temp_pass_count == 0 or repeat_override:
+                return temp_index, temp_pass_count
+            
+            # En fase de bucle (pass_count > 0) y Loop Mode
+            else:
+                pattern = part.get("repeat_pattern")
+                if pattern is True or pattern == "repeat":
+                    return temp_index, temp_pass_count
+                if isinstance(pattern, list) and pattern:
+                    # temp_pass_count es 1-based para el primer bucle
+                    if pattern[(temp_pass_count - 1) % len(pattern)]:
+                        return temp_index, temp_pass_count
 
     return None, None
 
+def _get_parts_from_playlist_element(element):
+    """
+    Devuelve la lista de partes de un elemento de la playlist, leyéndola del disco si es necesario.
+    """
+    # Prioridad 1: La canción está completamente incrustada en la playlist
+    if "parts" in element and isinstance(element["parts"], list):
+        return element["parts"]
+    
+    # Prioridad 2: El elemento es una referencia a un archivo
+    if "filepath" in element:
+        try:
+            # Usar la variable global SONGS_DIR que se actualiza al cargar un directorio
+            song_path = SONGS_DIR / element["filepath"]
+            if song_path.is_file():
+                with song_path.open('r', encoding='utf-8') as f:
+                    data = json5.load(f)
+                    return data.get("parts", [])
+        except Exception:
+            # Si hay cualquier error de lectura, devolver una lista vacía
+            return []
+            
+    # Fallback si el elemento no es válido
+    return []
 
 def predict_jump_destination(action: dict):
     """
@@ -999,11 +1065,10 @@ def execute_song_jump():
     target = pending_action.get("target")
     current_index = playlist_state.current_song_index
     final_index = current_index
-    
-    # Determinar si fue un salto relativo hacia atrás
+
     is_relative_backwards_jump = (isinstance(target, dict) and 
-                                  target.get("type") == "relative" and 
-                                  target.get("value", 0) < 0)
+                                target.get("type") == "relative" and 
+                                target.get("value", 0) < 0)
 
     if target == "restart":
         final_index = current_index
@@ -1013,16 +1078,15 @@ def execute_song_jump():
     elif isinstance(target, int):
         final_index = target
 
-    # Asegurarse de que el índice esté dentro de los límites de la playlist
+    pending_action = None
+
     if not (0 <= final_index < len(playlist_state.playlist_elements)):
         set_feedback_message(f"Salto a canción {final_index + 1} inválido (fuera de rango).")
-        pending_action = None
         return
 
     if load_song_from_playlist(final_index):
         reset_song_state_on_stop()
         
-        # Empezar por el final SÓLO si fue un salto relativo hacia atrás
         if is_relative_backwards_jump:
             start_search_index = len(song_state.parts)
             target_part_index, target_pass_count = find_next_valid_part_index(
@@ -1030,11 +1094,10 @@ def execute_song_jump():
             )
             if target_part_index is not None:
                 song_state.pass_count = target_pass_count
-                setup_part(target_part_index)
+                setup_part(target_part_index, fire_instant_trigger=False)
             else:
-                handle_song_end() # La canción no tiene partes válidas
+                handle_song_end()
         else:
-            # Para todos los demás casos (Inicio, Fin, PgDn, restart), empezar por el principio
             start_next_part()
             
         if clock_state.status == "PLAYING":
@@ -1042,7 +1105,6 @@ def execute_song_jump():
     else:
         set_feedback_message(f"Salto a canción {final_index + 1} inválido (error de carga).")
 
-    pending_action = None
 
 def execute_pending_action():
     """Inspecciona la acción pendiente y decide si es un salto de parte o de canción."""
@@ -1092,27 +1154,172 @@ def check_and_execute_pending_action():
 
     return False
 
+def start_next_part():
+    """
+    Determina qué parte reproducir a continuación, dando prioridad a las acciones del usuario.
+    """
+    global part_loop_active, part_loop_index, repeat_override_active
+
+    # --- INICIO DEL CAMBIO ---
+    # PRIORIDAD MÁXIMA: Si hay una acción pendiente, ejecutarla y salir.
+    # Esto asegura que un salto programado por el usuario siempre anule
+    # el comportamiento por defecto de la parte (como "repeat").
+    if pending_action:
+        execute_pending_action()
+        return
+    # --- FIN DEL CAMBIO ---
+
+    if part_loop_active and song_state.current_part_index == part_loop_index:
+        setup_part(song_state.current_part_index)
+        return
+
+    action_to_execute = "next"
+    if song_state.current_part_index != -1:
+        current_part = song_state.parts[song_state.current_part_index]
+        pattern = current_part.get("repeat_pattern")
+        if isinstance(pattern, list) and pattern:
+            action_to_execute = pattern[song_state.pass_count % len(pattern)]
+        elif isinstance(pattern, str):
+            action_to_execute = pattern
+
+    action = action_to_execute
+    if action == "song_mode":
+        repeat_override_active = True
+        set_feedback_message("Repeat Pattern: Song Mode activado.")
+        action = "next"
+    elif action == "loop_mode":
+        repeat_override_active = False
+        set_feedback_message("Repeat Pattern: Loop Mode activado.")
+        action = "next"
+
+    if not repeat_override_active:
+        if isinstance(action, dict):
+            song_state.pass_count = 0
+            if "jump_to_part" in action:
+                target_idx = action["jump_to_part"]
+                if 0 <= target_idx < len(song_state.parts): setup_part(target_idx); return
+            elif "jump_to_cue" in action:
+                cue_num = action["jump_to_cue"]
+                for i, part in enumerate(song_state.parts):
+                    if part.get("cue") == cue_num: setup_part(i); return
+            elif "random_part" in action:
+                choices = action["random_part"]
+                if choices and isinstance(choices, list):
+                    target_idx = random.choice(choices)
+                    if 0 <= target_idx < len(song_state.parts): setup_part(target_idx); return
+            action = "next"
+
+        if action == "repeat": setup_part(song_state.current_part_index); return
+        elif action == "prev":
+            next_index, next_pass_count = find_next_valid_part_index("-1", song_state.current_part_index, song_state.pass_count)
+            if next_index is not None: song_state.pass_count = next_pass_count; setup_part(next_index)
+            else: handle_song_end()
+            return
+        elif action == "first_part":
+            song_state.pass_count = 0
+            next_index, _ = find_next_valid_part_index("+1", -1, 0)
+            if next_index is not None: setup_part(next_index)
+            else: handle_song_end()
+            return
+        elif action == "last_part":
+            song_state.pass_count = 0
+            next_index, _ = find_next_valid_part_index("-1", len(song_state.parts), 0)
+            if next_index is not None: setup_part(next_index)
+            else: handle_song_end()
+            return
+        elif action == "loop_part":
+            part_loop_active = True; part_loop_index = song_state.current_part_index
+            set_feedback_message(f"Repeat Pattern: Loop Part activado."); setup_part(part_loop_index); return
+
+    if playlist_state.is_active:
+        if action == "next_song": handle_song_end(); return
+        elif action == "prev_song":
+            prev_idx = playlist_state.current_song_index - 1
+            if prev_idx >= 0 and load_song_from_playlist(prev_idx): start_next_part()
+            return
+        elif action == "first_song":
+            if load_song_from_playlist(0): start_next_part()
+            return
+        elif action == "last_song":
+            last_idx = len(playlist_state.playlist_elements) - 1
+            if last_idx >= 0 and load_song_from_playlist(last_idx): start_next_part()
+            return
+
+    next_index, next_pass_count = find_next_valid_part_index("+1", song_state.current_part_index, song_state.pass_count)
+    if next_index is None:
+        handle_song_end()
+    else:
+        song_state.pass_count = next_pass_count
+        setup_part(next_index)
+
+def setup_part(part_index, fire_instant_trigger=True):
+    """
+    Configura una parte y dispara incondicionalmente sus triggers asociados.
+    """
+    if not (0 <= part_index < len(song_state.parts)):
+        return # Salida segura si el índice no es válido
+
+    song_state.current_part_index = part_index
+    part = song_state.parts[part_index]
+    song_state.remaining_beats_in_part = part.get("bars", 0) * song_state.time_signature_numerator
+    song_state.current_bar_in_part = 0
+
+    if part_index == 0:
+        song_state.start_time = time.time()
+
+    if fire_instant_trigger:
+        context = {
+            "song_index": playlist_state.current_song_index,
+            "song_name": song_state.song_name,
+            "song_color": song_state.song_color,
+            "part_index": part_index,
+            "part_name": part.get("name"),
+            "part_bars": part.get("bars"),
+            "part_color": part.get("color"),
+            "part_notes": part.get("notes"),
+            "part_cue": part.get("cue"),
+            "part_index_in_setlist": _get_global_part_index(playlist_state.current_song_index, part_index)
+        }
+        fire_triggers("part_change", context, force_instant=True)
+
+    if song_state.remaining_beats_in_part <= 0:
+        start_next_part()
+
+
+
 
 def handle_start(is_passive_start=False):
     """Lógica para procesar un comando START."""
     global clock_state
     if clock_state.status == "PLAYING": return
 
-    # Solo enviar el comando START si no es un inicio pasivo
+
+    # Disparar el evento de inicio de transporte y el nuevo evento de inicio inicial
     if not is_passive_start:
-        # Envío implícito de transporte si está configurado
         if "transport_out" in midi_outputs:
             try:
                 midi_outputs["transport_out"].send(mido.Message('start'))
             except Exception as e:
                 set_feedback_message(f"Error transport_out: {e}")
         fire_triggers("playback_start", {})
+        fire_triggers("playback_initial_start", {}) 
 
     clock_state.status = "PLAYING"
     clock_state.start_time = time.time()
     clock_state.paused_set_elapsed_time = 0
     reset_song_state_on_stop()
     start_next_part()
+  
+
+    # El trigger de la primera parte ahora es manejado por setup_part.
+    if playlist_state.is_active and playlist_state.playlist_elements:
+        first_song_element = playlist_state.playlist_elements[0]
+        context = {
+            "song_index": 0,
+            "song_name": first_song_element.get("song_name", Path(first_song_element.get("filepath", "N/A")).stem),
+            "song_color": first_song_element.get("color")
+        }
+        fire_triggers("song_change", context, force_instant=True)
 
     if song_state.current_part_index != -1:
         process_song_tick()
@@ -1536,89 +1743,6 @@ def set_feedback_message(message: str, duration: int = 5):
     ui_feedback_message = message
     feedback_expiry_time = time.time() + duration
 
-def get_feedback_text():
-    """Muestra el último mensaje de feedback si no ha expirado."""
-    if time.time() > feedback_expiry_time:
-        return "" # El mensaje ha expirado, no mostrar nada
-    
-    return HTML(f"<style fg='#888888'>{ui_feedback_message}</style>")
-
-
-def get_action_status_text():
-    """Muestra el modo de cuantización, la acción pendiente y el estado de repetición."""
-    quant_str = quantize_mode.replace("_", " ").upper()
-    
-    action_str = "Ø"
-    if pending_action:
-        quant = (pending_action.get("dynamic_quantize") or pending_action.get("quantize", "")).replace("_", " ").upper()
-        
-        # --- Lógica de visualización unificada ---
-
-        # 1. Saltos que especifican canción y parte (Global Part y Cues)
-        if pending_action.get("target_type") in ["global_part", "cue_jump"]:
-            song_idx = pending_action.get("target_song")
-            part_idx = pending_action.get("target_part")
-            song_element = playlist_state.playlist_elements[song_idx]
-            parts = _get_parts_from_playlist_element(song_element)
-            
-            song_name = song_element.get("song_name", Path(song_element.get("filepath", "N/A")).stem)
-            part_name = parts[part_idx].get("name", "N/A") if part_idx < len(parts) else "N/A"
-            
-            prefix = "Cue" if pending_action.get("target_type") == "cue_jump" else "Global Part"
-            action_str = f"{prefix}: {html.escape(song_name)} - {html.escape(part_name)} ({quant})"
-
-        # 2. Salto de Canción
-        elif pending_action.get("target_type") == "song":
-            target = pending_action.get("target")
-            target_song_idx = playlist_state.current_song_index
-            if isinstance(target, int):
-                target_song_idx = target
-            elif isinstance(target, dict) and target.get("type") == "relative":
-                target_song_idx += target.get("value", 0)
-            if 0 <= target_song_idx < len(playlist_state.playlist_elements):
-                element = playlist_state.playlist_elements[target_song_idx]
-                song_name = element.get("song_name", Path(element.get("filepath", "N/A")).stem)
-                action_str = f"Song: {html.escape(song_name)} ({quant})"
-            else:
-                action_str = "Jump to End of Setlist"
-
-        # 3. Salto de Parte (dentro de la canción actual) - SIMPLIFICADO
-        else:
-            target = pending_action.get("target")
-            if isinstance(target, dict) and target.get("type") == "relative":
-                value = target.get("value", 0)
-                action_str = f"Jump {value:+} ({quant})"
-            elif target == "restart":
-                action_str = f"Restart Part ({quant})"
-            elif isinstance(target, int):
-                action_str = f"Go to Part {target + 1} ({quant})"
-    
-    if goto_input_active:
-        return HTML(f"<style bg='ansiyellow' fg='ansiblack'>Ir a Parte: {goto_input_buffer}_</style>")
-
-    
-    quant_part = f"<b>Quant:</b> <style bg='#333333'>[{quant_str}]</style>"
-    action_part = f"<b>Action:</b> <style bg='#333333'>[{html.escape(action_str)}]</style>"
-
-    if part_loop_active:
-        mode_part = "<style bg='ansired' fg='ansiwhite' bold='true'>Loop Part</style>"
-    elif repeat_override_active:
-        mode_part = "<style fg='ansigreen' bold='true'>Song Mode</style>"
-    else:
-        mode_part = "<style fg='ansiyellow' bold='true'>Loop Mode</style>"
-
-    return HTML(f"{mode_part} | {quant_part} | {action_part}")
-
-def get_key_legend_text():
-    """Muestra la leyenda de los controles de teclado."""
-    line1 = "<b>[m:</b> Mode] <b>[4-9:</b> Set Quant] <b>[0-3:</b> Jump] <b>[.#:</b> Goto]"
-    line2 = "<b>[PgUp/PgDn:</b> Song Nav] <b>[←→:</b> Part Nav] <b>[↑:</b> Loop Part] <b>[↓:</b> Cancel]"
-    return HTML(f"<style fg='#666666'>{line1}\n{line2}</style>")
-
-# --- UI Functions ---
-
-
-
 def get_dynamic_endpoint():
     """
     Calcula el compás final relevante, ya sea el final de la parte
@@ -1626,7 +1750,6 @@ def get_dynamic_endpoint():
     Devuelve el número del compás final (1-based).
     """
     if not pending_action or clock_state.status != "PLAYING" or song_state.current_part_index == -1:
-        # Si no hay acción o no estamos en una parte válida, el final es el final real.
         if song_state.current_part_index != -1:
             return song_state.parts[song_state.current_part_index].get("bars", 0)
         return 0
@@ -1634,22 +1757,17 @@ def get_dynamic_endpoint():
     current_part = song_state.parts[song_state.current_part_index]
     total_bars_in_part = current_part.get("bars", 0)
 
-    # Si el salto relativo se ha cancelado (valor 0), tratar como si no hubiera salto.
     target = pending_action.get("target")
     if isinstance(target, dict) and target.get("type") == "relative" and target.get("value") == 0:
         return total_bars_in_part
     
-    # Calcular la posición actual
     sig_num = song_state.time_signature_numerator
     beats_into_part = (total_bars_in_part * sig_num) - song_state.remaining_beats_in_part
-    current_bar_index = beats_into_part // sig_num # 0-based
+    current_bar_index = beats_into_part // sig_num
 
-    # Busca la cuantización dinámica primero, si no, la normal.
     quantize = pending_action.get("dynamic_quantize") or pending_action.get("quantize")
     
     if quantize in ["instant", "next_bar", "end_of_part"]:
-        # Para estos modos, el salto es inminente o al final.
-        # "end_of_part" visualmente se comporta como el final de la parte.
         if quantize == "end_of_part":
             return total_bars_in_part
         return current_bar_index + 1
@@ -1657,269 +1775,92 @@ def get_dynamic_endpoint():
     quantize_map = {"next_4": 4, "next_8": 8, "next_16": 16, "next_32": 32}
     if quantize in quantize_map:
         boundary = quantize_map[quantize]
-        # Calcula el próximo múltiplo de 'boundary' desde el compás actual
         target_bar = ((current_bar_index // boundary) + 1) * boundary
         return target_bar
     
-    return total_bars_in_part # Fallback
+    return total_bars_in_part
 
 
+def load_file_by_name(filename: str):
+    """Carga un archivo de canción o playlist por su nombre."""
+    global loaded_filename, playlist_state, repeat_override_active, song_state, config
 
-def get_countdown_text():
-    """Genera la cuenta atrás de compases, envuelta en corchetes. La alineación la gestiona el layout."""
-    bar_text = "-0"
-    beat_text = "0"
-    style = "fg='ansiwhite'"
+    filepath = SONGS_DIR / filename
+    if not filepath.is_file():
+        set_feedback_message(f"Error: no se encontró el archivo '{filename}'")
+        return
 
-    if clock_state.status == "PLAYING" and song_state.remaining_beats_in_part > 0:
-        sig_num = song_state.time_signature_numerator
-        rem_beats = song_state.remaining_beats_in_part
+    # Validar antes de cargar
+    is_valid, errors, data = MIDItemaValidator.validate_file(filepath)
+    if not is_valid:
+        error_details = "\n".join(str(e) for e in errors[:5])
+        set_feedback_message(f"[!] Archivo inválido: {errors[0]}")
+        print(f"[!] Errores de validación en '{filename}':\n{error_details}")
+        return
         
-        endpoint_bar = get_dynamic_endpoint()
-        
-        total_beats_in_part = song_state.parts[song_state.current_part_index].get("bars", 0) * sig_num
-        beats_into_part = total_beats_in_part - rem_beats
-        current_bar_index = beats_into_part // sig_num
-        
-        remaining_bars_to_endpoint = endpoint_bar - current_bar_index
-        
-        display_beat = (rem_beats - 1) % sig_num + 1
-        display_bar = -(remaining_bars_to_endpoint - 1)
-        
-        bar_text = f"{display_bar}"
-        if remaining_bars_to_endpoint == 1: bar_text = "-0"
-        beat_text = f"{display_beat}"
-
-        if remaining_bars_to_endpoint == 1:
-            style = "fg='ansired' bold='true'"
-        elif remaining_bars_to_endpoint <= 4:
-            style = "fg='ansiyellow' bold='true'"
-    
-    countdown_str = f"{bar_text}<style fg='#888888'>.</style>{beat_text}"
-    
-    # Envolver el resultado en corchetes grises para resaltarlo
-    final_output = f"<style fg='#888888'>[</style> <style {style}>{countdown_str}</style> <style fg='#888888'>]</style>"
-    
-    return HTML(final_output)
-
-def _get_parts_from_playlist_element(element):
-    """Devuelve la lista de partes de un elemento de la playlist, leyéndola si es necesario."""
-    if "parts" in element:
-        return element["parts"]
-    if "filepath" in element:
-        try:
-            with (SONGS_DIR / element["filepath"]).open('r', encoding='utf-8') as f:
-                data = json5.load(f)
-                return data.get("parts", [])
-        except Exception:
-            return []
-    return []
-
-
-def get_next_part_text():
-    """
-    Muestra el destino de la acción pendiente o el siguiente paso natural,
-    usando siempre el color de la parte de destino.
-    """
-    raw_text = ""
-    style_str = "fg='#888888'" # Color por defecto para "End of Setlist"
-
-    if part_loop_active:
-        style_str = "fg='ansired' bold='true'"
-        raw_text = ">> Loop Part"
-    elif clock_state.status == "PLAYING":
-        dest_song_idx, dest_part_idx = None, None
-
-        if pending_action:
-            dest_song_idx, dest_part_idx = predict_jump_destination(pending_action)
-        else:
-            dest_song_idx, dest_part_idx = predict_jump_destination({
-                "target_type": "part", "target": {"type": "relative", "value": 1}
-            })
-
-        if dest_part_idx is not None:
-            dest_part_data = None
-            # --- Bloque a cambiar ---
-            if not playlist_state.is_active:
-                # MODO CANCIÓN ÚNICA: El destino siempre está en la canción actual.
-                if 0 <= dest_part_idx < len(song_state.parts):
-                    dest_part_data = song_state.parts[dest_part_idx]
-            else:
-                # MODO PLAYLIST: El destino puede estar en otra canción.
-                if 0 <= dest_song_idx < len(playlist_state.playlist_elements):
-                    dest_song_element = playlist_state.playlist_elements[dest_song_idx]
-                    dest_song_parts = _get_parts_from_playlist_element(dest_song_element)
-                    if 0 <= dest_part_idx < len(dest_song_parts):
-                        dest_part_data = dest_song_parts[dest_part_idx]
-
-            if dest_part_data:
-                color_name = dest_part_data.get('color', 'default')
-                style_str = FG_COLOR_PALETTE.get(color_name, FG_COLOR_PALETTE['default'])
-                
-                name = dest_part_data.get('name', 'N/A')
-                bars = dest_part_data.get('bars', 0)
-
-                if playlist_state.is_active and dest_song_idx != playlist_state.current_song_index:
-                    song_name = playlist_state.playlist_elements[dest_song_idx].get("song_name", Path(playlist_state.playlist_elements[dest_song_idx].get("filepath", "N/A")).stem)
-                    part_info_str = f" [{html.escape(name)} ({bars})]"
-                    raw_text = f">> Next Song: {html.escape(song_name)}{part_info_str}"
-                else:
-                    raw_text = f">> {html.escape(name)} ({bars})"
-            else:
-                raw_text = ">> End of Setlist" if playlist_state.is_active else ">> End of Song"
-        else:
-            # No hay un destino válido, usar el texto por defecto.
-            raw_text = ">> End of Setlist" if playlist_state.is_active else ">> End of Song"
-
-
-    if not raw_text:
-        return ""
-
-    centered_text = raw_text.center(80)
-    return HTML(f"<style {style_str}>{centered_text}</style>")
-
-
-def get_step_sequencer_text():
-    """Genera la representación visual de los compases. La alineación la gestiona el layout."""
-    FIXED_SEQUENCER_HEIGHT = 18
-
-    if song_state.current_part_index == -1:
-        return HTML("\n" * FIXED_SEQUENCER_HEIGHT)
-
-    part = song_state.parts[song_state.current_part_index]
-    total_bars = part.get("bars", 0)
-    if total_bars == 0:
-        return HTML("\n" * FIXED_SEQUENCER_HEIGHT)
-
-    COMPACT_MODE_THRESHOLD = 32
-    compact_mode = total_bars > COMPACT_MODE_THRESHOLD
-
-    sig_num = song_state.time_signature_numerator
-    consumed_beats = (total_bars * sig_num) - song_state.remaining_beats_in_part
-    consumed_bars = consumed_beats // sig_num
-    
-    current_beat_in_bar = 0
-    if clock_state.status == "PLAYING":
-        beats_into_current_bar = consumed_beats % sig_num
-        current_beat_in_bar = beats_into_current_bar + 1
-
-    endpoint_bar = get_dynamic_endpoint() if pending_action else total_bars
-    part_color_name = part.get('color')
-    part_style = FG_COLOR_PALETTE.get(part_color_name, "fg='#888888'")
-
-    output_lines = []
-    
-    for row_start in range(0, total_bars, 8):
-        line_content = ""
-        is_active_row = (row_start <= consumed_bars < row_start + 8)
-
-        for i in range(row_start, min(row_start + 8, total_bars)):
-            bar_index_0based = i
-            
-            block_style = part_style
-            if bar_index_0based < consumed_bars or (pending_action and bar_index_0based >= endpoint_bar):
-                block_style = "fg='#222222'"
-
-            block = ""
-            if bar_index_0based == consumed_bars and clock_state.status == "PLAYING":
-                progress_style = "fg='#555555'"
-                intended_progress_color_name = None
-
-                remaining_bars_to_endpoint = endpoint_bar - bar_index_0based
-                if remaining_bars_to_endpoint == 1:
-                    intended_progress_color_name = 'red'
-                elif remaining_bars_to_endpoint <= 4:
-                    intended_progress_color_name = 'yellow'
-
-                if part_color_name == intended_progress_color_name:
-                    progress_style = "fg='#cccccc' bold='true'"
-                elif intended_progress_color_name is not None:
-                    progress_style = FG_COLOR_PALETTE[intended_progress_color_name]
-
-                for beat in range(1, sig_num + 1):
-                    if beat <= current_beat_in_bar:
-                        block += f"<style {progress_style}>█</style>"
-                    else:
-                        block += f"<style {block_style}>█</style>"
-                block += "  "
-            else:
-                block = f"<style {block_style}>████  </style>"
-
-            line_content += block
-        
-        output_lines.append(line_content)
-        
-        if is_active_row or not compact_mode:
-            output_lines.append(line_content)
-
-        if row_start + 8 < total_bars:
-            output_lines.append("")
-    
-    if len(output_lines) > FIXED_SEQUENCER_HEIGHT:
-        output_lines = output_lines[:FIXED_SEQUENCER_HEIGHT]
+    print(f"[DEBUG] Claves en data: {list(data.keys())}")
+    if "devices" in data:
+        print(f"[DEBUG] devices encontrado: {data['devices']}")
     else:
-        while len(output_lines) < FIXED_SEQUENCER_HEIGHT:
-            output_lines.append("")
-            
-    return HTML("\n".join(output_lines))
+        print("[DEBUG] NO se encontró 'devices' en data")
+    # Resetear estado antes de cargar
+    reset_song_state_on_stop()
+    playlist_state = PlaylistState()
 
 
-
-
-# --- UI Interactive Selectors ---
-def interactive_selector(items, prompt_title):
-    """Implementación de un selector interactivo genérico."""
-    if not items: return None
+    if "songs" in data and isinstance(data["songs"], list):
+        playlist_state.is_active = True
+        playlist_state.playlist_name = data.get("playlist_name", filepath.stem)
+        playlist_state.playlist_elements = data["songs"]
+        set_feedback_message(f"Playlist '{playlist_state.playlist_name}' cargada.")
+        
+        playlist_mode = data.get("mode", "loop")
+        repeat_override_active = playlist_mode.lower() == "song"
+        
+        load_song_from_playlist(0)
+    else:
+        playlist_state.is_active = False
+        load_song_file(data=data)
     
-    current_selection_index = 0
-    kb = KeyBindings()
+    loaded_filename = filepath.stem
 
-    @kb.add('c-c', eager=True)
-    @kb.add('q', eager=True)
-    def _(event): event.app.exit(result=None)
-
-    @kb.add('up', eager=True)
-    def _(event):
-        nonlocal current_selection_index
-        current_selection_index = (current_selection_index - 1 + len(items)) % len(items)
-
-    @kb.add('down', eager=True)
-    def _(event):
-        nonlocal current_selection_index
-        current_selection_index = (current_selection_index + 1) % len(items)
-
-    @kb.add('enter', eager=True)
-    def _(event):
-        event.app.exit(result=items[current_selection_index])
-
-    def get_text_for_ui():
-        # Corregido: Construir una lista de strings y unirlos al final.
-        text_parts = [f"<b>{prompt_title}</b>\n(↑↓: navegar, Enter: confirmar, q: salir)\n\n"]
-        for i, item_name in enumerate(items):
-            if i == current_selection_index:
-                # Añadir la línea como una cadena de texto formateada
-                text_parts.append(f"<style bg='ansiblue' fg='ansiwhite'>> {item_name}</style>\n")
-            else:
-                text_parts.append(f"  {item_name}\n")
-        # Devolver un único objeto HTML que contiene todo el texto.
-        return HTML("".join(text_parts))
-
-    control = FormattedTextControl(text=get_text_for_ui, focusable=True, key_bindings=kb)
-    selector_app = Application(layout=Layout(HSplit([Window(content=control)])), full_screen=False)
+def reconfigure_clock_port(port_name: str):
+    """Cierra el puerto de clock actual y abre uno nuevo."""
+    global midi_inputs, clock_state
     
-    return selector_app.run()
+    # Detener la reproducción para evitar problemas
+    if clock_state.status != "STOPPED":
+        handle_stop()
+
+    if "clock" in midi_inputs and midi_inputs["clock"]:
+        try:
+            midi_inputs["clock"].close()
+        except Exception:
+            pass # Ignorar errores al cerrar
+
+    try:
+        midi_inputs["clock"] = mido.open_input(port_name)
+        clock_state.source_name = port_name
+        set_feedback_message(f"Clock reconfigurado a: '{port_name}'")
+    except Exception as e:
+        set_feedback_message(f"Error abriendo '{port_name}': {e}")
+        midi_inputs["clock"] = None
+        clock_state.source_name = "Ninguna"
+
 
 # --- Main Application ---
 def main():
-    global app_ui_instance, quantize_mode, repeat_override_active, loaded_filename, config, midi_inputs
+    global app_ui_instance, quantize_mode, repeat_override_active, loaded_filename, config, midi_inputs, SONGS_DIR, SHUTDOWN_FLAG
 
     initial_data = None
-
+    initial_load_success = True
     print("MIDItema\n")
+    # El help text ahora es más genérico para reflejar la carga de directorios y playlists
     parser = argparse.ArgumentParser(prog="miditema", description="Contador de compases esclavo de MIDI Clock.")
-    parser.add_argument("song_file", nargs='?', default=None, help=f"Nombre del archivo de canción (sin .json) en ./{SONGS_DIR_NAME}/.")
+    parser.add_argument("song_file", nargs='?', default=None, help="Nombre del archivo de canción, playlist o directorio.")
     parser.add_argument("--quant", type=str, default=None, help="Fija la cuantización por defecto. Valores: bar, 4, 8, 16, 32, instant.")
     parser.add_argument("--conf", type=str, default=None, help="Especifica un archivo de configuración alternativo.")
+    parser.add_argument("--debug", action="store_true", help="Inicia en modo de depuración en consola sin lanzar la TUI.")
     mode_group = parser.add_mutually_exclusive_group()
     mode_group.add_argument("--song-mode", action="store_true", help="Inicia en 'Song Mode', ignorando los patrones de repetición.")
     mode_group.add_argument("--loop-mode", action="store_true", help="Inicia en 'Loop Mode', respetando los patrones de repetición.")
@@ -1927,9 +1868,8 @@ def main():
 
     if args.quant:
         quant_map = {"bar": "next_bar", "4": "next_4", "8": "next_8", "16": "next_16", "32": "next_32", "instant": "instant"}
-        valid_modes = set(quant_map.values())
         user_mode = quant_map.get(args.quant, args.quant)
-        if user_mode in valid_modes:
+        if user_mode in quant_map.values():
             quantize_mode = user_mode
             print(f"[*] Default quantization {quantize_mode.upper()}")
         else:
@@ -1937,48 +1877,38 @@ def main():
 
     config_file_to_load = args.conf if args.conf else CONF_FILE_NAME
     config = load_config(config_file_to_load)
-    
-
+    # Añadimos la ruta al propio diccionario de configuración. Es más robusto.
+    config['_source_file'] = config_file_to_load
     setup_devices(config)
-    # Asegurarse de que el puerto de clock exista antes de continuar
-    if "clock" not in midi_inputs or midi_inputs["clock"] is None:
-        print("[!] No se pudo abrir un puerto de clock. Saliendo.")
-        return
 
-    global SONGS_DIR 
 
     if args.song_file:
+        is_dir_mode = args.song_file.endswith(('/', '\\')) or Path(args.song_file).is_dir()
         user_path = Path(args.song_file)
-        
-        if user_path.is_dir():
+
+        if is_dir_mode:
+            if not user_path.is_dir():
+                print(f"[!] Error: El directorio '{user_path}' no existe.")
+                return
+            
             print(f"[*] Directorio '{user_path.name}' detectado. Cargando como playlist...")
-            SONGS_DIR = user_path
-            
-            json_files = sorted(list(SONGS_DIR.glob("*.json")))
+            SONGS_DIR = user_path # La base para buscar archivos es ahora este directorio
+            json_files = sorted(list(SONGS_DIR.glob("*.json")) + list(SONGS_DIR.glob("*.json5")))
             if not json_files:
-                print(f"[!] Error: El directorio '{user_path.name}' no contiene archivos .json.")
+                print(f"[!] Error: El directorio '{user_path.name}' no contiene archivos .json o .json5.")
                 return
 
-            playlist_state.is_active = True
-            playlist_state.playlist_name = user_path.name
-            playlist_state.playlist_elements = [{"filepath": f.name} for f in json_files]
+            # Lógica de carga de directorio restaurada (simple y directa)
+            playlist_elements = [{"filepath": f.name} for f in json_files]
+            initial_data = {"playlist_name": user_path.name, "songs": playlist_elements}
             loaded_filename = user_path.name
-            
-            if args.song_mode: repeat_override_active = True
-            elif args.loop_mode: repeat_override_active = False
-            
-            mode_str = "SONG MODE" if repeat_override_active else "LOOP MODE"
-            print(f"[*] Inicio en {mode_str}.")
-
-            if not load_song_from_playlist(0):
-                print("[!] La playlist generada está vacía o la primera canción no es válida. Saliendo.")
-                return
-
         else:
-            filename = user_path.name if user_path.name.lower().endswith(".json") else f"{user_path.name}.json"
+            # Modo archivo: buscar en el directorio por defecto 'temas/'
+            filename = user_path.name if user_path.name.lower().endswith((".json", ".json5")) else f"{user_path.name}.json"
             selected_file_path = SONGS_DIR / filename
             if not selected_file_path.is_file():
-                print(f"[!] El archivo '{args.song_file}' no se encontró en la carpeta '{SONGS_DIR_NAME}'.")
+                print(f"[!] El archivo '{filename}' no se encontró en la carpeta '{SONGS_DIR_NAME}'.")
+                # Si no se encuentra, activamos la lógica del selector interactivo
                 args.song_file = None
             else:
                 try:
@@ -1989,36 +1919,31 @@ def main():
                     print(f"Error al leer el archivo '{selected_file_path.name}': {e}")
                     return
 
-    if not args.song_file:
-        SONGS_DIR.mkdir(exist_ok=True)
-        available_files = [f.stem for f in SONGS_DIR.glob("*.json")]
-        if not available_files:
-            print(f"[!] No se encontraron archivos en la carpeta './{SONGS_DIR_NAME}/'.")
-            return
-        
-        selected_file_name = interactive_selector(available_files, "Selecciona una canción o playlist")
-        if not selected_file_name:
-            return
-        
-        selected_file_path = SONGS_DIR / f"{selected_file_name}.json"
-        try:
-            with selected_file_path.open('r', encoding='utf-8') as f:
-                initial_data = json5.load(f)
-            loaded_filename = selected_file_path.stem
-        except Exception as e:
-            print(f"Error al leer el archivo '{selected_file_path.name}': {e}")
-            return
-
     if initial_data:
+        # Procesar devices del archivo si existen
+        if "devices" in initial_data:
+            merged_config = config.copy()
+            # Merge profundo para devices
+            if "devices" in merged_config and "devices" in initial_data:
+                for device_type, aliases in initial_data["devices"].items():
+                    if device_type not in merged_config["devices"]:
+                        merged_config["devices"][device_type] = {}
+                    merged_config["devices"][device_type].update(aliases)
+            else:
+                merged_config["devices"] = initial_data["devices"]
+            setup_devices(merged_config)
+        else:
+            setup_devices(config)
         if "songs" in initial_data and isinstance(initial_data["songs"], list):
             playlist_state.is_active = True
-            playlist_state.playlist_name = initial_data.get("playlist_name", loaded_filename)
             playlist_state.playlist_elements = initial_data["songs"]
+            playlist_state.playlist_name = initial_data.get("playlist_name", loaded_filename or "Sin nombre")
+            
             print(f"[*] Playlist '{playlist_state.playlist_name}' cargada con {len(playlist_state.playlist_elements)} canciones.")
+            
             
             playlist_mode = initial_data.get("mode", "loop")
             repeat_override_active = playlist_mode.lower() == "song"
-            
             if args.song_mode: repeat_override_active = True
             elif args.loop_mode: repeat_override_active = False
             
@@ -2026,17 +1951,19 @@ def main():
             print(f"[*] Inicio en {mode_str}.")
 
             if not load_song_from_playlist(0):
-                print("[!] La playlist está vacía o la primera canción no es válida. Saliendo.")
-                return
+                print("[!] Error: No se pudo cargar la primera canción de la playlist.")
+                print("[*] La TUI se abrirá de todos modos. Puedes cargar otro archivo desde el menú.")
+                initial_load_success = False
         else:
             if not load_song_file(data=initial_data):
-                return
+                print("[!] Error: No se pudo cargar la canción.")
+                print("[*] La TUI se abrirá de todos modos. Puedes cargar otro archivo desde el menú.")
+                initial_load_success = False
             if args.song_mode: repeat_override_active = True
             elif args.loop_mode: repeat_override_active = False
 
     listener_thread = threading.Thread(target=midi_input_listener, daemon=True)
     listener_thread.start()
-
     control_listener_thread = None
     if "midi_in" in midi_inputs and midi_inputs["midi_in"] is not midi_inputs.get("clock"):
         control_listener_thread = threading.Thread(target=midi_control_listener, daemon=True)
@@ -2044,422 +1971,61 @@ def main():
 
     signal.signal(signal.SIGINT, signal_handler)
    
-    kb = KeyBindings()
-    
-    @Condition
-    def is_playlist_active():
-        return playlist_state.is_active
-    
-    @Condition
-    def is_goto_mode():
-        return goto_input_active
-
-    @kb.add('q', eager=True)
-    @kb.add('c-c', eager=True)
-    def _(event):
-        event.app.exit()
-
-    @kb.add('enter', filter=~is_goto_mode)
-    def _(event):
-        if clock_state.status == "STOPPED":
-            handle_start()
-        else:
-            handle_stop()
-
-    @kb.add(' ', filter=~is_goto_mode)
-    def _(event):
-        if clock_state.status == "STOPPED":
-            handle_continue()
-        else:
-            handle_stop()
-
-    @kb.add('right', filter=~is_goto_mode)
-    def _(event):
-        global pending_action, ui_feedback_message
-        cancel_part_loop()
+    if args.debug:
+        print("\n--- MODO DEPURACIÓN ACTIVO ---")
+        print("El motor está corriendo. Presiona 'Tab' para lanzar la TUI, Ctrl+C para salir.")
         
-        if (pending_action and 
-            isinstance(pending_action.get("target"), dict) and 
-            pending_action["target"].get("type") == "relative"):
+        def print_debug_status():
+            """Imprime una línea de estado simple para la depuración en consola."""
+            status = clock_state.status
+            bpm = clock_state.bpm
+            part_name = "N/A"
+            part_idx = song_state.current_part_index
             
-            pending_action["target"]["value"] += 1
-        else:
-            target = {"type": "relative", "value": 1}
-            pending_action = {"target": target, "quantize": quantize_mode}
-        
-        set_feedback_message("Jump forward.")
+            if 0 <= part_idx < len(song_state.parts):
+                part_name = song_state.parts[part_idx].get('name', 'N/A')
 
-    @kb.add('left', filter=~is_goto_mode)
-    def _(event):
-        global pending_action, ui_feedback_message
-
-        if (pending_action and 
-            isinstance(pending_action.get("target"), dict) and 
-            pending_action["target"].get("type") == "relative"):
-            
-            pending_action["target"]["value"] -= 1
-        else:
-            target = {"type": "relative", "value": -1}
-            pending_action = {"target": target, "quantize": quantize_mode}
-            
-        set_feedback_message("Jump back.")
-
-    @kb.add('up', filter=~is_goto_mode)
-    def _(event):
-        global part_loop_active, part_loop_index, ui_feedback_message
-        
-        if part_loop_active and song_state.current_part_index == part_loop_index:
-            cancel_part_loop()
-        elif clock_state.status == "PLAYING" and song_state.current_part_index != -1:
-            part_loop_active = True
-            part_loop_index = song_state.current_part_index
-            part_name = song_state.parts[part_loop_index].get('name', 'N/A')
-            set_feedback_message(f"Loop part: {part_name}")
-        else:
-            set_feedback_message("Can't Loop part when STOPPED.")
-
-    @kb.add('down', filter=~is_goto_mode)
-    def _(event):
-        global pending_action, ui_feedback_message
-        
-        if clock_state.status == "STOPPED":
-            clock_state.paused_set_elapsed_time = 0
-            clock_state.start_time = 0
-            reset_song_state_on_stop()
-
-            if playlist_state.is_active:
-                load_song_from_playlist(0)
-            
-            set_feedback_message("Setlist reiniciado.")
-        
-        else:
+            action_str = "None"
             if pending_action:
-                pending_action = None
-                set_feedback_message("Pending Action cancelled.")
-            else:
-                cancel_part_loop()
+                action_str = str(pending_action.get('target', 'N/A'))
 
-    for i in "0123":
-        @kb.add(i, filter=~is_goto_mode)
-        def _(event):
-            global pending_action, ui_feedback_message
-            cancel_part_loop()
-            key = event.key_sequence[0].data
-            quant_map = {"0": "next_bar", "1": "next_4", "2": "next_8", "3": "next_16"}
-            quant = quant_map[key]
-            
-            target = {"type": "relative", "value": 1}
-            pending_action = {"target": target, "quantize": quant}
-            
-            set_feedback_message(f"Next part with (Quant: {quant.upper()}).")
-            
-    for i in "456789":
-        @kb.add(i, filter=~is_goto_mode)
-        def _(event):
-            global quantize_mode, ui_feedback_message
-            key = event.key_sequence[0].data
-            quant_map = {
-                "4": "next_4", "5": "next_8", "6": "next_16", 
-                "7": "next_bar", "8": "end_of_part", "9": "instant"
-            }
-            quantize_mode = quant_map[key]
-            set_feedback_message(f"Global Quantization: {quantize_mode.upper()}.")
+            print(
+                f"Status: {status} | BPM: {bpm:.1f} | Part: {part_name} ({part_idx+1}) | Pending: {action_str}      ",
+                end='\r'
+            )
+            sys.stdout.flush()
 
-    for i in range(1, 13):
-        @kb.add(f'f{i}', filter=~is_goto_mode)
-        def _(event, key_num=i):
-            cancel_part_loop()
-            trigger_cue_jump(key_num)
-            
-    @kb.add('.', filter=~is_goto_mode)
-    @kb.add(',', filter=~is_goto_mode)
-    def _(event):
-        global goto_input_active, goto_input_buffer
-        goto_input_active = True
-        goto_input_buffer = ""
+        try:
+            while not SHUTDOWN_FLAG:
+                char = get_char_non_blocking()
+                if char == '\t': # Tecla Tab
+                    print("\nLanzando TUI...")
+                    break 
+                print_debug_status()
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            SHUTDOWN_FLAG = True
 
-    @kb.add('escape', filter=is_goto_mode)
-    @kb.add('down', filter=is_goto_mode)
-    def _(event):
-        global goto_input_active, ui_feedback_message
-        goto_input_active = False
-        set_feedback_message("Pending action cancelled.")
-
-    @kb.add('backspace', filter=is_goto_mode)
-    def _(event):
-        global goto_input_buffer
-        goto_input_buffer = goto_input_buffer[:-1]
-
-    for i in "0123456789":
-        @kb.add(i, filter=is_goto_mode)
-        def _(event):
-            global goto_input_buffer
-            goto_input_buffer += event.data
-
-    @kb.add('enter', filter=is_goto_mode)
-    def _(event):
-        global goto_input_active, goto_input_buffer, pending_action, ui_feedback_message
-        cancel_part_loop()
-        if goto_input_buffer.isdigit():
-            part_num = int(goto_input_buffer)
-            if 1 <= part_num <= len(song_state.parts):
-                pending_action = {"target": part_num - 1, "quantize": quantize_mode}
-                set_feedback_message(f"Go to part {part_num}.")
-            else:
-                set_feedback_message(f"[!] Error: part {part_num} does not exist.")
-        else:
-            set_feedback_message("[!] Error: invalid input.")
-        goto_input_active = False
-        goto_input_buffer = ""
-
-    @kb.add('pageup', filter=is_playlist_active)
-    def _(event):
-        global ui_feedback_message
-        target = {"type": "relative", "value": -1}
-        action = {"target_type": "song", "target": target, "quantize": quantize_mode}
-        trigger_song_jump(action)
-        set_feedback_message("Playlist: Previous Song.")
-
-    @kb.add('pagedown', filter=is_playlist_active)
-    def _(event):
-        global ui_feedback_message
-        target = {"type": "relative", "value": 1}
-        action = {"target_type": "song", "target": target, "quantize": quantize_mode}
-        trigger_song_jump(action)
-        set_feedback_message("Playlist: Next Song.")
-
-    @kb.add('home', filter=is_playlist_active)
-    def _(event):
-        global ui_feedback_message
-        action = {"target_type": "song", "target": 0, "quantize": quantize_mode}
-        trigger_song_jump(action)
-        set_feedback_message("Playlist: Go to First Song.")
-
-    @kb.add('end', filter=is_playlist_active)
-    def _(event):
-        global ui_feedback_message
-        last_song_index = len(playlist_state.playlist_elements) - 1
-        action = {"target_type": "song", "target": last_song_index, "quantize": quantize_mode}
-        trigger_song_jump(action)
-        set_feedback_message("Playlist: Go to Last Song.")
-
-    @kb.add('m', filter=~is_goto_mode)
-    def _(event):
-        global repeat_override_active, ui_feedback_message
-        repeat_override_active = not repeat_override_active
-        mode_str = "Song Mode" if repeat_override_active else "Loop Mode"
-        set_feedback_message(f"{mode_str}")
-
-    def get_status_text():
-        status_style = "fg='ansiwhite'"
-        display_text = clock_state.status
-
-        if clock_state.status == "PLAYING":
-            status_style = "fg='ansigreen' bold='true'"
-            display_text = f"PLAYING ({clock_state.source_name})"
-        elif clock_state.status == "STOPPED":
-            status_style = "fg='ansired' bold='true'"
-        
-        return HTML(f"<style {status_style}>{display_text}</style>")
-
-    def get_song_title_text():
-        color_name = song_state.song_color or 'default'
-        style_dict = TITLE_COLOR_PALETTE.get(color_name, TITLE_COLOR_PALETTE['default'])
-        
-        safe_song_name = html.escape(song_state.song_name)
-        title_str = safe_song_name
-        if playlist_state.is_active:
-            current = playlist_state.current_song_index + 1
-            total = len(playlist_state.playlist_elements)
-            title_str = f"[{current}/{total}]   {safe_song_name}"
-        return (title_str, style_dict)
-
-    def get_part_title_text():
-        part_index_to_show = song_state.current_part_index
-        if part_index_to_show == -1 and song_state.parts: part_index_to_show = 0
-        
-        if part_index_to_show != -1:
-            part = song_state.parts[part_index_to_show]
-            name, bars, total_parts = part.get('name', '---'), part.get('bars', 0), len(song_state.parts)
-            part_prefix = f"[{part_index_to_show + 1}/{total_parts}]"
-            
-            part_info_str = f"{part_prefix}    {html.escape(name)}    ({bars} bars)"
-            notes_str = part.get('notes', '')
-            
-            color_name = part.get('color') or 'default'
-            style_dict = TITLE_COLOR_PALETTE.get(color_name, TITLE_COLOR_PALETTE['default'])
-            
-            if part_loop_active and part_index_to_show == part_loop_index:
-                style_dict = {'bg': 'ansired', 'fg': 'ansiwhite'}
-        else:
-            part_info_str = "---"
-            notes_str = ""
-            style_dict = TITLE_COLOR_PALETTE['default']
-
-        return (part_info_str, notes_str, style_dict)
-    
-    def get_counter_text(counter_type: str):
-        if counter_type == "set":
-            total_seconds = clock_state.paused_set_elapsed_time
-            if clock_state.status == "PLAYING" and clock_state.start_time > 0:
-                total_seconds += time.time() - clock_state.start_time
-            
-            if total_seconds > 0 or clock_state.status == "PLAYING":
-                minutes, seconds = divmod(int(total_seconds), 60)
-                return f"{minutes:02d}:{seconds:02d}"
-            return "--:--"
-
-        elif counter_type == "song": 
-            total_seconds = song_state.paused_song_elapsed_time
-            if clock_state.status == "PLAYING" and song_state.start_time > 0:
-                total_seconds += time.time() - song_state.start_time
-
-            if total_seconds > 0 or (clock_state.status == "PLAYING" and song_state.current_part_index != -1):
-                minutes, seconds = divmod(int(total_seconds), 60)
-                return f"{minutes:02d}:{seconds:02d}"
-            return "--:--"
-        elif counter_type == "song/set":
-            if playlist_state.is_active:
-                return f"{playlist_state.current_song_index + 1:02d}/{len(playlist_state.playlist_elements):02d}"
-            return "--/--"
-        elif counter_type == "part":
-            if song_state.parts:
-                return f"{song_state.current_part_index + 1:02d}/{len(song_state.parts):02d}"
-            return "--/--"
-        elif counter_type == "bar":
-            if song_state.current_part_index != -1:
-                part = song_state.parts[song_state.current_part_index]
-                total_bars, current_bar = part.get("bars", 0), song_state.current_bar_in_part
-                display_bar = current_bar + 1 if clock_state.status == "PLAYING" and current_bar < total_bars else 0
-                return f"{display_bar:02d}/{total_bars:02d}"
-            return "--/--"
-        return ""
-
-    def is_beat_flash_active():
-        return time.time() < beat_flash_end_time
-    
-    border_char = "─"
-    root_container = HSplit([
-        HSplit([
-            FloatContainer(
-                content=VSplit([
-                    Window(
-                        FormattedTextControl(lambda: f"    miditema    [{loaded_filename}]"),
-                        width=Dimension(min=25, max=40),
-                        align=WindowAlign.LEFT
-                    ),
-                    Window(),
-                    Window(
-                        FormattedTextControl(lambda: f"{clock_state.bpm:.0f} BPM    "),
-                        width=12,
-                        align=WindowAlign.RIGHT
-                    ),
-                ]),
-                floats=[
-                    Float(
-                        content=Window(
-                            FormattedTextControl(get_status_text),
-                            align=WindowAlign.CENTER
-                        ),
-                        top=0, height=1
-                    )
-                ]
-            ),
-            Window(
-                content=FormattedTextControl(
-                    lambda: HTML(f"<style fg='{get_song_title_text()[1]['fg']}' bold='true'>{get_song_title_text()[0]}</style>")
-                ),
-                style=lambda: f"bg:{get_song_title_text()[1]['bg']}",
-                align=WindowAlign.CENTER
-            ),
-            HSplit([
-                Window(
-                    style=lambda: f"bg:{get_part_title_text()[2]['bg']}",
-                    height=1
-                ),
-                Window(
-                    content=FormattedTextControl(
-                        lambda: HTML(f"<style fg='{get_part_title_text()[2]['fg']}' bold='true'>{get_part_title_text()[0]}</style>")
-                    ),
-                    style=lambda: f"bg:{get_part_title_text()[2]['bg']}",
-                    height=1,
-                    align=WindowAlign.CENTER
-                ),
-                Window(
-                    content=FormattedTextControl(
-                        lambda: HTML(f"<style fg='{get_part_title_text()[2]['fg']}'>{html.escape(get_part_title_text()[1])}</style>")
-                    ),
-                    style=lambda: f"bg:{get_part_title_text()[2]['bg']}",
-                    height=1,
-                    align=WindowAlign.CENTER
-                ),
-            ]),
-        ]),
-        Window(height=1, char=border_char),
-        HSplit([
-            VSplit([
-                Window(),
-                VSplit([
-                    Window(FormattedTextControl("Set"), width=12, align=WindowAlign.CENTER),
-                    Window(FormattedTextControl("Song"), width=12, align=WindowAlign.CENTER),
-                    Window(FormattedTextControl("Song/Set"), width=12, align=WindowAlign.CENTER),
-                    Window(FormattedTextControl("Part"), width=12, align=WindowAlign.CENTER),
-                    Window(FormattedTextControl("Bar"), width=12, align=WindowAlign.CENTER),
-                ], width=60),
-                Window(),
-            ], height=1),
-            VSplit([
-                Window(),
-                VSplit([
-                    Window(FormattedTextControl(lambda: get_counter_text("set")), width=12, align=WindowAlign.CENTER),
-                    Window(FormattedTextControl(lambda: get_counter_text("song")), width=12, align=WindowAlign.CENTER),
-                    Window(FormattedTextControl(lambda: get_counter_text("song/set")), width=12, align=WindowAlign.CENTER),
-                    Window(FormattedTextControl(lambda: get_counter_text("part")), width=12, align=WindowAlign.CENTER),
-                    Window(FormattedTextControl(lambda: get_counter_text("bar")), width=12, align=WindowAlign.CENTER),
-                ], width=60),
-                Window(),
-            ], height=1),
-        ]),
-        Window(height=1),
-        Window(
-            content=FormattedTextControl(get_countdown_text),
-            height=1,
-            align=WindowAlign.CENTER,
-            style=lambda: "bg:#cccccc fg:ansiblack" if is_beat_flash_active() else ""
-        ),
-        Window(height=1), 
-        Window(
-            content=FormattedTextControl(get_step_sequencer_text),
-            align=WindowAlign.CENTER
-        ),
-        Window(FormattedTextControl(get_next_part_text), height=1, align=WindowAlign.CENTER),
-        Window(height=1, char=border_char),
-        Window(FormattedTextControl(text=get_action_status_text), height=1, align=WindowAlign.CENTER),
-        Window(FormattedTextControl(text=get_key_legend_text), height=2, align=WindowAlign.CENTER),
-        Window(FormattedTextControl(text=get_feedback_text), height=1, align=WindowAlign.CENTER),
-    ], style="bg:#111111 #cccccc")
-
-    app_ui_instance = Application(layout=Layout(root_container), key_bindings=kb, full_screen=True, refresh_interval=0.1)
-    
-    try:
+    if not SHUTDOWN_FLAG:
+        app_ui_instance = tui.MiditemaApp(miditema_module=sys.modules[__name__])
+        # Mostrar mensaje de error en la TUI si hubo problemas
+        if not initial_load_success:
+            set_feedback_message("[!] Error en carga inicial. Usa el menú para abrir un archivo.", duration=10)
+       
         app_ui_instance.run()
-    except Exception as e:
-        traceback.print_exc()
-    finally:
-        SHUTDOWN_FLAG = True
-        print("\nCerrando...")
-        for port in midi_inputs.values():
-            # Evitar cerrar el mismo puerto dos veces si es compartido
-            if port and not port.closed:
-                port.close()
-        for port in midi_outputs.values():
-            if port and not port.closed:
-                port.close()
-        if listener_thread.is_alive():
-            listener_thread.join(timeout=0.2)
-        if control_listener_thread and control_listener_thread.is_alive(): 
-            control_listener_thread.join(timeout=0.2)
-        print("Detenido.")
 
-if __name__ == "__main__":  
+    SHUTDOWN_FLAG = True
+    print("\nCerrando...")
+    unique_ports = {id(p): p for p in midi_inputs.values()}.values()
+    for port in unique_ports:
+        if port and not port.closed: port.close()
+    for port in midi_outputs.values():
+        if port and not port.closed: port.close()
+
+    if listener_thread.is_alive(): listener_thread.join(timeout=0.2)
+    if control_listener_thread and control_listener_thread.is_alive(): control_listener_thread.join(timeout=0.2)
+    print("Detenido.")
+
+
+if __name__ == "__main__":
     main()

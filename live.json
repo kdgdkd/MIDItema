@@ -10,48 +10,5 @@
         "osc_out": {
             "MIDImod": { "ip": "127.0.0.1", "port": 9000 }
         }
-    },
-
-    "triggers": {
-        "part_change": [
-            {
-                "device_out": "MIDImod",
-                "bar": 1,
-                "address": "/miditema/part/change",
-                "args": [ "part_index", "part_name", "part_bars" ]
-            }
-        ],
-        "song_change": [
-            {
-                "device_out": "MIDImod",
-                "bar": 1,
-                "address": "/miditema/song/change",
-                "args": [ "song_index", "song_name" ]
-            }
-        ],
-        "setlist_end": [
-            {
-                "device_out": "MIDImod",
-                "address": "/miditema/setlist/end",
-                "args": [ -1, "playlist_name" ]
-            }
-        ],
-        
-        "bar_triggers": [
-            {
-                "device_out": "MIDImod",
-                "each_bar": 4,
-                "address": "/miditema/block/4",
-                "args": [ "block_number" ]
-            }
-        ],
-        "countdown_triggers": [
-            {
-                "device_out": "MIDImod",
-                "each_beat": 4,
-                "address": "/miditema/countdown",
-                "args": [ "remaining_beats" ]
-            }
-        ]
     }
 }

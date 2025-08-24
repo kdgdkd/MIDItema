@@ -1,0 +1,178 @@
+{
+  "playlist_name": "Setlist Local",
+  "mode": "song",
+
+
+  "devices": {
+
+    "midi_out": {
+      "clock": "CLOCK",
+      "CONTROL": "CONTROL"
+    }
+  },
+
+  // ==================================================================
+  // === TRIGGERS GLOBALES ===
+  // ==================================================================
+  "triggers": {
+    "setlist_end": [
+      { "device": "CONTROL", "type": "stop" }
+    ]
+  },
+
+  // ==================================================================
+  // === LISTA DE CANCIONES ===
+  // ==================================================================
+  "songs": [
+    {
+      "song_name": "Evolution",
+      "color": "blue",
+      "time_signature": "4/4",
+      "beats":2,
+      "parts": [
+        {
+          "name": "Intro", "bars": 32, "notes": "Introducción sin bombo",
+          "output": [
+            {  "device": "CONTROL", "channel": 9, "program": 0 }, // ch 9 = BSP
+            {  "device": "CONTROL", "channel": 0, "program": 7 }, // ch 0,2,4,6 = KSP
+            {  "device": "CONTROL", "channel": 2, "program": 7 },
+            {  "device": "CONTROL", "channel": 4, "program": 15 }, // pattern 15 = VACIO
+            {  "device": "CONTROL", "channel": 6, "program": 15 },
+            {  "device": "CONTROL", "channel": 8, "note": 38 } // ch 8 = SP404
+          ]
+        },
+        {
+          "name": "Evolution 1", "bars": 16,
+          "output": [
+            {  "device": "CONTROL", "channel": 9, "program": 5 },
+          ]
+        },
+        {
+          "name": "Evolution 2", "bars": 16,
+          "output": [
+            {  "device": "CONTROL", "channel": 9, "program": 4 },
+            {  "device": "CONTROL", "channel": 6, "program": 7 }
+          ]
+        },
+        {
+          "name": "BREAK", "bars": 8, "color": "yellow", "repeat_pattern": "true",
+          "output": [
+            {  "device": "CONTROL", "channel": 9, "program": 1 },
+            {  "device": "CONTROL", "channel": 4, "program": 7 },
+            {  "device": "CONTROL", "channel": 6, "program": 8 },
+            {  "device": "CONTROL", "channel": 8, "note": 37 }
+          ]
+        },
+        {
+          "name": "Drop A", "bars": 16, "repeat_pattern": "true",
+          "output": [
+            {  "device": "CONTROL", "channel": 9, "program": 4 },
+            {  "device": "CONTROL", "channel": 4, "program": 8 },
+            {  "device": "CONTROL", "channel": 6, "program": 9 }
+          ]
+        },
+        {
+          "name": "Drop B", "bars": 16, "repeat_pattern": "true",
+          "output": [
+            {  "device": "CONTROL", "channel": 9, "program": 4 }, // POR CONFIRMAR
+            {  "device": "CONTROL", "channel": 6, "program": 10 }
+          ]
+        },
+        {
+          "name": "BREAK", "bars": 2, "color": "yellow",
+          "output": [
+            {  "device": "CONTROL", "channel": 9, "program": 1 },
+            {  "device": "CONTROL", "channel": 4, "program": 7 },
+            {  "device": "CONTROL", "channel": 6, "program": 8 }
+          ]
+        },
+        {
+          "name": "Solidarity Echoes", "bars": 16, "repeat_pattern": "true",
+          "output": [
+            {  "device": "CONTROL", "channel": 9, "program": 4 }, // POR CONFIRMAR
+            {  "device": "CONTROL", "channel": 4, "program": 8 },
+            {  "device": "CONTROL", "channel": 6, "program": 9 }
+          ]
+        },
+        {
+          "name": "Free Palestine Outro", "bars": 8, "color": "red", "repeat_pattern": "true",
+          "output": [
+            {  "device": "CONTROL", "channel": 9, "program": 0 },
+            {  "device": "CONTROL", "channel": 4, "program": 9 },
+            {  "device": "CONTROL", "channel": 6, "program": 10 },
+            {  "device": "CONTROL", "channel": 8, "note": 36 }
+          ]
+        }
+      ]
+    },
+    {
+      "song_name": "Techno",
+      "color": "blue",
+      "time_signature": "4/4",
+      "time_division": "1/4",
+      "parts": [
+        {
+          "name": "Intro Beat", "bars": 8, "repeat_pattern": false,
+          "output": [
+            {  "device": "CONTROL", "channel": 9, "program": 0 },
+            {  "device": "CONTROL", "channel": 0, "program": 4 },
+            {  "device": "CONTROL", "channel": 2, "program": 15 },
+            {  "device": "CONTROL", "channel": 4, "program": 15 },
+            {  "device": "CONTROL", "channel": 6, "program": 15 }
+          ]
+        },
+        {
+          "name": "Groove A", "bars": 16, "repeat_pattern": false,
+          "output": [
+            {  "device": "CONTROL", "channel": 9, "program": 4 }
+          ]
+        },
+        {
+          "name": "Groove A+B", "bars": 16, "repeat_pattern": false,
+          "output": [
+            {  "device": "CONTROL", "channel": 2, "program": 4 }
+          ]
+        },
+        { "name": "Bridge", "bars": 8, "repeat_pattern": true,
+            "output": [
+                {  "device": "CONTROL", "channel": 6, "program": 4 } 
+            ]
+        },
+        {
+          "name": "Chorus", "bars": 16, "repeat_pattern": true,
+          "output": [
+            {  "device": "CONTROL", "channel": 2, "program": 15 }
+          ]
+        },
+        {
+          "name": "Break", "bars": 8, "repeat_pattern": true,
+          "output": [
+            {  "device": "CONTROL", "channel": 9, "program": 1 },
+            {  "device": "CONTROL", "channel": 4, "program": 4 },
+            {  "device": "CONTROL", "channel": 6, "program": 15 },
+          ]
+        },
+        {
+          "name": "Drop", "bars": 16, "repeat_pattern": false,
+          "output": [
+            {  "device": "CONTROL", "channel": 9, "program": 4 },
+            {  "device": "CONTROL", "channel": 2, "program": 4 },
+            {  "device": "CONTROL", "channel": 4, "program": 4 }
+          ]
+        },
+        {
+          "name": "Chorus", "bars": 16, "repeat_pattern": false,
+          "output": [
+            {  "device": "CONTROL", "channel": 4, "program": 15 }
+          ]
+        },
+        {
+          "name": "Outro Beat", "bars": 2, "repeat_pattern": false,
+          "output": [
+            {  "device": "CONTROL", "channel": 4, "program": 15 }
+          ]
+        }
+      ]
+    }
+  ]
+}
