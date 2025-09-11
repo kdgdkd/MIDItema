@@ -66,6 +66,7 @@ During performance, you can:
 - Create manual loops on any section
 - Switch between songs in your playlist
 - All jumps are quantized to musical boundaries (bars, beats, etc.)
+- **Toggle output control**: Activate/deactivate MIDI output sending with 'o' key for setup or emergency situations
 
 ### Typical Workflow
 1. Program your song structures with part lengths and automation triggers
@@ -94,6 +95,13 @@ pip install -r requirements.txt
 Launch with a song or playlist:
 ```bash
 python miditema.py my_techno_set.json
+```
+
+Additional command-line options:
+```bash
+python miditema.py --no-output my_set.json    # Start with output sending disabled
+python miditema.py --debug my_set.json        # Enable debug mode
+python miditema.py --quant 8 my_set.json      # Set default quantization
 ```
 
 MIDItema will sync to your master clock and step through your arrangement, sending the programmed automation messages.

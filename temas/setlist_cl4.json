@@ -1,0 +1,327 @@
+{
+    "playlist_name": "Lista de Objetivos",
+    "mode": "loop",
+    "beats": 2, // se envían los cambios con un adelanto
+    "devices": {
+      "midi_out": {
+        // "clock": "CLOCK",  // se define en miditema.conf.json
+        "MIDItema": "MIDItema",
+        // "LCXL3": "NOTAS",
+        "LCXL3": "LCXL3", // se envían los CCs a LCXL3 para que los ajuste y reenvíe al LCXL3 con midimod
+      }
+    },
+  
+    // triggers
+    "triggers": {
+      "setlist_end": [
+        { "device": "MIDItema", "type": "stop" }
+      ]
+    },
+  
+    "songs": [
+        // CUENTA ATRAS
+        {
+          "song_name": "CUENTA ATRAS",
+          "color": "red",
+          "parts": [{"name": "CUENTA ATRAS", "color": "red", "bars": 8, "notes": "Esperando...",
+            "output": [
+                { "device": "LCXL3", "channel": 0, "control": 7, "value": 0 },
+                { "device": "LCXL3", "channel": 1, "control": 7, "value": 0 },
+                { "device": "LCXL3", "channel": 2, "control": 7, "value": 0 },
+                { "device": "LCXL3", "channel": 3, "control": 7, "value": 0 },
+                { "device": "LCXL3", "channel": 4, "control": 7, "value": 0 },
+                { "device": "LCXL3", "channel": 5, "control": 7, "value": 0 },
+                { "device": "LCXL3", "channel": 6, "control": 7, "value": 0 },
+                { "device": "LCXL3", "channel": 7, "control": 7, "value": 0 },
+                { "device": "LCXL3", "channel": 0, "control": 91, "value": 0 },
+                { "device": "LCXL3", "channel": 1, "control": 91, "value": 0 },
+                { "device": "LCXL3", "channel": 2, "control": 91, "value": 0 },
+                { "device": "LCXL3", "channel": 3, "control": 91, "value": 0 },
+                { "device": "LCXL3", "channel": 4, "control": 91, "value": 0 },
+                { "device": "LCXL3", "channel": 5, "control": 91, "value": 0 },
+                { "device": "LCXL3", "channel": 6, "control": 91, "value": 0 },
+                { "device": "LCXL3", "channel": 7, "control": 91, "value": 0 },
+              { "device": "MIDItema", "channel": 9, "program": 15 },
+              { "device": "MIDItema","channel": 0, "program": 15 },
+              { "device": "MIDItema","channel": 2, "program": 15 },
+              { "device": "MIDItema","channel": 4, "program": 15 },
+              { "device": "MIDItema","channel": 6, "program": 15 }
+            ]}]
+        },
+
+
+
+
+
+      // Intifada Sónica
+      {
+        "song_name": "Intifada Sónica",
+        "color": "blue",
+        "parts": [
+          {
+            "name": "Intro - BSP 1", "bars": 32, 
+            
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 0 },
+              { "device": "MIDItema","channel": 0, "program": 7 },
+              { "device": "MIDItema","channel": 2, "program": 7 },
+            ]
+          },
+          {
+            "name": "Evolution 1 - BSP 6", "bars": 16,"notes": "Entra bombo",
+            "output": [
+              { "device": "MIDItema", "channel": 9, "program": 5 }
+            ]
+          },
+          {
+            "name": "Evolution 2 - BSP 5", "bars": 16,
+            "output": [
+              {"device": "MIDItema", "channel": 9, "program": 4 },
+              { "device": "MIDItema","channel": 4, "program": 7 }
+            ]
+          },
+          {
+            "name": "BREAK 1 - BSP 3", "bars": 8, "color": "yellow",
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 2 },
+              { "device": "MIDItema","channel": 4, "program": 15 },
+              { "device": "MIDItema","channel": 6, "program": 9 }
+            ]
+          },
+          {
+            "name": "Drop A - BSP 5", "bars": 16,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 4 },
+              { "device": "MIDItema","channel": 0, "program": 8 },
+              { "device": "MIDItema","channel": 4, "program": 8 },
+              { "device": "MIDItema","channel": 6, "program": 8 }
+            ]
+          },
+          {
+            "name": "Drop B - BSP 5", "bars": 16,
+            "output": [
+              { "device": "MIDItema", "channel": 6, "program": 9 }
+            ]
+          },
+          {
+            "name": "BREAK 2 - BSP 2", "bars": 8, "color": "yellow",
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 1 },
+              { "device": "MIDItema","channel": 0, "program": 7 },
+              { "device": "MIDItema","channel": 4, "program": 7 }
+            ]
+          },
+          {
+            "name": "Drop C - BSP 7", "bars": 16,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 6 },
+              { "device": "MIDItema","channel": 0, "program": 8 },
+              { "device": "MIDItema","channel": 4, "program": 8 },
+              { "device": "MIDItema","channel": 6, "program": 9 }
+            ]
+          },
+          {
+            "name": "Drop D - BSP 8", "bars": 16,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 7 }, 
+              { "device": "MIDItema","channel": 6, "program": 8 }
+            ]
+          },
+          {
+            "name": "BREAK 3 - BSP 2", "bars": 8, "color": "yellow",
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 1 },
+              { "device": "MIDItema","channel": 4, "program": 9 },
+              { "device": "MIDItema","channel": 6, "program": 7 }
+            ]
+          },
+          {
+            "name": "Drop E - BSP 8", "bars": 8,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 7 },
+              { "device": "MIDItema","channel": 4, "program": 8 }
+            ]
+          },
+          {
+            "name": "Drop F - BSP 7", "bars": 32,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 6 }, 
+              { "device": "MIDItema","channel": 6, "program": 10 }
+            ]
+          },
+          {
+            "name": "BREAK Final - BSP 3", "bars": 4, "color": "yellow",
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 2 },
+              { "device": "MIDItema","channel": 4, "program": 7 }
+            ]
+          },
+          {
+            "name": "Ecos - BSP 5", "bars": 16,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 4 }, 
+              { "device": "MIDItema","channel": 4, "program": 8 }
+            ]
+          },
+          {
+            "name": "Outro Palestina Libre", "bars": 8, "color": "red",
+            "output": [
+              { "device": "MIDItema", "channel": 9, "program": 0 },
+              { "device": "MIDItema","channel": 0, "program": 7 },
+              { "device": "MIDItema","channel": 4, "program": 9 },
+              { "device": "MIDItema","channel": 6, "program": 7 }
+            ]
+          }
+        ]
+      },
+
+
+
+
+
+      // Detonación en la Pista
+      {
+        "song_name": "Detonación en la Pista",
+        "color": "blue",
+        "parts": [
+          {
+            "name": "Intro Beat", "bars": 8, "color": "yellow",
+            "output": [
+                { "device": "LCXL3", "channel": 0, "control": 12, "value": 20 },
+                { "device": "LCXL3", "channel": 0, "control": 13, "value": 70 },
+                { "device": "LCXL3", "channel": 0, "control": 14, "value": 0 },
+                { "device": "MIDItema", "channel": 9, "program": 3 },
+                { "device": "MIDItema", "channel": 0, "program": 4 },
+                { "device": "MIDItema", "channel": 2, "program": 15 },
+                { "device": "MIDItema", "channel": 4, "program": 15 },
+                { "device": "MIDItema", "channel": 6, "program": 15 }
+            ]
+          },
+          {
+            "name": "Groove A", "bars": 16,
+            "output": [
+              { "device": "MIDItema", "channel": 9, "program": 8 }
+            ]
+          },
+          {
+            "name": "Groove A+B", "bars": 16,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 9 },
+              { "device": "MIDItema","channel": 2, "program": 4 }
+            ]
+          },
+          { "name": "Bridge", "bars": 8,
+              "output": [
+                  { "device": "MIDItema", "channel": 6, "program": 4 }
+              ]
+          },
+          {
+            "name": "Chorus", "bars": 16,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 11 },
+              { "device": "MIDItema","channel": 2, "program": 15 }
+            ]
+          },
+          {
+            "name": "Break", "bars": 8, "color": "yellow",
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 2 },
+              { "device": "MIDItema","channel": 4, "program": 4 }
+            ]
+          },
+          {
+            "name": "Drop", "bars": 16,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 12 },
+              { "device": "MIDItema","channel": 2, "program": 4 }
+            ]
+          },
+          {
+            "name": "Chorus 2", "bars": 16,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 13 },
+              { "device": "MIDItema","channel": 4, "program": 15 }
+            ]
+          },
+          {
+            "name": "Outro Beat", "bars": 8,
+            "output": [
+              { "device": "MIDItema", "channel": 9, "program": 14 }
+            ]
+          }
+        ]
+      },
+
+
+
+
+      // Romper el Bloqueo
+      {
+        "song_name": "Romper el Bloqueo",
+        "color": "green",
+        "parts": [
+          {
+            "name": "Part 1", "bars": 16,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 4 },
+              { "device": "MIDItema","channel": 0, "program": 0 },
+              { "device": "MIDItema","channel": 2, "program": 0 }
+            ]
+          },
+          {
+            "name": "Part 2", "bars": 16,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 5 },
+              { "device": "MIDItema","channel": 4, "program": 0 },
+              { "device": "MIDItema","channel": 6, "program": 0 }
+            ]
+          },
+          {
+            "name": "Parón 1", "bars": 8, "color": "yellow",
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 1 },
+              { "device": "MIDItema","channel": 2, "program": 1 }
+            ]
+          },
+          {
+            "name": "Part 3", "bars": 8,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 6 },
+              { "device": "MIDItema","channel": 4, "program": 1 },
+              { "device": "MIDItema","channel": 6, "program": 1 }
+            ]
+          },
+          {
+            "name": "Part 4", "bars": 16,
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 8 },
+              { "device": "MIDItema","channel": 0, "program": 1 },
+              { "device": "MIDItema","channel": 2, "program": 2 }
+            ]
+          },
+          {
+            "name": "Parón 2", "bars": 8, "color": "yellow",
+            "output": [
+              { "device": "MIDItema","channel": 9, "program": 2 },
+              { "device": "MIDItema","channel": 4, "program": 0 }
+            ]
+          }
+        ]
+      },
+
+
+      // Flujo de la Revueltaperopero
+      {
+        "song_name": "Flujo de la Revuelta",
+        "color": "green",
+        "parts": [
+          { "name": "Part 1", "bars": 8, "repeat_pattern": true },
+          { "name": "Part 2", "bars": 16, "repeat_pattern": true },
+          { "name": "Parón 1", "bars": 4, "color": "yellow", "repeat_pattern": true },
+          { "name": "Part 3", "bars": 16, "repeat_pattern": true },
+          { "name": "Part 4", "bars": 8, "repeat_pattern": true },
+          { "name": "Parón 2", "bars": 4, "color": "yellow", "repeat_pattern": true }
+        ]
+      }
+    ]
+}
