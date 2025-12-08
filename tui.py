@@ -50,7 +50,6 @@ class SongTitle(Static):
 class PartInfo(Vertical):
     def compose(self) -> ComposeResult:
         yield Static(id="part-title")
-        yield Static(id="part-notes")
         
     def update_content(self, miditema):
         part_index = miditema.song_state.current_part_index
@@ -67,20 +66,21 @@ class PartInfo(Vertical):
             part_prefix = f"[{part_index + 1}/{total_parts}]"
             part_info_str = f"{part_prefix}    {html.escape(name)}    ({bars} bars)"
             
+            # Añadir notas al final de la misma línea si existen
+            if notes:
+                part_info_str += f"    {html.escape(notes)}"
+            
             style_dict = miditema._resolve_color_style(part.get('color'), miditema.TITLE_COLOR_PALETTE, 'default')
             
             if miditema.part_loop_active and part_index == miditema.part_loop_index:
                 style_dict = {'bg': 'red', 'fg': 'white'}
 
             self.query_one("#part-title", Static).update(part_info_str)
-            self.query_one("#part-notes", Static).update(html.escape(notes))
             self.styles.background = style_dict['bg']
             self.styles.color = style_dict['fg']
             self.query_one("#part-title", Static).styles.color = style_dict['fg']
-            self.query_one("#part-notes", Static).styles.color = style_dict['fg']
         else:
             self.query_one("#part-title", Static).update("---")
-            self.query_one("#part-notes", Static).update("")
             self.styles.background = "#222222"
 
 class Counters(Horizontal):
@@ -169,7 +169,16 @@ class ActionStatus(Static):
         else:
             mode_style = "[on blue] Loop Mode [/]"
         
-        self.update(f"{mode_style} | [bold]Quant:[/] [yellow]{quant_str}[/] | [bold]Action:[/] [cyan]{action_str}[/]")
+        # Status indicators for outputs and silent mode
+        output_status = ""
+        if not miditema.outputs_enabled:
+            output_status += "[on red] OUT OFF [/]"
+        if miditema.silent_mode:
+            output_status += "[on orange] SILENT [/]"
+
+        status_separator = " | " if output_status else ""
+
+        self.update(f"{mode_style} | [bold]Quant:[/] [yellow]{quant_str}[/] | [bold]Action:[/] [cyan]{action_str}[/]{status_separator}{output_status}")
 
 class Feedback(Static):
     def update_content(self, miditema):
@@ -342,6 +351,7 @@ class PartListItem(ListItem):
 
         return str(pattern)
 
+
     def compose(self) -> ComposeResult:
         # ... (la lógica de estilo no cambia) ...
         style_dict = self.app.miditema._resolve_color_style(self.part_data.get('color'), self.app.miditema.TITLE_COLOR_PALETTE, 'default')
@@ -443,7 +453,7 @@ class MenuScreen(Screen):
         elif event.item.id == "menu-rules":
             self.app.push_screen(RulesListScreen())
         elif event.item.id == "menu-controls":
-            self.app.push_screen(ControlsScreen())
+            self.app.action_view_controls()
         elif event.item.id == "menu-about":
             self.app.push_screen(AboutScreen())
 
@@ -567,6 +577,10 @@ class DeviceSelectScreen(ModalScreen):
 class ControlsScreen(Screen):
     """Muestra una ayuda exhaustiva con los controles de teclado a pantalla completa."""
 
+    def __init__(self, miditema=None):
+        super().__init__()
+        self.miditema = miditema
+
     def _create_control_row(self, key: str, description: str) -> Horizontal:
         """Crea una fila de control con formato."""
         return Horizontal(
@@ -574,13 +588,43 @@ class ControlsScreen(Screen):
             Static(description, classes="control-description"),
             classes="control-row",
         )
+    
+    def _get_cues_info(self) -> str:
+        """Obtiene información sobre los cues definidos en la playlist."""
+        if not self.miditema or not self.miditema.playlist_state.is_active:
+            return "No hay playlist activa."
+        
+        # Importar la función necesaria del módulo miditema
+        import miditema
+        
+        cues_found = []
+        for s_idx, element in enumerate(self.miditema.playlist_state.playlist_elements):
+            song_name = element.get("song_name", f"Canción {s_idx + 1}")
+            parts = miditema._get_parts_from_playlist_element(element)
+            
+            for p_idx, part in enumerate(parts):
+                cue = part.get("cue")
+                if cue is not None:
+                    part_name = part.get("name", f"Parte {p_idx + 1}")
+                    cues_found.append(f"F{cue}: {song_name} → {part_name}")
+        
+        if not cues_found:
+            return "No hay cues definidos en la playlist.\nPuedes agregar 'cue': N en cualquier parte del JSON."
+        
+        return "\n".join(cues_found)
 
     def compose(self) -> ComposeResult:
         with Vertical(id="info-screen-container"):
             with VerticalScroll(id="controls-content"):
+                # Sección de Cues al inicio
+                yield Static("Cues Disponibles", classes="controls-header-text")
+                yield Static("", id="cues-info-content", classes="cues-info")
+
                 yield Static("Reproducción", classes="controls-header-text")
                 yield self._create_control_row("Enter", "Play / Stop: Inicia o detiene la reproducción.")
                 yield self._create_control_row("Espacio", "Continue / Stop: Reanuda o detiene la reproducción.")
+                yield self._create_control_row("o", "Outputs: Activa/desactiva el envío de outputs.")
+                yield self._create_control_row("Ctrl+C", "Salir inmediatamente de la aplicación.")
 
                 yield Static("Navegación", classes="controls-header-text")
                 yield self._create_control_row("→ / ←", "Parte Siguiente / Anterior.")
@@ -588,18 +632,36 @@ class ControlsScreen(Screen):
                 yield self._create_control_row("Home / End", "Primera / Última Canción.")
                 yield self._create_control_row(". o ,", "Ir a Parte... (activa modo de entrada).")
 
+                yield Static("Saltos Rápidos (0-3)", classes="controls-header-text")
+                yield self._create_control_row("0", "Siguiente parte al siguiente compás.")
+                yield self._create_control_row("1", "Siguiente parte en 4 compases.")
+                yield self._create_control_row("2", "Siguiente parte en 8 compases.")
+                yield self._create_control_row("3", "Siguiente parte en 16 compases.")
+
+                yield Static("Cuantización Global (4-9)", classes="controls-header-text")
+                yield self._create_control_row("4", "Fijar cuantización global a 4 compases.")
+                yield self._create_control_row("5", "Fijar cuantización global a 8 compases.")
+                yield self._create_control_row("6", "Fijar cuantización global a 16 compases.")
+                yield self._create_control_row("7", "Fijar cuantización global al siguiente compás.")
+                yield self._create_control_row("8", "Fijar cuantización global al final de parte.")
+                yield self._create_control_row("9", "Fijar cuantización global a instantáneo.")
+
+                yield Static("Cues (F1-F12)", classes="controls-header-text")
+                yield self._create_control_row("F1-F12", "Saltar al cue correspondiente si está definido.")
+
                 yield Static("Acciones y Modos", classes="controls-header-text")
                 yield self._create_control_row("↓", "Cancelar Acción / Reiniciar Setlist.")
                 yield self._create_control_row("↑", "Activar/Desactivar Loop de Parte.")
                 yield self._create_control_row("m", "Alternar Modo (Loop / Song).")
                 yield self._create_control_row("q", "Salir de la aplicación.")
-
-                yield Static("Cuantización", classes="controls-header-text")
-                yield self._create_control_row("F5 / F6", "Fijar Cuantización Global a 4 u 8 compases.")
-                yield self._create_control_row("0 - 3", "Salto Rápido (Compás, 4, 8, 16).")
-                yield self._create_control_row("4 - 9", "Fijar Cuantización Global.")
             with Center(classes="info-screen-footer"):
                 yield Button("Cerrar (ESC)", id="close-screen", classes="subtle-button")
+
+    def on_mount(self) -> None:
+        """Actualiza la información de cues cuando se monta la pantalla."""
+        cues_info = self._get_cues_info()
+        cues_widget = self.query_one("#cues-info-content", Static)
+        cues_widget.update(cues_info)
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "close-screen":
@@ -640,15 +702,18 @@ class MiditemaApp(App):
     BINDINGS = [
         # --- Grupo Principal de Botones (Ordenado por Teclas de Función) ---
         Binding("enter", "start_stop", "Play/Stop", show=True, priority=True),
-        Binding("space", "continue_stop", "Continue", show=True, priority=True),
+        Binding("o", "toggle_outputs", "Outputs", show=True, priority=True),
+        Binding("s", "toggle_silent_mode", "Silent", show=True, priority=True),
         Binding("up", "toggle_part_loop", "Loop", show=True, priority=True),
         Binding("down", "cancel_or_reset", "Cancel", show=True, priority=True),
         Binding("m", "toggle_mode", "Mode", show=True, priority=True),
         Binding("v", "view_song_parts", "Parts", show=True, priority=True),
+        Binding("h", "view_controls", "Help", show=True, priority=True),
         Binding("4", "quant_4", "Q.4", show=True, priority=True),
         Binding("5", "quant_8", "Q.8", show=True, priority=True),
         # --- Grupo Secundario (Alineado a la derecha) ---
         Binding("q", "quit", "Quit", show=True),
+        Binding("ctrl+c", "force_quit", "Quit", show=False),
 
         # --- Atajos de Teclado Originales (Ahora Ocultos) ---
         # Mantenemos los atajos originales para que sigan funcionando, pero sin ser visibles.
@@ -697,6 +762,10 @@ class MiditemaApp(App):
     goto_input_active = var(False)
     goto_input_buffer = var("")
 
+    # Estados de output y modo silencioso
+    outputs_enabled = var(True)
+    silent_mode = var(False)
+
     _time_update_timer: Timer | None = None
     _feedback_timer: Timer | None = None
 
@@ -714,7 +783,7 @@ class MiditemaApp(App):
         self.push_screen(DeviceSelectScreen())
 
     def action_view_controls(self) -> None:
-        self.push_screen(ControlsScreen())
+        self.push_screen(ControlsScreen(self.miditema))
 
     def action_about(self) -> None:
         self.push_screen(AboutScreen())
@@ -747,6 +816,22 @@ class MiditemaApp(App):
 
     def action_quit(self) -> None:
         self.exit()
+    
+    def action_force_quit(self) -> None:
+        """Salida forzada sin confirmación para Ctrl+C"""
+        # Enviar señal de stop si está reproduciéndose
+        if self.miditema.clock_state.status == "PLAYING":
+            self.miditema.handle_stop()
+        # Usar exit sin confirmación
+        self.exit(return_code=0)
+    
+    def on_key(self, event) -> None:
+        """Interceptar Ctrl+C para salida directa"""
+        if event.key == "ctrl+c":
+            self.action_force_quit()
+            event.stop()
+            return
+        return super().on_key(event)
 
     def action_start_stop(self) -> None:
         if self.miditema.clock_state.status == "PLAYING":
@@ -759,6 +844,12 @@ class MiditemaApp(App):
             self.miditema.handle_stop()
         else:
             self.miditema.handle_continue()
+
+    def action_toggle_outputs(self) -> None:
+        self.miditema.toggle_outputs()
+
+    def action_toggle_silent_mode(self) -> None:
+        self.miditema.toggle_silent_mode()
 
     def action_toggle_mode(self) -> None:
         self.miditema.repeat_override_active = not self.miditema.repeat_override_active
@@ -891,14 +982,14 @@ class MiditemaApp(App):
             yield Counters(id="counters-container")
             with Center(id="countdown-row"): 
                 yield Countdown("[-0.0]", id="countdown")
+            with Center(): yield NextPart("...", id="next-part")
             # Contenedor con scroll para el secuenciador
             with VerticalScroll(id="sequencer-container"):
                 with Center(): yield StepSequencer(id="sequencer")
 
             # Widgets de estado, ahora fuera del contenedor con scroll
-            with Center(): yield NextPart("...", id="next-part")
-            yield ActionStatus("...", id="action-status")
             yield Feedback("...", id="feedback")
+            yield ActionStatus("...", id="action-status")
         yield Footer(show_command_palette=False)
 
 
@@ -926,6 +1017,8 @@ class MiditemaApp(App):
         self.quantize_mode = miditema.quantize_mode
         self.part_loop_active = miditema.part_loop_active
         self.repeat_override_active = miditema.repeat_override_active
+        self.outputs_enabled = miditema.outputs_enabled
+        self.silent_mode = miditema.silent_mode
         
         # Solo actualiza si el mensaje o el tiempo de expiración cambian
         if self.feedback_message != (miditema.ui_feedback_message, miditema.feedback_expiry_time):
@@ -1050,6 +1143,12 @@ class MiditemaApp(App):
     def watch_goto_input_buffer(self) -> None:
         self._update_action_status()
 
+    def watch_outputs_enabled(self) -> None:
+        self._update_action_status()
+
+    def watch_silent_mode(self) -> None:
+        self._update_action_status()
+
     def _end_beat_flash(self) -> None:
         """Revierte el color de fondo de la fila del countdown."""
         countdown_row = self.query_one("#countdown-row")
@@ -1083,57 +1182,41 @@ class MiditemaApp(App):
     def _update_next_part(self) -> None:
         miditema = self.miditema
         raw_text, style = "", "grey"
-        action_to_predict = None
 
-        # 1. La acción pendiente del usuario tiene la MÁXIMA prioridad.
-        if miditema.pending_action:
-            action_to_predict = miditema.pending_action
+        # Use the global parts manager to get the next part info
+        next_part_info = miditema.global_parts_manager.get_next_part_info()
+        current_part_info = miditema.global_parts_manager.get_current_global_part_info()
 
-        # 2. Si no hay acción pendiente, el bucle de parte manual es lo siguiente más importante.
-        elif miditema.part_loop_active:
+        # Handle special cases first
+        if miditema.part_loop_active:
             style, raw_text = "bold red", ">> Loop Part"
-
-        # 3. Si no hay acción ni bucle manual, comprobamos el patrón de la parte actual.
-        elif miditema.clock_state.status == "PLAYING" and miditema.song_state.current_part_index != -1:
-            current_part = miditema.song_state.parts[miditema.song_state.current_part_index]
-            if current_part.get("repeat_pattern") == "repeat":
-                part_color_name = miditema._resolve_color_style(current_part.get('color'), miditema.FG_COLOR_PALETTE, 'default')
-                style = f"bold {part_color_name}"
-                raw_text = f">> Repeat: {html.escape(current_part.get('name', 'N/A'))}"
-            else:
-                # 4. Si no hay nada especial, el comportamiento por defecto es avanzar.
-                action_to_predict = {"target_type": "part", "target": {"type": "relative", "value": 1}}
-        
-        # Si después de toda la lógica, tenemos una acción para predecir, lo hacemos.
-        if action_to_predict:
-            dest_song_idx, dest_part_idx = miditema.predict_jump_destination(action_to_predict)
+        elif (miditema.clock_state.status == "PLAYING" and 
+              current_part_info and 
+              current_part_info.part_data.get("repeat_pattern") == "repeat"):
+            part_color_name = miditema._resolve_color_style(current_part_info.color, miditema.FG_COLOR_PALETTE, 'default')
+            style = f"bold {part_color_name}"
+            raw_text = f">> Repeat: {html.escape(current_part_info.name)}"
+        elif next_part_info:
+            # Display the next part using global parts manager
+            color_name = miditema._resolve_color_style(next_part_info.color, miditema.FG_COLOR_PALETTE, 'default')
+            style = f"bold {color_name}"
             
-            if dest_part_idx is not None:
-                dest_part_data = None
-                # Lógica para encontrar los datos de la parte de destino (en playlist o canción única)
-                if not miditema.playlist_state.is_active:
-                    if 0 <= dest_part_idx < len(miditema.song_state.parts):
-                        dest_part_data = miditema.song_state.parts[dest_part_idx]
-                else:
-                    if 0 <= dest_song_idx < len(miditema.playlist_state.playlist_elements):
-                        dest_song_element = miditema.playlist_state.playlist_elements[dest_song_idx]
-                        dest_song_parts = miditema._get_parts_from_playlist_element(dest_song_element)
-                        if 0 <= dest_part_idx < len(dest_song_parts):
-                            dest_part_data = dest_song_parts[dest_part_idx]
-                
-                # Formatear el texto de salida
-                if dest_part_data:
-                    color_name = miditema._resolve_color_style(dest_part_data.get('color'), miditema.FG_COLOR_PALETTE, 'default')
-                    style = f"bold {color_name}"
-                    name, bars = dest_part_data.get('name', 'N/A'), dest_part_data.get('bars', 0)
-                    if miditema.playlist_state.is_active and dest_song_idx != miditema.playlist_state.current_song_index:
-                        song_name = miditema.playlist_state.playlist_elements[dest_song_idx].get("song_name", Path(miditema.playlist_state.playlist_elements[dest_song_idx].get("filepath", "N/A")).stem)
-                        raw_text = f">> Next Song: {html.escape(song_name)} [{html.escape(name)} ({bars})]"
-                    else:
-                        raw_text = f">> {html.escape(name)} ({bars})"
-                else:
-                    raw_text = ">> End of Setlist" if miditema.playlist_state.is_active else ">> End of Song"
+            # Check if next part is in a different song
+            if (current_part_info and 
+                next_part_info.song_index != current_part_info.song_index):
+                raw_text = f">> Next Song: {html.escape(next_part_info.song_name)} [{html.escape(next_part_info.name)} ({next_part_info.bars})]"
             else:
+                raw_text = f">> {html.escape(next_part_info.name)} ({next_part_info.bars})"
+        else:
+            # No next part found - check different states
+            if not miditema.playlist_state.playlist_elements:
+                # No playlist loaded
+                raw_text = "Carga una canción o setlist"
+            elif miditema.playlist_state.is_active and miditema.clock_state.status != "PLAYING":
+                # Playlist loaded but clock not started
+                raw_text = "Esperando clock... Enter para enviar valores de inicio"
+            else:
+                # End of song/setlist
                 raw_text = ">> End of Setlist" if miditema.playlist_state.is_active else ">> End of Song"
 
         self.query_one(NextPart).update(f"[{style}]{raw_text}[/]")

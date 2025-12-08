@@ -121,6 +121,15 @@ Footer {
 
 .control-description {
     width: 1fr;
+    color: #cccccc;
+}
+
+.cues-info {
+    margin: 0 0 2 2;
+    color: #00ff88;
+    text-style: italic;
+    padding: 1;
+    background: #1a1a1a;
 }
 
 .about-title {

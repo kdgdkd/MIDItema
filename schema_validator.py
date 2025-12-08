@@ -1,5 +1,3 @@
-# Archivo: schema_validator.py
-
 import jsonschema
 from jsonschema import Draft7Validator, validators
 from pathlib import Path
@@ -21,6 +19,70 @@ class ValidationError:
 class MIDItemaValidator:
     """Validador de archivos JSON para MIDItema con mensajes descriptivos."""
     
+    # --- DEFINICIONES REUTILIZABLES ---
+
+    # Definición para campos que aceptan entero (0-127) o string dinámico (ej: "part_index")
+    # Soluciona BUG-001: Incompatibilidad de tipos para valores dinámicos
+    INT_OR_DYNAMIC_7BIT = {
+        "oneOf": [
+            {"type": "integer", "minimum": 0, "maximum": 127},
+            {"type": "string", "minLength": 1}
+        ],
+        "description": "Valor MIDI (0-127) o variable dinámica (ej: 'part_index')"
+    }
+
+    # Definición para canales MIDI (0-15) o dinámicos
+    INT_OR_DYNAMIC_CHANNEL = {
+        "oneOf": [
+            {"type": "integer", "minimum": 0, "maximum": 15},
+            {"type": "string", "minLength": 1}
+        ],
+        "description": "Canal MIDI (0-15) o variable dinámica"
+    }
+
+    # Schema para acciones de trigger
+    # Actualizado para soportar tipos flexibles en argumentos OSC y valores MIDI
+    TRIGGER_ACTION_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "device": {"type": "string"},
+            "type": {
+                "type": "string", 
+                "enum": ["note_on", "note_off", "control_change", 
+                         "program_change", "song_select", "start", 
+                         "stop", "continue"]
+            },
+
+            # Campos MIDI con soporte dinámico
+            "channel": INT_OR_DYNAMIC_CHANNEL,
+            "note": INT_OR_DYNAMIC_7BIT,
+            "velocity": INT_OR_DYNAMIC_7BIT,
+            "control": INT_OR_DYNAMIC_7BIT,
+            "value": INT_OR_DYNAMIC_7BIT,
+            "program": INT_OR_DYNAMIC_7BIT,
+            "song": INT_OR_DYNAMIC_7BIT,
+            
+            # Campos OSC
+            "address": {"type": "string"},
+            "args": {
+                "type": "array",
+                "items": {
+                    "oneOf": [
+                        {"type": "string"},
+                        {"type": "integer"},
+                        {"type": "number"},
+                        {"type": "boolean"}
+                    ]
+                },
+                "description": "Argumentos para mensajes OSC (tipos mixtos permitidos)"
+            },
+            
+            # Timing (estos deben ser enteros para el cálculo matemático interno)
+            "bar": {"type": "integer", "minimum": 0},
+            "beats": {"type": "integer", "minimum": 0}
+        }
+    }
+
     # Schema para una parte individual
     PART_SCHEMA = {
         "type": "object",
@@ -55,9 +117,9 @@ class MIDItemaValidator:
             "repeat_pattern": {
                 "oneOf": [
                     {"type": "boolean"},
-                        {"type": "string", "enum": ["true", "false", "repeat", "next", "prev", "first_part", 
-                                                    "last_part", "loop_part", "next_song", "prev_song", 
-                                                    "first_song", "last_song", "song_mode", "loop_mode"]},
+                    {"type": "string", "enum": ["true", "false", "repeat", "next", "prev", "first_part", 
+                                                "last_part", "loop_part", "next_song", "prev_song", 
+                                                "first_song", "last_song", "song_mode", "loop_mode"]},
               
                     {
                         "type": "array",
@@ -95,27 +157,6 @@ class MIDItemaValidator:
         }
     }
     
-    # Schema para acciones de trigger
-    TRIGGER_ACTION_SCHEMA = {
-        "type": "object",
-        "properties": {
-            "device": {"type": "string"},
-            "type": {"type": "string", "enum": ["note_on", "note_off", "control_change", 
-                                                "program_change", "song_select"]},
-            "channel": {"type": "integer", "minimum": 0, "maximum": 15},
-            "note": {"type": "integer", "minimum": 0, "maximum": 127},
-            "velocity": {"type": "integer", "minimum": 0, "maximum": 127},
-            "control": {"type": "integer", "minimum": 0, "maximum": 127},
-            "value": {"type": "integer", "minimum": 0, "maximum": 127},
-            "program": {"type": "integer", "minimum": 0, "maximum": 127},
-            "song": {"type": "integer", "minimum": 0, "maximum": 127},
-            "address": {"type": "string"},
-            "args": {"type": "array"},
-            "bar": {"type": "integer", "minimum": 0},
-            "beats": {"type": "integer", "minimum": 0}
-        }
-    }
-    
     # Schema principal para canciones
     SONG_SCHEMA = {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -137,6 +178,14 @@ class MIDItemaValidator:
                 "enum": ["1/4", "1/8", "1/16"],
                 "description": "División de tiempo para el contador"
             },
+            "devices": {
+                "type": "object",
+                "description": "Definición local de dispositivos (override)"
+            },
+            "triggers": {
+                "type": "object",
+                "description": "Triggers globales de la canción"
+            },
             "parts": {
                 "type": "array",
                 "minItems": 1,
@@ -157,6 +206,10 @@ class MIDItemaValidator:
                 "enum": ["loop", "song"],
                 "description": "Modo de reproducción por defecto"
             },
+            "devices": {"type": "object"},
+            "triggers": {"type": "object"},
+            "beats": {"type": "integer"}, 
+            "bars": {"type": "integer"},
             "songs": {
                 "type": "array",
                 "minItems": 1,
@@ -282,7 +335,9 @@ class MIDItemaValidator:
         elif error.validator == 'pattern':
             return f"El valor '{error.instance}' no coincide con el formato esperado"
         elif error.validator == 'enum':
-            return f"Valor '{error.instance}' no válido. Opciones: {', '.join(error.validator_value)}"
+            return f"Valor '{error.instance}' no válido. Opciones: {', '.join(map(str, error.validator_value))}"
+        elif error.validator == 'oneOf':
+            return "El valor no coincide con ninguno de los esquemas permitidos (verificar tipos string/integer)"
         else:
             return error.message
     
@@ -291,23 +346,13 @@ class MIDItemaValidator:
         """Validaciones personalizadas para canciones."""
         errors = []
         
-        # Verificar nombres de partes duplicados
-        # if "parts" in data:
-        #     part_names = [p.get("name", "") for p in data["parts"]]
-        #     duplicates = set([x for x in part_names if part_names.count(x) > 1])
-        #     if duplicates:
-        #         errors.append(ValidationError(
-        #             f"Nombres de partes duplicados: {', '.join(duplicates)}",
-        #             ["parts"]
-        #         ))
-        
-        # Verificar cues duplicados
+        # Verificar cues duplicados dentro de la canción
         if "parts" in data:
             cues = [p.get("cue") for p in data["parts"] if "cue" in p]
             duplicate_cues = set([x for x in cues if cues.count(x) > 1])
             if duplicate_cues:
                 errors.append(ValidationError(
-                    f"Números de cue duplicados: {', '.join(map(str, duplicate_cues))}",
+                    f"Números de cue duplicados en la misma canción: {', '.join(map(str, duplicate_cues))}",
                     ["parts"]
                 ))
         
@@ -338,14 +383,8 @@ class MIDItemaValidator:
         """Validaciones personalizadas para playlists."""
         errors = []
         
-        # Verificar que los archivos referenciados existen
-        if "songs" in data:
-            for i, song in enumerate(data["songs"]):
-                if "filepath" in song:
-                    # Esto se verificará en el contexto de la aplicación
-                    # ya que necesita acceso al directorio SONGS_DIR
-                    pass
-        
+        # Aquí se podrían agregar validaciones de existencia de archivos
+        # pero requiere contexto del sistema de archivos que esta clase pura no tiene.
         return errors
     
     @classmethod

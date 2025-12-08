@@ -1,0 +1,284 @@
+{
+  "playlist_name": "Lista de Objetivos",
+  "mode": "loop",
+  "beats": 2,
+  "devices": {
+    "midi_out": { "MIDItema": "MIDItema" }
+  },
+  "triggers": {
+    "setlist_end": [
+      { "device": "MIDItema",     "type": "stop" }
+    ]
+  },
+  "songs": [
+    {
+      "song_name": "CUENTA ATRAS",
+      "color": "white",
+      "notes": "notas cuenta atrás",
+      "parts": [
+        { "name": "CUENTA ATRAS",   "color": "white",     "bars": 8,
+          "notes": "Esperando...",
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 15 },
+            { "device": "MIDItema",     "channel": 0,   "program": 15 },
+            { "device": "MIDItema",     "channel": 2,   "program": 15 },
+            { "device": "MIDItema",     "channel": 4,   "program": 15 },
+            { "device": "MIDItema",     "channel": 6,   "program": 15 }
+          ]
+        }
+      ]
+    },
+    {
+      "song_name": "Intifada",
+      "color": "blue",
+      "parts": [
+        { "name": "Intro",          "bars": 32,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 0 },
+            { "device": "MIDItema",     "channel": 0,   "program": 7 }
+          ],
+          "notes": "sin bombo"
+        },
+        { "name": "Evolution 1",    "bars": 16,
+          "notes": "Entra bombo",
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 1 }
+          ]
+        },
+        { "name": "Evolution 2",    "bars": 16,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 2 },
+            { "device": "MIDItema",     "channel": 2,   "program": 7 }
+          ]
+        },
+        { "name": "BREAK 1",        "bars": 8,  "color": "yellow",
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 3 },
+            { "device": "MIDItema",     "channel": 6,   "program": 9 }
+          ]
+        },
+        { "name": "Drop A",         "bars": 16,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 4 },
+            { "device": "MIDItema",     "channel": 0,   "program": 8 },
+            { "device": "MIDItema",     "channel": 2,   "program": 8 },
+            { "device": "MIDItema",     "channel": 6,   "program": 8 }
+          ]
+        },
+        { "name": "Drop B",         "bars": 16,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 5 },
+            { "device": "MIDItema",     "channel": 6,   "program": 9 }
+          ]
+        },
+        { "name": "BREAK 2",        "bars": 8,  "color": "yellow",
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 6 },
+            { "device": "MIDItema",     "channel": 0,   "program": 7 },
+            { "device": "MIDItema",     "channel": 4,   "program": 15 },
+            { "device": "MIDItema",     "channel": 6,   "program": 11 }
+          ]
+        },
+        { "name": "Drop C",         "bars": 16,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 7 },
+            { "device": "MIDItema",     "channel": 0,   "program": 8 },
+            { "device": "MIDItema",     "channel": 6,   "program": 8 }
+          ]
+        },
+        { "name": "Drop D",         "bars": 16,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 8 },
+            { "device": "MIDItema",     "channel": 6,   "program": 9 }
+          ]
+        },
+        { "name": "BREAK 3",        "bars": 8,  "color": "yellow",
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 9 },
+            { "device": "MIDItema",     "channel": 4,   "program": 9 },
+            { "device": "MIDItema",     "channel": 6,   "program": 7 }
+          ]
+        },
+        { "name": "Drop E",         "bars": 8,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 10 },
+            { "device": "MIDItema",     "channel": 4,   "program": 8 }
+          ],
+          "notes": "parte corta, bridge?"
+        },
+        { "name": "Drop F",         "bars": 32,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 11 },
+            { "device": "MIDItema",     "channel": 6,   "program": 10 }
+          ],
+          "notes": "parte larga"
+        },
+        { "name": "Mini BREAK",     "bars": 4,  "color": "orange",
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 12 },
+            { "device": "MIDItema",     "channel": 4,   "program": 7 }
+          ]
+        },
+        { "name": "Reprise",        "bars": 16,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 13 }
+          ]
+        },
+        { "name": "Outro",          "bars": 16, "color": "red",
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 14 },
+            { "device": "MIDItema",     "channel": 0,   "program": 7 },
+            { "device": "MIDItema",     "channel": 2,   "program": 7 },
+            { "device": "MIDItema",     "channel": 6,   "program": 7 }
+          ]
+        }
+      ]
+    },
+    {
+      "song_name": "Descartada",
+      "color": "dark_gray",
+      "parts": [
+        { "name": "Intro Beat",     "bars": 8,  "color": "yellow",
+          "output": [
+            { "device": "LCXL3",        "channel": 0,   "control": 12,  "value": 20 },
+            { "device": "LCXL3",        "channel": 0,   "control": 13,  "value": 70 },
+            { "device": "LCXL3",        "channel": 0,   "control": 14,  "value": 0 },
+            { "device": "MIDItema",     "channel": 9,   "program": 3 },
+            { "device": "MIDItema",     "channel": 0,   "program": 4 },
+            { "device": "MIDItema",     "channel": 2,   "program": 15 },
+            { "device": "MIDItema",     "channel": 4,   "program": 15 },
+            { "device": "MIDItema",     "channel": 6,   "program": 15 }
+          ]
+        },
+        { "name": "Groove A",       "bars": 16,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 8 }
+          ]
+        },
+        { "name": "Groove A+B",     "bars": 16,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 9 },
+            { "device": "MIDItema",     "channel": 2,   "program": 4 }
+          ]
+        },
+        { "name": "Bridge",         "bars": 8,
+          "output": [
+            { "device": "MIDItema",     "channel": 6,   "program": 4 }
+          ]
+        },
+        { "name": "Chorus",         "bars": 16,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 11 },
+            { "device": "MIDItema",     "channel": 2,   "program": 15 }
+          ]
+        },
+        { "name": "Break",          "bars": 8,  "color": "yellow",
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 2 },
+            { "device": "MIDItema",     "channel": 4,   "program": 4 }
+          ]
+        },
+        { "name": "Drop",           "bars": 16,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 12 },
+            { "device": "MIDItema",     "channel": 2,   "program": 4 }
+          ]
+        },
+        { "name": "Chorus 2",       "bars": 16,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 13 },
+            { "device": "MIDItema",     "channel": 4,   "program": 15 }
+          ]
+        },
+        { "name": "Outro Beat",     "bars": 8,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 14 }
+          ]
+        }
+      ]
+    },
+    {
+      "song_name": "MKULTRA",
+      "color": "green",
+      "parts": [
+        { "name": "Part 1",         "bars": 16, "repeat_pattern": false,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 0 },
+            { "device": "MIDItema",     "channel": 0,   "program": 0 },
+            { "device": "MIDItema",     "channel": 2,   "program": 15 },
+            { "device": "MIDItema",     "channel": 4,   "program": 15 },
+            { "device": "MIDItema",     "channel": 6,   "program": 15 }
+          ]
+        },
+        { "name": "Part 2",         "bars": 16, "repeat_pattern": false,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 1 },
+            { "device": "MIDItema",     "channel": 0,   "program": 4 }
+          ]
+        },
+        { "name": "Parón 1",        "bars": 8,  "color": "yellow",    "repeat_pattern": true,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 2 },
+            { "device": "MIDItema",     "channel": 0,   "program": 1 },
+            { "device": "MIDItema",     "channel": 6,   "program": 0 }
+          ]
+        },
+        { "name": "Part 3",         "bars": 16, "repeat_pattern": true,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 3 },
+            { "device": "MIDItema",     "channel": 0,   "program": 2 },
+            { "device": "MIDItema",     "channel": 2,   "program": 0 }
+          ]
+        },
+        { "name": "Part 4",         "bars": 16, "repeat_pattern": true,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 4 }
+          ]
+        },
+        { "name": "Parón 2",        "bars": 16, "color": "yellow",    "repeat_pattern": true,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 5 },
+            { "device": "MIDItema",     "channel": 2,   "program": 1 },
+            { "device": "MIDItema",     "channel": 4,   "program": 0 },
+            { "device": "MIDItema",     "channel": 6,   "program": 1 }
+          ]
+        },
+        { "name": "Part 5",         "bars": 16, "repeat_pattern": true,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 6 },
+            { "device": "MIDItema",     "channel": 0,   "program": 3 },
+            { "device": "MIDItema",     "channel": 2,   "program": 2 },
+            { "device": "MIDItema",     "channel": 4,   "program": 0 },
+            { "device": "MIDItema",     "channel": 6,   "program": 2 }
+          ]
+        },
+        { "name": "Part 6",         "bars": 16, "repeat_pattern": true,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 7 },
+            { "device": "MIDItema",     "channel": 6,   "program": 1 }
+          ]
+        },
+        { "name": "Parón 3",        "bars": 16, "color": "yellow",    "repeat_pattern": true,
+          "output": [
+            { "device": "MIDItema",     "channel": 9,   "program": 8 },
+            { "device": "MIDItema",     "channel": 2,   "program": 2 },
+            { "device": "MIDItema",     "channel": 4,   "program": 1 },
+            { "device": "MIDItema",     "channel": 6,   "program": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "song_name": "Bucle LIVE",
+      "color": "green",
+      "parts": [
+        { "name": "Drop 1",         "bars": 16, "repeat_pattern": true,   "color": "neon_green" },
+        { "name": "Drop 2",         "bars": 16, "repeat_pattern": true,   "color": "forest_green" },
+        { "name": "BREAK 1",        "bars": 16, "repeat_pattern": true,   "color": "electric_orange" },
+        { "name": "Drop 3",         "bars": 16, "repeat_pattern": true,   "color": "electric_blue" },
+        { "name": "Drop 4",         "bars": 16, "repeat_pattern": true,   "color": "blue" },
+        { "name": "BREAK 2",        "bars": 16, "repeat_pattern": true,   "color": "bright_yellow" }
+      ]
+    }
+  ]
+}

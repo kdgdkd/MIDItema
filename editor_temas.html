@@ -1,0 +1,1934 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDItema Studio</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <style>
+        /* --- 1. VARIABLES & THEME --- */
+        :root {
+            /* Colors */
+            --bg-app: #0f1115;
+            --bg-panel: #161920;
+            --bg-surface: #1e222b;
+            --bg-input: #12141a;
+
+            --border: #2a2e36;
+            --border-hover: #3f4452;
+
+            --primary: #3b82f6;
+            --primary-hover: #2563eb;
+            --accent: #10b981;
+            --danger: #ef4444;
+
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+            --focus-color: rgb(102, 151, 250);
+
+            /* Dimensions */
+            --app-header-h: 48px;
+            --sidebar-w: 280px;
+            --inspector-w: 500px;
+            --panel-header-h: 44px;
+            --panel-footer-h: 48px;
+            --radius: 6px;
+
+            /* Fonts */
+            --font-ui: 'Inter', sans-serif;
+            --font-code: 'JetBrains Mono', monospace;
+        }
+
+        /* --- 2. BASE & RESET --- */
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            background: var(--bg-app);
+            color: var(--text-main);
+            font-family: var(--font-ui);
+            height: 100vh;
+            font-size: 13px;
+            display: grid;
+            grid-template-areas: "header header header" "sidebar main inspector";
+            grid-template-rows: var(--app-header-h) 1fr;
+            grid-template-columns: var(--sidebar-w) 1fr var(--inspector-w);
+            overflow: hidden;
+        }
+
+        /* Scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        /* Focus & Selection */
+        input:focus-visible, select:focus-visible, textarea:focus-visible {
+            outline: 2px solid var(--focus-color);
+            outline-offset: -1px;
+        }
+        button, .app-header, .panel-header, .sidebar, .grid-header { user-select: none; }
+        .text-code, input, textarea, pre, code, .json-editor-wrapper { user-select: text; }
+
+        /* --- 3. UI CONTROLS --- */
+        button {
+            height: 30px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid transparent;
+            color: var(--text-main);
+            padding: 0 12px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+            font-family: var(--font-ui);
+        }
+        button:hover { background: rgba(255,255,255,0.08); color: white; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+        
+        button.primary { background: var(--primary); color: white; box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+        button.primary:hover { background: var(--primary-hover); }
+        
+        button.danger { color: var(--danger); background: transparent; }
+        button.danger:hover { background: rgba(239,68,68,0.1); color: #ff6b6b; }
+        
+        button.active { background: var(--primary); color: white; }
+        button.has-notes { color: var(--focus-color); background: rgba(102, 151, 250, 0.15); border: 1px solid rgba(102, 151, 250, 0.3); }
+        button.has-notes.active { background: var(--primary); color: white; border-color: transparent; }
+        
+        button.test-active {
+            color: var(--accent);
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            box-shadow: 0 0 8px rgba(16, 185, 129, 0.2);
+        }
+        button.icon-only { padding: 0; width: 30px; height: 30px; }
+
+        input, select, textarea {
+            background: var(--bg-input);
+            border: 1px solid transparent;
+            color: var(--text-main);
+            padding: 7px 10px;
+            border-radius: var(--radius);
+            width: 100%;
+            font-family: inherit;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        input:hover, select:hover { border-color: var(--border); }
+        input:focus, select:focus { border-color: var(--primary); background: var(--bg-surface); }
+        input:disabled, select:disabled { opacity: 0.6; pointer-events: none; background: transparent; border: none; color: var(--text-muted); }
+        
+        input[type="number"] { text-align: center; }
+        input.input-tiny, select.select-tiny { width: 60px; padding: 2px; }
+        input.input-code { border: 1px solid var(--accent); }
+        input.input-ghost { color: var(--text-muted) !important; font-style: italic; }
+        
+        /* Validations */
+        input.input-error, textarea.input-error, select.input-error {
+            border-color: var(--danger) !important;
+            background-color: rgba(239, 68, 68, 0.1) !important;
+            color: var(--danger) !important;
+        }
+        .validation-msg {
+            position: absolute;
+            background: var(--danger);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            z-index: 1000;
+            pointer-events: none;
+            white-space: nowrap;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            display: none;
+            font-family: var(--font-ui);
+        }
+        .validation-msg::after {
+            content: ''; position: absolute; top: 100%; left: 10px; border-width: 5px; border-style: solid; border-color: var(--danger) transparent transparent transparent;
+        }
+
+        /* Icons */
+        .material-symbols-rounded { font-size: 18px; }
+        .icon-sm { font-size: 16px; }
+        .icon-lg { font-size: 32px; }
+        .icon-xl { font-size: 48px; }
+
+        /* --- 4. LAYOUT STRUCTURE --- */
+        header.app-header {
+            grid-area: header;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            padding: 0 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 10;
+        }
+        .app-title { font-weight: 600; font-size: 14px; display: flex; gap: 8px; align-items: center; cursor: pointer; }
+        .app-subtitle { font-size: 11px; color: var(--text-muted); }
+
+        /* Panels */
+        .panel-col {
+            display: flex; flex-direction: column; height: 100%;
+            background: var(--bg-panel); overflow: hidden; border-right: 1px solid var(--border);
+        }
+        .panel-col:last-child { border-right: none; }
+
+        .panel-header {
+            height: var(--panel-header-h); min-height: var(--panel-header-h);
+            padding: 0 12px; display: flex; align-items: center; justify-content: space-between;
+            background: var(--bg-panel); border-bottom: 1px solid var(--border);
+            font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+            color: var(--text-muted);
+        }
+        .panel-body { flex: 1; overflow-y: auto; position: relative; }
+        .panel-footer {
+            height: var(--panel-footer-h); min-height: var(--panel-footer-h);
+            padding: 0 12px; display: flex; align-items: center; gap: 10px;
+            border-top: 1px solid var(--border); background: var(--bg-panel); z-index: 5;
+        }
+
+        /* --- 5. MODULE: SIDEBAR --- */
+        aside.sidebar { grid-area: sidebar; }
+        .song-list { margin: 0; padding: 0; list-style: none; }
+        .song-item {
+            padding: 8px 12px; border-bottom: 1px solid var(--border); cursor: pointer;
+            display: flex; align-items: center; gap: 10px; transition: background 0.1s;
+        }
+        .song-item:hover { background: var(--bg-surface); }
+        .song-item.active { background: #1f2530; border-left: 3px solid var(--primary); padding-left: 9px; }
+        .color-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; cursor: pointer; }
+        .song-duration { margin-left: auto; font-size: 11px; color: var(--text-muted); font-family: var(--font-code); }
+
+        /* --- 6. MODULE: MAIN GRID --- */
+        main { grid-area: main; background: var(--bg-app); }
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 30px 30px 2fr 1.5fr 60px 80px 40px 60px;
+            gap: 10px; align-items: center;
+        }
+        .grid-header {
+            padding: 0 12px; height: 34px; border-bottom: 1px solid var(--border);
+            font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase;
+            background: var(--bg-surface);
+        }
+        .part-row {
+            padding: 6px 12px; border-bottom: 1px solid var(--border);
+            background: var(--bg-app); transition: background 0.1s;
+        }
+        .part-row:hover { background: var(--bg-surface); }
+        .part-row.selected { background: rgba(59,130,246,0.1); border-left: 2px solid var(--primary); padding-left: 10px; }
+        .drag-handle { cursor: grab; color: #555; display: flex; justify-content: center; }
+
+        /* --- 7. MODULE: INSPECTOR --- */
+        aside.inspector { grid-area: inspector; background: var(--bg-panel); border-left: 1px solid var(--border); position: relative; }
+        .inspector-body { padding: 15px; }
+        
+        .resizer-handle {
+            position: absolute; left: -4px; top: 0; bottom: 0; width: 8px;
+            cursor: col-resize; z-index: 100; transition: background 0.2s;
+        }
+        .resizer-handle:hover, .resizer-handle.active { background: rgba(59, 130, 246, 0.5); }
+        body.resizing { cursor: col-resize; user-select: none; }
+
+        .empty-state { text-align: center; color: var(--text-muted); margin-top: 50%; transform: translateY(-50%); opacity: 0.5; }
+        .empty-state-icon { display: block; margin-bottom: 10px; }
+
+        .prop-group { margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
+        .prop-group:last-child { border-bottom: none; }
+        .prop-label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; font-weight: 600; }
+
+        /* Output Cards */
+        .output-wrapper { background: var(--bg-input); border: 1px solid transparent; border-radius: 4px; margin-bottom: 4px; transition: border-color 0.2s; }
+        .output-wrapper:hover { border-color: var(--border-hover); }
+        .output-wrapper.expanded .timing-row { display: flex; }
+        .output-wrapper.expanded .btn-timing { color: var(--accent); background: rgba(16, 185, 129, 0.1); }
+
+        .output-card { padding: 4px; display: flex; align-items: center; gap: 4px; }
+        .out-device { flex: 2; min-width: 80px; font-weight: 600; }
+        .out-ch { width: 80px !important; text-align: center; padding: 6px 2px !important; }
+        .out-type { width: 80px !important; }
+        .out-val { flex: 1; min-width: 40px; }
+        .out-del { width: 24px !important; height: 24px !important; }
+        .out-disabled { opacity: 0.3; pointer-events: none; border: none; background: transparent; }
+
+        .timing-row { display: none; padding: 6px 10px; background: rgba(0,0,0,0.2); border-top: 1px solid var(--border); gap: 15px; align-items: center; }
+        .timing-group { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-muted); }
+        .timing-input { width: 50px !important; padding: 2px 4px !important; text-align: center; height: 24px; }
+        
+        /* Hardware & Config Lists */
+        .hardware-list { list-style: none; padding: 0; margin: 0; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-input); }
+        .hardware-item { padding: 8px 10px; border-bottom: 1px solid var(--border); font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
+        .hardware-item:last-child { border-bottom: none; }
+        .hw-name { color: var(--text-main); font-family: var(--font-code); }
+        .hw-badge { background: rgba(16, 185, 129, 0.1); color: var(--accent); padding: 2px 5px; border-radius: 3px; font-size: 9px; text-transform: uppercase; }
+        .hw-empty { padding: 10px; color: var(--text-muted); text-align: center; font-style: italic; }
+
+        .device-table { width: 100%; border-collapse: collapse; margin-bottom: 10px; font-size: 12px; }
+        .device-table th { text-align: left; color: var(--text-muted); padding: 8px; border-bottom: 1px solid var(--border); font-weight: 500; background: var(--bg-panel); }
+        .device-table td { padding: 8px; border-bottom: 1px solid var(--border); }
+        .col-alias { width: 30%; } .col-ip { width: 40%; } .col-port { width: 20%; } .col-action { width: 40px; }
+        .section-title { margin-bottom: 10px; font-weight: 600; text-transform: uppercase; font-size: 11px; color: var(--text-muted); }
+        .trigger-item { margin-bottom: 10px; }
+        .trigger-header { margin-bottom: 4px; font-size: 11px; font-weight: 600; color: var(--text-muted); }
+
+        /* --- 8. VISUALIZERS (Patterns, Cues, Matrix) --- */
+        .flow-container { display: flex; align-items: center; gap: 10px; overflow-x: auto; padding: 15px 5px; background: #111; border-radius: 4px; border: 1px solid var(--border); }
+        .flow-step { background: var(--bg-input); border: 1px solid var(--border); padding: 8px 12px; border-radius: 4px; min-width: 80px; text-align: center; font-size: 11px; position: relative; font-family: var(--font-code); }
+        .flow-step.loop { border-color: var(--accent); color: var(--accent); }
+        .flow-step.next { border-color: var(--text-muted); color: var(--text-muted); }
+        .flow-step.jump { border-color: var(--primary); color: var(--primary); }
+        .flow-step-remove { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; background: var(--bg-surface); border: 1px solid var(--danger); color: var(--danger); border-radius: 50%; font-size: 10px; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.2s; }
+        .flow-step:hover .flow-step-remove { opacity: 1; }
+        .flow-arrow { color: #555; }
+        .flow-placeholder { width: 100%; text-align: center; }
+
+        .pattern-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 15px; }
+        .pattern-controls-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; border-top: 1px solid var(--border); padding-top: 15px; }
+
+        .cue-container { padding: 15px; display: flex; flex-direction: column; height: 100%; }
+        .cue-grid-main { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; padding: 10px; }
+        .cue-src-item { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; padding: 8px 12px; cursor: grab; font-size: 12px; display: flex; align-items: center; gap: 8px; }
+        .cue-slot-row { display: flex; align-items: center; border-bottom: 1px solid var(--border); padding: 4px 0; font-size: 11px; }
+        .cue-slot-key { width: 35px; color: var(--accent); font-family: var(--font-code); font-weight: bold; text-align: center; flex-shrink: 0; }
+        .cue-slot-drop { flex: 1; min-height: 28px; background: rgba(0,0,0,0.2); border: 1px dashed var(--border); border-radius: 3px; display: flex; flex-wrap: wrap; gap: 4px; padding: 2px; align-items: center; }
+        .cue-slot-drop.drag-over { background: rgba(16, 185, 129, 0.1); border-color: var(--accent); }
+        .cue-chip { background: #2d3748; border: 1px solid #4a5568; padding: 2px 8px; border-radius: 12px; font-size: 11px; display: flex; gap: 6px; align-items: center; }
+        .cue-chip-remove { cursor: pointer; margin-left: 4px; color: #ff6b6b; }
+        .cue-search-box { max-width: 300px; }
+        .cue-src-wrapper { flex: 1; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-app); }
+        .cue-drag-hint { padding: 10px; font-size: 11px; border-bottom: 1px solid var(--border); }
+
+        /* Matrix */
+        .matrix-wrapper { height: 100%; overflow: auto; position: relative; }
+        .matrix-table { width: 100%; border-collapse: collapse; font-size: 11px; white-space: nowrap; }
+        .matrix-table th, .matrix-table td { padding: 6px 10px; border: 1px solid var(--border); text-align: center; }
+        .matrix-table th { background: var(--bg-surface); position: sticky; top: 0; z-index: 10; border-bottom: 2px solid var(--border); box-shadow: 0 1px 0 var(--border); }
+        .matrix-table th.corner-header { position: sticky; left: 0; z-index: 20; background: var(--bg-surface); border-right: 2px solid var(--border); }
+        .matrix-table td.row-header { position: sticky; left: 0; background: var(--bg-panel); font-weight: 600; text-align: left; border-right: 2px solid var(--border); z-index: 5; min-width: 120px; box-shadow: 1px 0 0 var(--border); }
+        .matrix-table td.row-header:hover { background: var(--bg-surface); color: var(--primary); }
+        .matrix-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .matrix-cell { cursor: pointer; }
+        .cell-msg { display: block; background: rgba(255,255,255,0.05); padding: 2px 4px; margin: 1px 0; border-radius: 2px; font-family: var(--font-code); font-size: 10px; }
+        .cell-active { background: rgba(59, 130, 246, 0.2) !important; border: 1px solid var(--primary) !important; }
+        .header-device { font-size: 9px; opacity: 0.7; }
+        
+        /* Modifiers via Logic */
+        .mode-matrix .grid-header { display: none; }
+        .mode-matrix #btnAddPart { display: none; }
+
+        /* --- 9. MODALS & OVERLAYS --- */
+        .overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(2px);
+            z-index: 100; display: none; align-items: center; justify-content: center;
+        }
+        .overlay.open { display: flex; }
+
+        .modal {
+            background: #1a1d24; border: 1px solid var(--border); border-radius: 6px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6); display: flex; flex-direction: column;
+            max-height: 90vh; width: 600px;
+        }
+        .modal-lg { width: 900px; }
+        .modal-sm { width: 500px; }
+
+        .modal-header { padding: 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; background: var(--bg-surface); border-radius: 6px 6px 0 0; }
+        .modal-body { padding: 20px; overflow-y: auto; }
+        .modal-footer { padding: 15px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; background: var(--bg-surface); border-radius: 0 0 6px 6px; }
+
+        /* Color Picker */
+        .color-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 10px 0; }
+        .btn-color-select { height: 36px; width: 100%; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); cursor: pointer; transition: transform 0.1s, border-color 0.2s; position: relative; }
+        .btn-color-select:hover { transform: scale(1.05); border-color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 2; }
+        .btn-color-select.active-color { border: 2px solid white; box-shadow: 0 0 0 2px var(--bg-panel); }
+        .btn-color-select::after {
+            content: attr(title); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+            background: #000; color: white; padding: 4px 8px; border-radius: 4px; font-size: 10px;
+            white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity 0.2s; margin-bottom: 5px; z-index: 10;
+        }
+        .btn-color-select:hover::after { opacity: 1; }
+
+        /* Popups */
+        #outputPreview {
+            position: fixed; background: var(--bg-panel); border: 1px solid var(--primary);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); padding: 8px; border-radius: 4px;
+            z-index: 1000; pointer-events: none; display: none; min-width: 240px; backdrop-filter: blur(4px);
+        }
+        #outputPreview table { width: 100%; border-collapse: collapse; font-size: 11px; }
+        #outputPreview td { padding: 3px 4px; font-family: var(--font-code); color: var(--text-main); border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+        #midiFeedback {
+            position: fixed; bottom: 20px; right: 20px; background: var(--bg-surface);
+            border: 1px solid var(--primary); border-left: 4px solid var(--primary);
+            padding: 15px; border-radius: 4px; box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+            z-index: 2000; font-size: 12px; display: none; max-width: 300px;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .log-line { margin-bottom: 4px; font-family: var(--font-code); border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 2px; }
+        .log-success { color: var(--accent); }
+        .log-error { color: var(--danger); }
+        .log-info { color: var(--text-muted); }
+
+        /* --- 10. EDITOR MODES --- */
+        #jsonEditorContainer { position: absolute; top: 0; right: 0; bottom: 0; left: 0; font-size: 14px; }
+        .json-editor-wrapper { position: relative; height: 100%; width: 100%; overflow: hidden; }
+        body.json-editing { grid-template-columns: var(--sidebar-w) 1fr 0px !important; }
+        body.json-editing aside.inspector { display: none !important; }
+        body.json-editing main > .panel-footer { display: none !important; }
+        #jsonEditorContainer { bottom: var(--panel-footer-h) !important; }
+
+        /* --- 11. UTILITIES & REFACTORED INLINE STYLES --- */
+        .hidden { display: none !important; }
+        .d-block { display: block; }
+        .flex { display: flex; align-items: center; }
+        .flex-col { display: flex; flex-direction: column; }
+        .flex-col-full { display: flex; flex-direction: column; height: 100%; padding: 0; }
+        .gap-2 { gap: 8px; }
+        .gap-4 { gap: 16px; }
+        .j-between { justify-content: space-between; }
+        .j-center { justify-content: center; }
+        .j-end { justify-content: flex-end; }
+        .align-center { align-items: center; }
+        .w-full { width: 100%; }
+        
+        /* Specific widths from inline styles */
+        .w-50px-imp { width: 50px !important; }
+        .w-60px-imp { width: 60px !important; }
+        .w-80px-imp { width: 80px !important; }
+        .w-80px { width: 80px; }
+        
+        /* Text & Colors */
+        .text-code { font-family: var(--font-code); font-size: 12px; }
+        .text-muted { color: var(--text-muted); }
+        .text-main { color: var(--text-main); }
+        .text-accent { color: var(--accent); }
+        .text-center { text-align: center; }
+        .font-bold { font-weight: 600; }
+        .opacity-70 { opacity: 0.7; }
+        
+        /* Spacing */
+        .m-0 { margin: 0; }
+        .mb-4 { margin-bottom: 4px; }
+        .mb-5 { margin-bottom: 5px; }
+        .mb-10 { margin-bottom: 10px; }
+        .mb-15 { margin-bottom: 15px; }
+        .mb-20 { margin-bottom: 20px; }
+        .mt-5 { margin-top: 5px; }
+        .mt-15 { margin-top: 15px; }
+        .mt-20 { margin-top: 20px; }
+        .p-0 { padding: 0; }
+        .p-10 { padding: 10px; }
+        
+        /* Special Component Utils */
+        .resize-v { resize: vertical; }
+        .resize-none { resize: none; }
+        .scroll-y { overflow-y: auto; overflow-x: hidden; }
+        .cursor-pointer { cursor: pointer; }
+        .input-reserved { opacity: 0.7; font-weight: bold; color: var(--text-muted); cursor: not-allowed; }
+        .bg-accent-subtle { background: rgba(16, 185, 129, 0.05); border: 1px solid var(--accent); padding: 10px; }
+        .cue-src-container { max-height: 200px; margin-bottom: 15px; border: 1px solid var(--border); }
+        .notes-editor { flex: 1; resize: none; padding: 15px; background: var(--bg-input); border: 1px solid var(--border); line-height: 1.5; }
+        
+        /* Hover effects */
+        .hover-text-main:hover { color: var(--text-main); border-color: var(--text-muted); }
+        .osc-var-tag { border: 1px solid var(--border); padding: 1px 4px; border-radius: 3px; cursor: pointer; }
+        .osc-var-container { font-size: 9px; margin-top: 4px; display: flex; gap: 6px; flex-wrap: wrap; }
+        .separator-hr { border: 0; border-top: 1px solid var(--border); }
+        .w-400 { width: 400px; }
+        .modal-body-no-pad { padding: 0; }
+        .h-full { height: 100%; }
+        .flex-1 { flex: 1; }
+    </style>
+</head>
+<body>
+
+<header class="app-header">
+    <div class="app-title">
+        <span class="material-symbols-rounded">album</span>
+        MIDItema Studio 
+    </div>
+    <div class="app-subtitle"></div>
+</header>
+
+<aside class="sidebar panel-col">
+    <input type="file" id="importFile" hidden accept=".json,.json5">
+    <input type="file" id="importConf" hidden accept=".json,.json5">
+    <input type="file" id="importToSong" hidden accept=".json,.json5"> 
+
+    <div class="panel-header">
+        <span>Setlist</span>
+        <div class="flex gap-2">   
+            <button class="icon-only" id="btnImport" title="Importar Setlist"><span class="material-symbols-rounded icon-sm">upload</span></button>
+            <button class="icon-only" id="btnImportConf" title="Importar Entorno"><span class="material-symbols-rounded icon-sm">drive_folder_upload</span></button>
+            <button class="icon-only" id="btnTestMode" title="Activar Envío MIDI"><span class="material-symbols-rounded icon-sm">plug_connect</span></button>
+            <button class="icon-only" id="btnEditJson" title="Editar JSON"><span class="material-symbols-rounded icon-sm">data_object</span></button>
+            <button class="icon-only" id="btnExport" title="Exportar Setlist"><span class="material-symbols-rounded icon-sm">download</span></button>
+        </div>
+    </div>
+    
+    <ul class="song-list panel-body" id="songList"></ul>
+    
+    <div class="panel-footer">
+        <button id="btnAddSong" class="w-full">+ Añadir Canción</button>
+    </div>
+</aside>
+
+<main class="panel-col">
+    <div class="panel-header">
+        <span>Partes</span>
+    </div>
+
+    <div class="grid-layout grid-header" id="partsHeader">
+        <div></div> <div></div> <div>Nombre</div>
+        <div>Notas</div>
+        <div class="text-center">Bars</div>
+        <div class="text-center">Pattern</div>
+        <div class="text-center">Outs</div>
+        <div class="text-center"></div> 
+    </div>
+    
+    <div id="partsContainer" class="panel-body">
+        <div class="empty-state">Selecciona una Canción</div>
+    </div>
+
+    <div class="panel-footer">
+        <button id="btnAddPart" class="w-full" disabled>+ Añadir Parte</button>
+    </div>
+</main>
+
+<aside class="inspector panel-col">
+    <div id="inspectorResizer" class="resizer-handle"></div>
+    <div class="panel-header">
+        <span id="inspectorTitle">Propiedades</span>
+        <div id="inspectorActions" class="flex gap-2"></div>
+    </div>
+    
+    <div id="inspectorContent" class="panel-body inspector-body">
+        <div class="empty-state">
+            <span class="material-symbols-rounded icon-xl empty-state-icon">tune</span>
+            Selecciona item
+        </div>
+    </div>
+
+    <div class="panel-footer j-end">
+        <button id="btnHelp">
+           <span class="material-symbols-rounded icon-sm">help</span> Ayuda
+        </button>
+    </div>
+</aside>
+
+<div id="patternModal" class="overlay">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <h3>Editor Visual de Patrones</h3>
+            <button class="icon-only danger btn-close-modal">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="prop-label">Flujo de Ejecución:</div>
+            <div id="patternFlow" class="flow-container"></div>
+            
+            <hr class="mt-20 mb-20 separator-hr">
+            
+            <div class="prop-label mb-10">Comandos:</div>
+            
+            <div class="pattern-grid-4">
+                <button class="btn-pattern-add" data-type="true"><span class="material-symbols-rounded icon-sm">repeat</span> Loop</button>
+                <button class="btn-pattern-add" data-type="false"><span class="material-symbols-rounded icon-sm">skip_next</span> Skip</button>
+                <button class="btn-pattern-add" data-type="first_part">Start</button>
+                <button class="btn-pattern-add" data-type="last_part">End</button>
+                
+                <button class="btn-pattern-add" data-type="next_song">Next Song</button>
+                <button class="btn-pattern-add" data-type="prev_song">Prev Song</button>
+                <button class="btn-pattern-add" data-type="song_mode">Song Mode</button>
+                <button class="btn-pattern-add" data-type="loop_mode">Loop Mode</button>
+            </div>
+            
+            <div class="pattern-controls-row">
+                <div class="flex-col gap-2">
+                    <label class="prop-label">Saltar a Parte</label>
+                    <div class="flex gap-2">
+                        <select id="patternJumpTarget"></select>
+                        <button class="btn-pattern-add" data-type="jump">Add</button>
+                    </div>
+                </div>
+                <div class="flex-col gap-2">
+                    <label class="prop-label">Saltar a Cue (F1-F12)</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="patternJumpCue" class="input-tiny" min="1" max="12" placeholder="Nº">
+                        <button class="btn-pattern-add" data-type="jump_cue">Add</button>
+                    </div>
+                </div>
+                <div class="flex-col gap-2">
+                    <label class="prop-label">Aleatorio (IDs)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="rndParts" placeholder="ej: 1, 2, 4">
+                        <button class="btn-pattern-add" data-type="random">Add</button>
+                    </div>
+                </div>
+                <div class="flex-col gap-2">
+                    <label class="prop-label">Salto Relativo</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="patternJumpRel" class="input-tiny" placeholder="+/-">
+                        <button class="btn-pattern-add" data-type="jump_rel">Add</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-close-modal">Cancelar</button>
+            <button id="btnPatternSave">Aceptar</button>
+        </div>
+    </div>
+</div>
+
+<div id="colorPickerModal" class="overlay">
+    <div class="modal modal-sm w-400">
+        <div class="modal-header">
+            <h3>Seleccionar Color</h3>
+            <button class="icon-only danger btn-close-modal">✕</button>
+        </div>
+        <div class="modal-body">
+            <div id="colorGridContainer" class="color-grid"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-close-modal">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<div id="outputPreview"></div>
+<div id="midiFeedback"></div>
+<script>
+    /* --- 1. CONFIGURACIÓN & ESTADO --- */
+    let setlist = { 
+        playlist_name: "Nuevo Setlist", 
+        mode: "loop", 
+        bpm: 124, 
+        advance_value: 0, 
+        advance_unit: "beats", 
+        devices: { midi_in: {}, midi_out: {}, osc_out: {} }, 
+        triggers: {}, 
+        songs: [] 
+    };
+    
+    // Almacén temporal para importaciones parciales
+    let _preserved = {};
+
+    const uiState = { 
+        selSong: -1, 
+        selPart: -1, 
+        inspectorMode: null, 
+        songViewMode: 'parts', 
+        tempPattern: [], 
+        tempCues: {}, 
+        tempDevices: { midi_in: [], midi_out: [], osc_out: [], special: { clock: "", transport: "" } },
+        stats: { bpmInfo: '--', totalTime: 'Total: 00:00' },
+        testMode: false
+    };
+
+    /* --- 2. CONSTANTES & METADATOS --- */
+    const MSG_METADATA = {
+        midi_cc: { val1: { title: "Controller (0-127)", placeholder: "CC#" }, val2: { title: "Value (0-127)", placeholder: "Val", disabled: false } },
+        pc: { val1: { title: "Program (0-127)", placeholder: "Prog#" }, val2: { title: "No aplica", placeholder: "-", disabled: true } },
+        note: { val1: { title: "Note (0-127)", placeholder: "Note" }, val2: { title: "Velocity (0-127)", placeholder: "Vel", disabled: false } }, // Legacy alias
+        note_on: { val1: { title: "Note (0-127)", placeholder: "Note" }, val2: { title: "Velocity (0-127)", placeholder: "Vel", disabled: false } },
+        note_off: { val1: { title: "Note (0-127)", placeholder: "Note" }, val2: { title: "Release (0-127)", placeholder: "Rel", disabled: false } },
+        transport: { val1: { title: "Comando", placeholder: "Cmd" }, val2: { title: "No aplica", placeholder: "-", disabled: true } },
+        song: { val1: { title: "Song ID (0-127)", placeholder: "Song#" }, val2: { title: "No aplica", placeholder: "-", disabled: true } },
+        osc: { val1: { title: "Address", placeholder: "/addr" }, val2: { title: "Args", placeholder: "[args]" } }
+    };
+
+    const SELECTABLE_COLORS = [
+        "default", "red", "green", "yellow", "blue", "magenta", "cyan", "orange", 
+        "ruby_pink", "indigo_blue", "purple", "forest_green", "ivory", "bright_red", 
+        "neon_green", "electric_blue", "bright_yellow", "hot_pink", "electric_cyan", 
+        "electric_orange", "dark_gray", "mid_gray", "light_gray", "white"
+    ];
+
+    const COLOR_MAP = {
+        "default": "#4b5563", "red": "#8b0000", "green": "#006400", "yellow": "#ffd700", 
+        "blue": "#0000ff", "magenta": "#ff00ff", "cyan": "#00ffff", "orange": "#ff7e00",
+        "ruby_pink": "#e30052", "indigo_blue": "#5564eb", "purple": "#800040", 
+        "forest_green": "#3d642d", "ivory": "#ffffbf", "bright_red": "#FF004D", 
+        "neon_green": "#39FF14", "electric_blue": "#0099FF", "bright_yellow": "#FFFF00", 
+        "hot_pink": "#FF1493", "electric_cyan": "#08E8DE", "electric_orange": "#FF3300",
+        "dark_gray": "#404040", "mid_gray": "#888888", "light_gray": "#CCCCCC", "white": "#FFFFFF"
+    };
+
+    /* --- 3. UTILIDADES --- */
+    const $ = (id) => document.getElementById(id);
+    
+    const appTools = {
+        looseJsonParse: (text) => {
+            try { 
+                const clean = text.replace(/("(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*')|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, str) => str || '');
+                return (new Function("return " + clean))(); 
+            } catch (e) { console.error("Fallo parsing JSON5", e); return JSON.parse(text); }
+        }
+    };
+
+    const DataValidator = {
+        rules: {
+            midi7bit: (val) => val === "" || val === undefined || (!isNaN(Number(val)) && Number(val) >= 0 && Number(val) <= 127) || (typeof val === 'string' && val.trim().length > 0),
+            midiChannel: (val) => val === "" || val === undefined || (!isNaN(Number(val)) && Number(val) >= 0 && Number(val) <= 16), // UI uses 1-16 sometimes
+            positiveInt: (val) => !isNaN(Number(val)) && Number.isInteger(Number(val)) && Number(val) > 0,
+            timeSig: (val) => /^\d+\/\d+$/.test(val),
+            oscAddress: (val) => typeof val === 'string' && val.startsWith('/'),
+            jsonArray: (val) => { try { return Array.isArray(JSON.parse(val)); } catch(e) { return false; } },
+            port: (val) => Number.isInteger(Number(val)) && Number(val) > 0 && Number(val) <= 65535,
+            notEmpty: (val) => typeof val === 'string' && val.trim().length > 0
+        },
+        tooltipEl: null,
+        
+        validateInput: (input) => {
+            const { action, field } = input.dataset;
+            const val = input.value;
+            let isValid = true, errorMsg = "Valor inválido";
+
+            // Lógica simplificada de validación
+            if (action === 'update-out' || action === 'update-dev') {
+                const row = input.closest('.output-card') || input.closest('tr');
+                const type = row?.querySelector('.out-type')?.value || 'midi_cc';
+                
+                if (field === 'channel' && type !== 'osc' && type !== 'transport') isValid = DataValidator.rules.midiChannel(val);
+                else if ((field === 'val1' || field === 'val2') && ['midi_cc','note','note_on','note_off','pc'].includes(type)) isValid = DataValidator.rules.midi7bit(val);
+                else if (field === 'address') isValid = DataValidator.rules.oscAddress(val);
+                else if (field === 'args') isValid = DataValidator.rules.jsonArray(val);
+                else if (field === 'port') isValid = DataValidator.rules.port(val);
+            } 
+            else if (action === 'update-song') {
+                if (field === 'time_signature') isValid = DataValidator.rules.timeSig(val);
+                else if (field === 'song_name') isValid = DataValidator.rules.notEmpty(val);
+            }
+            
+            DataValidator.toggleError(input, isValid, errorMsg);
+            return isValid;
+        },
+
+        toggleError: (input, isValid, msg) => {
+            input.classList.toggle('input-error', !isValid);
+            if (!isValid) DataValidator.showTooltip(input, msg);
+            else DataValidator.hideTooltip();
+        },
+
+        showTooltip: (input, msg) => {
+            if (!DataValidator.tooltipEl) {
+                DataValidator.tooltipEl = document.createElement('div');
+                DataValidator.tooltipEl.className = 'validation-msg';
+                document.body.appendChild(DataValidator.tooltipEl);
+            }
+            const rect = input.getBoundingClientRect();
+            DataValidator.tooltipEl.innerText = msg;
+            DataValidator.tooltipEl.style.display = 'block';
+            DataValidator.tooltipEl.style.top = (rect.top - 30) + 'px';
+            DataValidator.tooltipEl.style.left = rect.left + 'px';
+        },
+        
+        hideTooltip: () => { if (DataValidator.tooltipEl) DataValidator.tooltipEl.style.display = 'none'; }
+    };
+
+    /* --- 4. APP CORE --- */
+    const app = {
+        // Inicialización parcial (se completa en parte 4)
+        init: () => {
+            app.bindGlobalListeners();
+            app.selectSong(-1); 
+            if(app.ui?.initResizer) app.ui.initResizer();
+        },
+
+        bindGlobalListeners: () => {
+            // 1. INPUTS DE ARCHIVO (Crítico: Restaurado eventos 'change')
+            $('importConf').addEventListener('change', app.io.importConf);
+            $('importFile').addEventListener('change', app.io.import);
+            $('importToSong').addEventListener('change', app.actions.importSetlistContent);
+
+            // 2. BOTONES HEADER SIDEBAR (Restaurado mapeo directo)
+            $('btnImport').addEventListener('click', () => $('importFile').click());
+            $('btnImportConf').addEventListener('click', () => $('importConf').click());
+            $('btnTestMode').addEventListener('click', app.midi.toggleTestMode); // Faltaba toggle explícito
+            $('btnEditJson').addEventListener('click', () => { 
+                uiState.selSong = -1; 
+                uiState.songViewMode = 'json_editor'; 
+                // Desactivar otros modos visuales al entrar al editor
+                ['btnShowDevices', 'btnShowGlobalTriggers', 'btnShowCues', 'btnShowMatrix'].forEach(id => $(id)?.classList.remove('active'));
+                app.render.parts(); 
+            });
+            $('btnExport').addEventListener('click', app.io.export);
+
+            // 3. BOTONES DE ACCIÓN PRINCIPAL
+            $('btnAddSong').addEventListener('click', app.actions.addSong);
+            $('btnAddPart').addEventListener('click', app.actions.addPart);
+            $('btnHelp').addEventListener('click', () => window.open('help.html', '_blank'));
+
+            // 4. DELEGACIÓN LISTA CANCIONES (Drag & Drop + Click)
+            const songList = $('songList');
+            songList.addEventListener('click', (e) => { 
+                const item = e.target.closest('.song-item'); 
+                if (item) app.selectSong(parseInt(item.dataset.index)); 
+            });
+            songList.addEventListener('dragstart', (e) => { 
+                const item = e.target.closest('.song-item'); 
+                if(item) { e.dataTransfer.setData('type', 'song'); e.dataTransfer.setData('idx', item.dataset.index); } 
+            });
+            songList.addEventListener('dragover', (e) => e.preventDefault());
+            songList.addEventListener('drop', (e) => app.actions.handleDrop(e, 'song'));
+
+            // 5. DELEGACIÓN CONTENEDOR PARTES (Drag & Drop + Click Genérico)
+            const partsCont = $('partsContainer');
+            partsCont.addEventListener('dragstart', (e) => { 
+                const row = e.target.closest('.part-row'); 
+                if(row) { 
+                    e.dataTransfer.setData('type', row.dataset.type || 'part'); 
+                    e.dataTransfer.setData('idx', row.dataset.index); 
+                } 
+            });
+            partsCont.addEventListener('dragover', (e) => e.preventDefault());
+            partsCont.addEventListener('drop', (e) => app.actions.handleDrop(e, 'part'));
+
+            // 6. MODALES Y CIERRE GLOBAL
+            document.querySelectorAll('.btn-close-modal').forEach(b => b.onclick = app.modals.closeAll);
+            $('btnPatternSave').onclick = app.pattern.save;
+            
+            // 7. LISTENERS DELEGADOS ESPECÍFICOS (Inspector y Acciones)
+            // Se restaura la lógica para botones dinámicos dentro de contenedores
+            ['inspectorContent', 'partsContainer', 'inspectorActions'].forEach(id => {
+                const el = $(id);
+                if(el) {
+                    el.addEventListener('click', app.handleUIEvents); // Función extraída abajo para claridad
+                    el.addEventListener('input', app.handleInputEvents); // Función extraída abajo
+                    el.addEventListener('change', app.handleInputEvents);
+                }
+            });
+        },
+
+// --- PEGAR DENTRO DE const app = { ... } ---
+    
+inspector: {
+        outputContexts: {},
+        
+        // Renderiza listas de outputs (MIDI/OSC) con soporte de edición
+        renderOutputList: (container, contextId, dataList, onUpdate) => {
+            // Guardar contexto para actualizaciones dinámicas
+            app.inspector.outputContexts[contextId] = { list: JSON.parse(JSON.stringify(dataList)), cb: onUpdate };
+            const ctx = app.inspector.outputContexts[contextId];
+            
+            // Obtener dispositivos disponibles
+            const safeMidi = (setlist.devices && setlist.devices.midi_out) ? setlist.devices.midi_out : {};
+            const safeOsc = (setlist.devices && setlist.devices.osc_out) ? setlist.devices.osc_out : {};
+            const ghosts = app.devices.scanGhosts(); // Asegúrate de que app.devices exista
+            const devices = [...new Set([...Object.keys(safeMidi), ...Object.keys(safeOsc), ...ghosts])];
+            
+            // Valores globales para placeholders
+            const globalUnit = setlist.advance_unit || 'beats';
+            const globalVal = setlist.advance_value || 0;
+            const phBar = globalUnit === 'bars' ? globalVal : '-';
+            const phBeats = globalUnit === 'beats' ? globalVal : '-';
+        
+            const redraw = () => {
+                container.innerHTML = '';
+                ctx.list.forEach((item, idx) => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = `output-wrapper ${item._timing_open ? 'expanded' : ''}`;
+                    const card = document.createElement('div');
+                    
+                    let devOpts = `<option value="">--</option>`;
+                    devices.forEach(d => devOpts += `<option value="${d}" ${item.device===d?'selected':''}>${d}</option>`);
+                    if(item.device && !devices.includes(item.device)) devOpts += `<option value="${item.device}" selected>${item.device} (?)</option>`;
+        
+                    // Detección de tipo
+                    let type = 'midi_cc';
+                    if(item.address) type = 'osc';
+                    else if(['start', 'stop', 'continue'].includes(item.type)) type = 'transport';
+                    else if(item.type === 'note_off') type = 'note_off';
+                    else if(item.program !== undefined || (item.type === 'program_change')) type = 'pc';
+                    else if(item.note !== undefined || item.type === 'note_on' || item.type === 'note') type = 'note_on';
+                    else if(item.song !== undefined || (item.type === 'song_select')) type = 'song'; 
+        
+                    let auxControl = `<button class="icon-only btn-timing" data-action="toggle-timing" data-ctx="${contextId}" data-idx="${idx}"><span class="material-symbols-rounded icon-sm">schedule</span></button>`;
+                    if (contextId.includes('bar_triggers')) {
+                        auxControl = `<input type="number" class="out-ch input-code" style="width:50px!important;" placeholder="Bars" value="${item.each_bar || ''}" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="each_bar">`;
+                    } else if (contextId.includes('countdown_triggers')) {
+                        auxControl = `<input type="number" class="out-ch input-code" style="width:50px!important;" placeholder="Beats" value="${item.each_beat || ''}" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="each_beat">`;
+                    }
+        
+                    if (type === 'osc') {
+                        card.className = 'output-card flex-col align-start';
+                        card.style.padding = "8px";
+                        card.style.gap = "8px";
+                        card.innerHTML = `
+                            <div class="flex j-between w-full gap-2">
+                                <select class="out-device" style="flex:1" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="device">${devOpts}</select>
+                                <select class="out-type" style="width:80px;" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="new_type">
+                                    <option value="midi_cc">CC</option><option value="pc">PC</option><option value="note_on">Note On</option><option value="note_off">Note Off</option><option value="transport">Tpt</option><option value="song">Song</option><option value="osc" selected>OSC</option>
+                                </select>
+                                <div class="flex gap-2">${auxControl}<button class="icon-only danger out-del" data-action="remove-out" data-ctx="${contextId}" data-idx="${idx}">✕</button></div>
+                            </div>
+                            <div class="w-full">
+                                <input type="text" class="out-val w-full mb-10 font-bold" style="font-family:var(--font-code);" placeholder="/address" value="${item.address}" title="OSC Address" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="address">
+                                <textarea class="out-val w-full text-code" rows="3" placeholder="Args: [1, 'text']" title="Args (JSON array)" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="args" style="resize:vertical;">${JSON.stringify(item.args||[])}</textarea>
+                            </div>
+                        `;
+                    } else {
+                        card.className = 'output-card';
+                        let val1Input = '', val2Input = '';
+                        if (type === 'transport') {
+                            val1Input = `<select class="out-val" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="transport_val"><option value="start" ${item.type==='start'?'selected':''}>Play</option><option value="stop" ${item.type==='stop'?'selected':''}>Stop</option><option value="continue" ${item.type==='continue'?'selected':''}>Cont</option></select>`;
+                            val2Input = `<input type="text" class="out-val out-disabled" disabled>`;
+                        } else {
+                            const v1 = item.program ?? item.control ?? item.note ?? item.song ?? "";
+                            const v2 = item.value ?? item.velocity ?? "";
+                            let ph1 = "CC", ph2 = "Val", dis2 = "";
+                            if(type === 'pc') { ph1 = "Prg"; ph2 = "-"; dis2 = "disabled class='out-val out-disabled'"; }
+                            else if(type === 'song') { ph1 = "Sng"; ph2 = "-"; dis2 = "disabled class='out-val out-disabled'"; } 
+                            else if(type === 'note_on' || type === 'note_off') { ph1 = "Nt"; ph2 = "Vel"; }
+        
+                            val1Input = `<input type="text" class="out-val" placeholder="${ph1}" value="${v1}" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="val1">`;
+                            val2Input = `<input type="text" class="out-val ${dis2}" placeholder="${ph2}" value="${v2}" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="val2" ${dis2}>`;
+                        }
+        
+                        card.innerHTML = `
+                            <select class="out-device" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="device">${devOpts}</select>
+                            <select class="out-type" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="new_type">
+                                <option value="midi_cc" ${type==='midi_cc'?'selected':''}>CC</option><option value="pc" ${type==='pc'?'selected':''}>PC</option><option value="note_on" ${type==='note_on'?'selected':''}>Note On</option><option value="note_off" ${type==='note_off'?'selected':''}>Note Off</option><option value="transport" ${type==='transport'?'selected':''}>Tpt</option><option value="song" ${type==='song'?'selected':''}>Song</option><option value="osc" ${type==='osc'?'selected':''}>OSC</option>
+                            </select>
+                            <input type="text" class="out-ch" placeholder="Ch" value="${item.channel !== undefined ? item.channel : ''}" ${type==='transport'?'disabled':''} data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="channel">
+                            ${val1Input}${val2Input}${auxControl}
+                            <button class="icon-only danger out-del" data-action="remove-out" data-ctx="${contextId}" data-idx="${idx}">✕</button>
+                        `;
+                    }
+        
+                    const timingRow = document.createElement('div');
+                    timingRow.className = 'timing-row';
+                    timingRow.innerHTML = `<div class="timing-group"><span class="material-symbols-rounded icon-sm">hourglass_top</span></div><div class="timing-group"><label>Bars:</label><input type="number" class="timing-input" placeholder="${phBar}" value="${item.bar !== undefined ? item.bar : ''}" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="bar"></div><div class="timing-group"><label>Beats:</label><input type="number" class="timing-input" placeholder="${phBeats}" value="${item.beats !== undefined ? item.beats : ''}" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="beats"></div>`;
+                    
+                    wrapper.appendChild(card); wrapper.appendChild(timingRow); container.appendChild(wrapper);
+                });
+                
+                const addBtn = document.createElement('button');
+                addBtn.className = "w-full"; addBtn.innerHTML = '+ Añadir Output';
+                addBtn.dataset.action = "add-out"; addBtn.dataset.ctx = contextId;
+                container.appendChild(addBtn);
+            };
+            ctx.redraw = redraw; redraw();
+        },
+        
+        // Métodos de utilidad lógica
+        toggleTiming: (ctxId, idx) => { const c = app.inspector.outputContexts[ctxId]; if(c) { c.list[idx]._timing_open = !c.list[idx]._timing_open; c.redraw(); } },
+        removeOut: (ctxId, idx) => { const c = app.inspector.outputContexts[ctxId]; if(c) { c.list.splice(idx, 1); c.redraw(); c.cb(c.list); } },
+        
+        updateOut: (ctxId, idx, field, val) => {
+            const ctx = app.inspector.outputContexts[ctxId]; if(!ctx) return;
+            const item = ctx.list[idx];
+            
+            // Lógica simplificada de actualización
+            if(field === 'device') item.device = val;
+            else if(field === 'channel') { const n=parseInt(val); if(!isNaN(n)) item.channel=n; else delete item.channel; }
+            else if(field === 'val1') { const n=parseInt(val); if(!isNaN(n)) { if(item.program!==undefined||item.type==='program_change') item.program=n; else if(item.note!==undefined) item.note=n; else item.control=n; } }
+            else if(field === 'val2') { const n=parseInt(val); if(!isNaN(n)) { if(item.velocity!==undefined) item.velocity=n; else item.value=n; } }
+            else if(field === 'address') item.address = val;
+            else if(field === 'args') { try { item.args = JSON.parse(val); } catch(e) { item.args = [val]; } }
+            else if(field === 'new_type') {
+                const b = { device:item.device, bar:item.bar, beats:item.beats, _timing_open:item._timing_open };
+                if(val==='osc') ctx.list[idx] = {...b, address:"/addr", args:[]};
+                else if(val==='transport') ctx.list[idx] = {...b, type:'start'};
+                else if(val==='note_on') ctx.list[idx] = {...b, channel:0, note:60, velocity:100, type:'note_on'};
+                else if(val==='pc') ctx.list[idx] = {...b, channel:0, program:0, type:'program_change'};
+                else ctx.list[idx] = {...b, channel:0, control:0, value:0};
+                ctx.redraw();
+            }
+            
+            const clean = ctx.list.map(({_timing_open, ...r}) => r);
+            ctx.cb(clean);
+        }
+    },
+
+
+// Lógica restaurada del original para manejo de eventos delegados
+handleUIEvents: (e) => {
+            const t = e.target.closest('button') || e.target;
+            // Botones de Parte (Duplicar/Borrar)
+            if (t.closest('.btn-dup-part')) { e.stopPropagation(); app.actions.dupPart(parseInt(t.closest('.btn-dup-part').dataset.index)); return; }
+            if (t.closest('.btn-del-part')) { e.stopPropagation(); app.actions.deletePart(parseInt(t.closest('.btn-del-part').dataset.index)); return; }
+            
+            // Botones de Canción en vista Setlist (Duplicar/Borrar)
+            if (t.closest('.btn-dup-song')) { e.stopPropagation(); app.actions.dupSong(parseInt(t.closest('.btn-dup-song').dataset.index)); return; }
+            if (t.closest('.btn-del-song')) { e.stopPropagation(); app.actions.deleteSong(parseInt(t.closest('.btn-del-song').dataset.index)); return; }
+
+            // Navegación de filas (Selección)
+            const row = t.closest('.part-row');
+            if (row && !t.closest('button') && !t.classList.contains('part-outs-indicator')) { 
+                const idx = parseInt(row.dataset.index);
+                if (row.dataset.type === 'song') app.selectSong(idx);
+                else app.selectPart(idx);
+                return;
+            }
+
+            // Botones de Vista (Inspector Header)
+            if (t.dataset.view) { app.render.songsView(t.dataset.view); return; }
+            
+            // Acciones específicas del Inspector
+            if (t.id === 'btnLinkSetlist') app.actions.linkSetlist();
+            if (t.id === 'btnImportContent') $('importToSong').click();
+            if (t.id === 'btnExportSong') app.io.exportSong();
+            if (t.id === 'btnDupSong') app.actions.dupSong();
+            if (t.id === 'btnDelSong') app.actions.deleteSong();
+
+            // Toggle de Vistas Globales
+            if (t.id === 'btnSetlistProps') { uiState.inspectorMode = 'setlist'; app.render.inspector(); }
+            if (t.id === 'btnSetlistNotes') { uiState.songViewMode = uiState.songViewMode === 'notes' ? 'parts' : 'notes'; app.render.parts(); app.render.inspector(); }
+            if (t.id === 'btnShowMatrix') { uiState.songViewMode = uiState.songViewMode === 'matrix' ? 'parts' : 'matrix'; app.render.parts(); app.render.inspector(); }
+            if (t.id === 'btnShowDevices') app.devices.showInInspector();
+            if (t.id === 'btnShowGlobalTriggers') { uiState.selSong = -1; uiState.inspectorMode = 'global'; app.render.parts(); app.render.inspector(); }
+            if (t.id === 'btnShowCues') app.cues.show();
+        },
+
+        handleInputEvents: (e) => {
+            const d = e.target.dataset; 
+            if(!d.action) return;
+            
+            DataValidator.validateInput(e.target);
+            
+            if(d.action === 'update-setlist') {
+                setlist[d.field] = d.field === 'bpm' ? parseInt(e.target.value) : e.target.value;
+                if(d.field === 'bpm') app.calcTimes();
+            }
+            if(d.action === 'update-song') {
+                setlist.songs[uiState.selSong][d.field] = e.target.value;
+                if(d.field === 'song_name') app.render.sidebar();
+            }
+            if(d.action === 'update-part') {
+                const val = e.target.type === 'number' ? parseInt(e.target.value) : e.target.value;
+                setlist.songs[uiState.selSong].parts[uiState.selPart][d.field] = val;
+                if(['name', 'bars', 'cue'].includes(d.field)) app.render.parts();
+            }
+            if(d.action === 'update-dev') app.devices.update(d.type, parseInt(d.idx), d.field, e.target.value);
+            if(d.action === 'update-special-dev') app.devices.updateSpecial(d.key, e.target.value);
+            if(d.action === 'update-out') app.inspector.upd(d.ctx, parseInt(d.idx), d.field, e.target.value);
+        },
+        calcTimes: () => {
+            let totalSec = 0;
+            const bpm = setlist.bpm || 124;
+            const bars8sec = ((8 * 4 * 60) / bpm).toFixed(1);
+            uiState.stats.bpmInfo = `8 bars ≈ ${bars8sec}s`;
+            
+            const elBpm = $('bpmInfo');
+            if(elBpm) elBpm.innerText = uiState.stats.bpmInfo;
+
+            setlist.songs.forEach(song => {
+                let bars = 0, num = 4;
+                if(song.time_signature) num = parseInt(song.time_signature.split('/')[0]) || 4;
+                if(song.parts) song.parts.forEach(p => bars += (parseInt(p.bars)||0));
+                totalSec += (bars * num * 60) / bpm;
+            });
+
+            const m = Math.floor(totalSec / 60);
+            const s = Math.floor(totalSec % 60);
+            uiState.stats.totalTime = `Total: ${m}:${s.toString().padStart(2,'0')}`;
+            
+            const elTotal = document.querySelector('.song-item:first-child .song-duration');
+            if(elTotal) elTotal.innerText = `${m}:${s.toString().padStart(2,'0')}`;
+        },
+
+        actions: {
+            addSong: () => {
+                setlist.songs.push({ song_name: "Nueva Canción", color: "default", time_signature: "4/4", parts: [] });
+                app.selectSong(setlist.songs.length - 1);
+            },
+            deleteSong: (targetIdx = uiState.selSong) => {
+                if (targetIdx === -1 || !confirm("¿Eliminar canción?")) return;
+                setlist.songs.splice(targetIdx, 1);
+                if (uiState.selSong === targetIdx) app.selectSong(-1);
+                else if (uiState.selSong > targetIdx) uiState.selSong--;
+                app.render.sidebar();
+                if (uiState.selSong === -1) app.render.parts();
+            },
+            dupSong: (targetIdx = uiState.selSong) => {
+                if (targetIdx === -1) return;
+                const copy = JSON.parse(JSON.stringify(setlist.songs[targetIdx]));
+                copy.song_name += " (Copia)";
+                setlist.songs.splice(targetIdx + 1, 0, copy);
+                app.render.sidebar();
+            },
+            addPart: () => {
+                if(uiState.selSong === -1) { app.actions.addSong(); return; }
+                const s = setlist.songs[uiState.selSong];
+                if (!s.parts) s.parts = [];
+                s.parts.push({ name: `Parte ${s.parts.length + 1}`, bars: 8, color: "default", repeat_pattern: false, output: [] });
+                app.render.parts();
+                app.selectPart(s.parts.length - 1);
+            },
+            deletePart: (idx) => {
+                const s = setlist.songs[uiState.selSong];
+                s.parts.splice(idx, 1);
+                // Limpiar referencias en repeat_pattern
+                s.parts.forEach(p => {
+                    if (Array.isArray(p.repeat_pattern)) {
+                        p.repeat_pattern = p.repeat_pattern.filter(step => {
+                            if (typeof step === 'object' && step.jump_to_part === idx) return false;
+                            if (typeof step === 'object' && step.jump_to_part > idx) step.jump_to_part--;
+                            return true;
+                        });
+                        if (!p.repeat_pattern.length) p.repeat_pattern = false;
+                    }
+                });
+                uiState.selPart = -1;
+                app.render.parts();
+                app.inspector.clear();
+            },
+            dupPart: (idx) => {
+                const copy = JSON.parse(JSON.stringify(setlist.songs[uiState.selSong].parts[idx]));
+                copy.name += " (Cp)";
+                setlist.songs[uiState.selSong].parts.splice(idx + 1, 0, copy);
+                app.render.parts();
+            },
+            linkSetlist: () => {
+                const cur = setlist.songs[uiState.selSong];
+                const val = prompt("Nombre del archivo (filepath):", cur.filepath || "");
+                if(val !== null) {
+                    setlist.songs[uiState.selSong] = { filepath: val, song_name: cur.song_name, color: cur.color };
+                    app.render.sidebar(); app.render.inspector();
+                }
+            },
+            handleDrop: (e, dropType) => {
+                e.preventDefault();
+                const type = e.dataTransfer.getData('type');
+                const src = parseInt(e.dataTransfer.getData('idx'));
+                const target = e.target.closest(dropType === 'song' ? '.song-item' : '.part-row');
+                
+                if (target && (target.dataset.type || dropType) === type) {
+                    const dest = parseInt(target.dataset.index);
+                    if (src !== dest) {
+                        if (type === 'part') {
+                            const [moved] = setlist.songs[uiState.selSong].parts.splice(src, 1);
+                            setlist.songs[uiState.selSong].parts.splice(dest, 0, moved);
+                            uiState.selPart = dest;
+                            app.render.parts();
+                        } else {
+                            const [moved] = setlist.songs.splice(src, 1);
+                            setlist.songs.splice(dest, 0, moved);
+                            app.render.sidebar();
+                        }
+                    }
+                }
+            },
+            importSetlistContent: (e) => {
+                const r = new FileReader();
+                r.onload = (ev) => {
+                    try {
+                        const raw = appTools.looseJsonParse(ev.target.result);
+                        if (raw.songs && Array.isArray(raw.songs) && confirm(`¿Insertar ${raw.songs.length} canciones?`)) {
+                            setlist.songs.splice(uiState.selSong, 1, ...raw.songs);
+                            app.render.sidebar(); app.selectSong(uiState.selSong);
+                        } else {
+                            const newSong = { ...raw, song_name: setlist.songs[uiState.selSong].song_name, color: setlist.songs[uiState.selSong].color };
+                            setlist.songs[uiState.selSong] = newSong;
+                            app.render.sidebar(); app.render.inspector(); app.render.parts();
+                        }
+                    } catch(err) { alert("Error: " + err.message); }
+                };
+                if(e.target.files[0]) r.readAsText(e.target.files[0]);
+                e.target.value = '';
+            }
+        },
+
+        colors: {
+            context: null, 
+            targetIndex: -1, 
+            open: (context, idx) => {
+                app.colors.context = context;
+                app.colors.targetIndex = idx;
+                const current = context === 'song' ? setlist.songs[uiState.selSong].color : setlist.songs[uiState.selSong].parts[idx].color;
+                const container = $('colorGridContainer');
+                container.innerHTML = '';
+                
+                SELECTABLE_COLORS.forEach(key => {
+                    const btn = document.createElement('div');
+                    btn.className = `btn-color-select ${key === (current || 'default') ? 'active-color' : ''}`;
+                    btn.style.backgroundColor = COLOR_MAP[key];
+                    btn.title = key.replace('_', ' ').toUpperCase();
+                    btn.onclick = () => app.colors.pick(key);
+                    container.appendChild(btn);
+                });
+                $('colorPickerModal').classList.add('open');
+            },
+            pick: (key) => {
+                const { context, targetIndex } = app.colors;
+                if (context === 'song') setlist.songs[uiState.selSong].color = key;
+                else setlist.songs[uiState.selSong].parts[targetIndex].color = key;
+                
+                app.render.sidebar();
+                if (context === 'part') app.render.parts();
+                app.render.inspector();
+                app.modals.closeAll();
+            }
+        },
+
+        modals: { closeAll: () => document.querySelectorAll('.overlay').forEach(el => el.classList.remove('open')) },
+
+        // UI Helpers
+        ui: {
+            initResizer: () => {
+                const resizer = $('inspectorResizer');
+                if (!resizer) return;
+                let startX, startW;
+                const doResize = (e) => {
+                    const newW = startW + (startX - e.clientX);
+                    if (newW > 300 && newW < 900) document.documentElement.style.setProperty('--inspector-w', `${newW}px`);
+                };
+                const stopResize = () => {
+                    document.body.classList.remove('resizing'); resizer.classList.remove('active');
+                    document.removeEventListener('mousemove', doResize); document.removeEventListener('mouseup', stopResize);
+                };
+                resizer.addEventListener('mousedown', (e) => {
+                    startX = e.clientX;
+                    startW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--inspector-w'), 10) || 500;
+                    document.body.classList.add('resizing'); resizer.classList.add('active');
+                    document.addEventListener('mousemove', doResize); document.addEventListener('mouseup', stopResize);
+                });
+            }
+        }
+    };
+    /* --- 5. EXTENSIÓN DE LÓGICA (MODULES) --- */
+    
+    // 5.1. DEVICES & HARDWARE
+    app.devices = {
+        showInInspector: (skipReset = false) => {
+            if (!skipReset) { uiState.selSong = -1; uiState.selPart = -1; uiState.inspectorMode = 'devices'; }
+            
+            // Init Temp State
+            uiState.tempDevices = { midi_in: [], midi_out: [], osc_out: [], special: { clock: "", transport: "" } };
+            const sMidiIn = setlist.devices.midi_in || {};
+            const sMidiOut = setlist.devices.midi_out || {};
+            
+            uiState.tempDevices.special.clock = sMidiIn['clock'] || "";
+            uiState.tempDevices.special.transport = sMidiOut['transport_out'] || "";
+            
+            Object.entries(sMidiIn).forEach(([k,v]) => { if(k!=='clock') uiState.tempDevices.midi_in.push({ alias: k, name: v }); });
+            Object.entries(sMidiOut).forEach(([k,v]) => { if(k!=='transport_out') uiState.tempDevices.midi_out.push({ alias: k, name: v }); });
+            Object.entries(setlist.devices.osc_out || {}).forEach(([k,v]) => uiState.tempDevices.osc_out.push({ alias: k, ip: v.ip||"127.0.0.1", port: v.port||8000 }));
+            
+            // Add Ghosts
+            app.devices.scanGhosts().forEach(g => {
+                if(g!=='clock' && g!=='transport_out' && !uiState.tempDevices.midi_out.some(d=>d.alias===g)) 
+                    uiState.tempDevices.midi_out.push({ alias: g, name: g, _ghost: true });
+            });
+
+            if (!skipReset) { app.render.parts(); app.render.inspector(); }
+            setTimeout(app.devices.renderAll, 0);
+        },
+
+        scanGhosts: () => {
+            const used = new Set();
+            const defined = new Set([...Object.keys(setlist.devices.midi_in||{}), ...Object.keys(setlist.devices.midi_out||{}), ...Object.keys(setlist.devices.osc_out||{})]);
+            const scan = (l) => l?.forEach(o => { if(o.device) used.add(o.device); });
+            Object.values(setlist.triggers||{}).forEach(scan);
+            setlist.songs.forEach(s => { Object.values(s.triggers||{}).forEach(scan); s.parts?.forEach(p => scan(Array.isArray(p.output)?p.output:(p.output?[p.output]:[]))); });
+            return [...used].filter(d => !defined.has(d));
+        },
+
+        scanHardware: async (contId) => {
+            const el = $(contId);
+            if (!navigator.requestMIDIAccess) { el.innerHTML = '<div class="hw-empty">API no soportada</div>'; return; }
+            try {
+                const access = await navigator.requestMIDIAccess();
+                let h = '<div class="prop-group mb-15"><div class="prop-label">MIDI Inputs</div><ul class="hardware-list">';
+                h += Array.from(access.inputs.values()).map(i => `<li class="hardware-item"><span class="hw-name">${i.name}</span> <span class="hw-badge">In</span></li>`).join('') || '<li class="hardware-item hw-empty">No inputs</li>';
+                h += '</ul></div><div class="prop-group"><div class="prop-label">MIDI Outputs</div><ul class="hardware-list">';
+                h += Array.from(access.outputs.values()).map(o => `<li class="hardware-item"><span class="hw-name">${o.name}</span> <span class="hw-badge">Out</span></li>`).join('') || '<li class="hardware-item hw-empty">No outputs</li>';
+                el.innerHTML = h + '</ul></div>';
+            } catch (e) { el.innerHTML = `<div class="hw-empty">Error: ${e.message}</div>`; }
+        },
+
+        save: () => {
+            setlist.devices = { midi_in: {}, midi_out: {}, osc_out: {} };
+            if(uiState.tempDevices.special.clock.trim()) setlist.devices.midi_in['clock'] = uiState.tempDevices.special.clock.trim();
+            if(uiState.tempDevices.special.transport.trim()) setlist.devices.midi_out['transport_out'] = uiState.tempDevices.special.transport.trim();
+            
+            uiState.tempDevices.midi_in.forEach(i => { if(i.alias) setlist.devices.midi_in[i.alias] = i.name||""; });
+            uiState.tempDevices.midi_out.forEach(i => { if(i.alias) setlist.devices.midi_out[i.alias] = i.name||""; });
+            uiState.tempDevices.osc_out.forEach(i => { if(i.alias) setlist.devices.osc_out[i.alias] = { ip: i.ip||"127.0.0.1", port: parseInt(i.port)||8000 }; });
+            
+            const btn = $('btnSaveDev');
+            if(btn) { btn.innerText = "Guardado"; setTimeout(() => btn.innerText = "Guardar", 1500); }
+            app.devices.renderAll();
+        },
+
+        // CRUD & Rendering Internals
+        add: (t) => {
+            if(t==='osc_out') uiState.tempDevices.osc_out.push({alias:"", ip:"127.0.0.1", port:7000});
+            else uiState.tempDevices[t].push({alias:"", name:""});
+            app.devices.renderAll();
+        },
+        remove: (t, i) => { uiState.tempDevices[t].splice(i, 1); app.devices.renderAll(); },
+        update: (t, i, f, v) => uiState.tempDevices[t][i][f] = v,
+        updateSpecial: (k, v) => uiState.tempDevices.special[k] = v,
+        confirmGhost: (t, i) => { delete uiState.tempDevices[t][i]._ghost; app.devices.save(); },
+
+        renderAll: () => {
+            app.devices.renderRow('clockInBody', 'clock', uiState.tempDevices.special.clock);
+            app.devices.renderRow('transportOutBody', 'transport_out', uiState.tempDevices.special.transport);
+            app.devices.renderList('midiInBody', uiState.tempDevices.midi_in, 'midi_in');
+            app.devices.renderList('midiOutBody', uiState.tempDevices.midi_out, 'midi_out');
+            app.devices.renderOsc();
+        },
+        renderRow: (id, key, val) => {
+            const el = $(id); if(!el) return;
+            el.innerHTML = `<tr><td><input type="text" value="${key}" class="input-reserved" disabled></td><td><input type="text" value="${val}" placeholder="Puerto MIDI" data-action="update-special-dev" data-key="${key}"></td><td></td></tr>`;
+        },
+        renderList: (id, list, type) => {
+            const el = $(id); if(!el) return;
+            el.innerHTML = list.map((item, i) => {
+                const isGhost = !!item._ghost;
+                const style = isGhost ? 'color: var(--accent); font-style: italic;' : '';
+                return `<tr><td><input type="text" value="${item.alias}" style="${style}" placeholder="alias" data-action="update-dev" data-type="${type}" data-idx="${i}" data-field="alias"></td>
+                        <td><input type="text" value="${item.name}" style="${style}" placeholder="Puerto MIDI" data-action="update-dev" data-type="${type}" data-idx="${i}" data-field="name"></td>
+                        <td><button class="icon-only ${isGhost?'primary':'danger'}" data-action="${isGhost?'confirm-dev':'remove-dev'}" data-type="${type}" data-idx="${i}">${isGhost?'<span class="material-symbols-rounded icon-sm">save</span>':'✕'}</button></td></tr>`;
+            }).join('');
+        },
+        renderOsc: () => {
+            const el = $('oscOutBody'); if(!el) return;
+            el.innerHTML = uiState.tempDevices.osc_out.map((item, i) => `<tr>
+                <td><input type="text" value="${item.alias}" placeholder="alias" data-action="update-dev" data-type="osc_out" data-idx="${i}" data-field="alias"></td>
+                <td><input type="text" value="${item.ip}" placeholder="IP" data-action="update-dev" data-type="osc_out" data-idx="${i}" data-field="ip"></td>
+                <td><input type="number" value="${item.port}" placeholder="Port" data-action="update-dev" data-type="osc_out" data-idx="${i}" data-field="port"></td>
+                <td><button class="icon-only danger" data-action="remove-dev" data-type="osc_out" data-idx="${i}">✕</button></td>
+            </tr>`).join('');
+        }
+    };
+
+    // 5.2. MIDI ENGINE
+    app.midi = {
+        access: null,
+        toggleTestMode: async () => {
+            uiState.testMode = !uiState.testMode;
+            $('btnTestMode').classList.toggle('test-active', uiState.testMode);
+            if (uiState.testMode && !app.midi.access) {
+                try {
+                    app.midi.log("Conectando WebMIDI...", "info");
+                    app.midi.access = await navigator.requestMIDIAccess();
+                    app.midi.log("WebMIDI Activo", "success");
+                } catch (e) { app.midi.log("Error: " + e.message, "error"); uiState.testMode = false; }
+            }
+        },
+        send: (outs) => {
+            if (!uiState.testMode || !app.midi.access || !outs?.length) return;
+            let sent = 0, err = 0;
+            const outputs = Array.from(app.midi.access.outputs.values());
+            
+            outs.forEach(o => {
+                if(o.address) return; // Ignore OSC
+                const target = setlist.devices.midi_out[o.device] || o.device;
+                const port = outputs.find(p => p.name.toLowerCase().includes(target?.toLowerCase()));
+                
+                if(!port) { if(o.device!=='default') err++; return; }
+                
+                try {
+                    const ch = o.channel || 0;
+                    if(['start','stop','continue'].includes(o.type)) port.send([o.type==='start'?0xFA:o.type==='stop'?0xFC:0xFB]);
+                    else if(o.program!==undefined || o.type==='program_change') port.send([0xC0|ch, o.program||0]);
+                    else if(o.note!==undefined || o.type==='note' || o.type==='note_on') port.send([0x90|ch, o.note, o.velocity||100]);
+                    else if(o.type==='note_off') port.send([0x80|ch, o.note, 0]);
+                    else port.send([0xB0|ch, o.control||0, o.value||0]);
+                    sent++;
+                } catch(e) { err++; }
+            });
+            app.midi.log(`Sent: ${sent}, Errors: ${err}`, err>0?"error":"success");
+        },
+        log: (msg, type) => {
+            const b = $('midiFeedback');
+            b.innerHTML += `<div class="log-line log-${type}">> ${msg}</div>`;
+            b.style.display = 'block'; b.scrollTop = b.scrollHeight;
+            clearTimeout(app.midi._t); app.midi._t = setTimeout(() => { b.style.display='none'; b.innerHTML=''; }, 4000);
+        }
+    };
+
+    // 5.3. VISUALIZERS (Pattern, Cues, Matrix)
+    app.pattern = {
+        open: () => {
+            const p = setlist.songs[uiState.selSong].parts[uiState.selPart].repeat_pattern;
+            uiState.tempPattern = !p && p!==0 ? [] : (Array.isArray(p) ? JSON.parse(JSON.stringify(p)) : [typeof p==='object' ? JSON.parse(JSON.stringify(p)) : p]);
+            
+            const sel = $('patternJumpTarget'); sel.innerHTML = '';
+            setlist.songs[uiState.selSong].parts.forEach((pt, i) => sel.innerHTML += `<option value="${i}">${i+1}. ${pt.name}</option>`);
+            app.pattern.render(); $('patternModal').classList.add('open');
+        },
+        render: () => {
+            const c = $('patternFlow'); c.innerHTML = '';
+            if(!uiState.tempPattern.length) { c.innerHTML = '<span class="text-muted flow-placeholder">Flujo Lineal (Siguiente Parte)</span>'; return; }
+            
+            uiState.tempPattern.forEach((s, i) => {
+                if(i>0) c.innerHTML += '<span class="material-symbols-rounded flow-arrow">arrow_right_alt</span>';
+                let cls='next', txt='UNK', icon='';
+                
+                if(s===true||s==='true'||s==='repeat') { cls='loop'; txt='LOOP'; icon='repeat'; }
+                else if(s===false||s==='false'||s==='next') { cls='next'; txt='NEXT'; icon='skip_next'; }
+                else if(s==='first_part') { cls='jump'; txt='START'; icon='first_page'; }
+                else if(typeof s==='object') {
+                    cls='jump'; 
+                    if(s.jump_to_part!==undefined) { txt=`GOTO P:${s.jump_to_part+1}`; icon='subdirectory_arrow_right'; }
+                    else if(s.random_part) { txt=`RND [${s.random_part.map(x=>x+1).join(',')}]`; icon='shuffle'; }
+                }
+                
+                const d = document.createElement('div'); d.className = `flow-step ${cls}`;
+                d.innerHTML = `${icon?`<span class="material-symbols-rounded icon-sm" style="margin-right:4px;">${icon}</span>`:''}${txt} <div class="flow-step-remove">✕</div>`;
+                d.querySelector('.flow-step-remove').onclick = (e) => { e.stopPropagation(); app.pattern.remove(i); };
+                c.appendChild(d);
+            });
+        },
+        addStep: (t) => {
+            if(t==='jump') uiState.tempPattern.push({jump_to_part: parseInt($('patternJumpTarget').value)});
+            else if(t==='random') {
+                const v = $('rndParts').value.split(',').map(x=>parseInt(x.trim())-1).filter(x=>!isNaN(x)&&x>=0);
+                if(v.length) uiState.tempPattern.push({random_part:v});
+            } else uiState.tempPattern.push(t);
+            app.pattern.render();
+        },
+        remove: (i) => { uiState.tempPattern.splice(i, 1); app.pattern.render(); },
+        save: () => {
+            const clean = uiState.tempPattern.map(p => (p==="true"?true:p==="false"?false:p));
+            setlist.songs[uiState.selSong].parts[uiState.selPart].repeat_pattern = clean.length===0 ? false : (clean.length===1 && (clean[0]===true||clean[0]==='repeat') ? true : clean);
+            app.render.parts(); app.render.inspector(); app.modals.closeAll();
+        },
+        summary: (p) => (p===true||p==='repeat')?"Loop":(!p||p===false||p==='next')?"Next":Array.isArray(p)?`Complex (${p.length})`:"Custom"
+    };
+
+    app.cues = {
+        show: (skipR) => {
+            if(!skipR) { uiState.selSong=-1; uiState.selPart=-1; uiState.inspectorMode='cues'; }
+            uiState.tempCues = {};
+            setlist.songs.forEach((s,si) => s.parts?.forEach((p,pi) => { if(p.cue) { if(!uiState.tempCues[p.cue]) uiState.tempCues[p.cue]=[]; uiState.tempCues[p.cue].push({si,pi,label:`${s.song_name} - ${p.name}`}); } }));
+            if(!skipR) { app.render.parts(); app.render.inspector(); }
+        },
+        renderInspector: () => { // Lógica movida a app.render.inspector para unificar
+            // Solo métodos de manipulación aquí
+        },
+        drop: (e, slot) => {
+            try {
+                const d = JSON.parse(e.dataTransfer.getData('cueData'));
+                if(!uiState.tempCues[slot]) uiState.tempCues[slot] = [];
+                if(!uiState.tempCues[slot].some(x=>x.si===d.si && x.pi===d.pi)) { uiState.tempCues[slot].push(d); app.render.inspector(); }
+            } catch(e){}
+        },
+        remove: (slot, i) => { uiState.tempCues[slot].splice(i,1); app.render.inspector(); },
+        save: () => {
+            setlist.songs.forEach(s=>s.parts?.forEach(p=>delete p.cue));
+            Object.entries(uiState.tempCues).forEach(([k,v]) => v.forEach(i => { if(setlist.songs[i.si]?.parts[i.pi]) setlist.songs[i.si].parts[i.pi].cue=parseInt(k); }));
+            const b = $('btnSaveCues'); if(b) { b.innerText="Guardado"; setTimeout(()=>b.innerText="Guardar",1500); }
+        }
+    };
+
+    app.visualizer = {
+        cellState: null,
+        getMatrixData: (s) => {
+            const map = []; const set = new Set();
+            s.parts?.forEach(p => (Array.isArray(p.output)?p.output:(p.output?[p.output]:[])).forEach(o => {
+                const k = `${o.device||'default'}||${o.channel!==undefined?o.channel:(o.address?'OSC':'G')}`;
+                if(!set.has(k)) { set.add(k); map.push({k, d:o.device||'default', c:o.channel!==undefined?o.channel:(o.address?'OSC':'G')}); }
+            }));
+            return map.sort((a,b) => (a.d!==b.d ? a.d.localeCompare(b.d) : (a.c==='OSC'?1:b.c==='OSC'?-1:a.c-b.c)));
+        },
+        editCell: (si, pi, dev, ch) => {
+            const p = setlist.songs[si].parts[pi];
+            const all = Array.isArray(p.output)?p.output:(p.output?[p.output]:[]);
+            const rel = all.filter(o => (o.device||'default')===dev && (o.channel!==undefined?o.channel:(o.address?'OSC':'G'))==ch);
+            
+            app.visualizer.cellState = { si, pi, dev, ch, tempOuts: JSON.parse(JSON.stringify(rel.length?rel:[{device:dev, ...(ch==='OSC'?{address:"/addr",args:[]}:ch!=='G'?{channel:parseInt(ch),control:0,value:0}:{control:0,value:0})}])) };
+            uiState.selSong = si; uiState.selPart = pi; uiState.inspectorMode = 'cell_edit';
+            app.render.parts(); app.render.inspector();
+        },
+        saveCell: () => {
+            const { si, pi, dev, ch, tempOuts } = app.visualizer.cellState;
+            const p = setlist.songs[si].parts[pi];
+            let rest = (Array.isArray(p.output)?p.output:(p.output?[p.output]:[])).filter(o => !((o.device||'default')===dev && (o.channel!==undefined?o.channel:(o.address?'OSC':'G'))==ch));
+            tempOuts.forEach(o => { o.device=dev; if(ch==='OSC') { delete o.channel; if(!o.address) o.address="/"; } else if(ch!=='G') o.channel=parseInt(ch); else delete o.channel; rest.push(o); });
+            p.output = rest;
+            uiState.inspectorMode = 'part'; app.render.parts(); app.render.inspector();
+        },
+        cancelCell: () => { uiState.inspectorMode = 'part'; app.render.parts(); app.render.inspector(); }
+    };
+
+    // 5.4. IO & EDITOR
+    app.io = {
+        download: (d, n) => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(d,null,2)); a.download=n; a.click(); },
+        exportSong: () => uiState.selSong!==-1 && app.io.download(setlist.songs[uiState.selSong], (setlist.songs[uiState.selSong].song_name||"song").replace(/\s+/g,'_')+".json"),
+        export: () => {
+            const clean = {
+                playlist_name: setlist.playlist_name, mode: setlist.mode, bpm: setlist.bpm,
+                [setlist.advance_unit||'beats']: setlist.advance_value||0,
+                devices: { ...(_preserved.midi_in||{}), ...setlist.devices.midi_in, midi_out: {...(_preserved.midi_out||{}), ...setlist.devices.midi_out}, osc_out: {...(_preserved.osc_out||{}), ...setlist.devices.osc_out} },
+                triggers: setlist.triggers,
+                songs: setlist.songs.map(({song_name, parts, devices, triggers, notes}) => ({song_name, notes, devices, triggers, parts}))
+            };
+            // Pretty Print logic preserved for readability
+            let json = JSON.stringify(clean, null, 2).replace(/\{\n\s+([^{}\[\]]+?)\n\s+\}/g, (m, c) => {
+                const l = c.replace(/\n\s*/g, ' ').trim();
+                return (l.includes('"device":') || (l.includes('"name":') && l.includes('"bars":'))) ? `{ ${l} }` : m; 
+            });
+            const blob = new Blob([json], {type: "text/json;charset=utf-8"});
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (clean.playlist_name).replace(/\s+/g,'_')+".json"; a.click();
+        },
+        importConf: (e) => {
+            const r = new FileReader();
+            r.onload = (ev) => {
+                try {
+                    const c = appTools.looseJsonParse(ev.target.result);
+                    if(c.devices) {
+                        Object.assign(setlist.devices.midi_in, c.devices.midi_in);
+                        Object.assign(setlist.devices.midi_out, c.devices.midi_out);
+                        Object.assign(setlist.devices.osc_out, c.devices.osc_out);
+                    }
+                    if(c.triggers) setlist._envTriggers = c.triggers;
+                    alert("Entorno importado."); if(uiState.inspectorMode==='devices') app.devices.showInInspector();
+                } catch(err) { alert(err.message); }
+            };
+            if(e.target.files[0]) r.readAsText(e.target.files[0]); e.target.value='';
+        },
+        import: (e) => {
+            const r = new FileReader();
+            r.onload = (ev) => {
+                try {
+                    const d = appTools.looseJsonParse(ev.target.result);
+                    if(d.devices) { if(setlist.devices) { _preserved.midi_in = setlist.devices.midi_in; _preserved.osc_out = setlist.devices.osc_out; } }
+                    setlist = { ...setlist, ...d, advance_value: d.bars||d.beats||0, advance_unit: d.bars?'bars':'beats' };
+                    ['btnShowDevices','btnShowCues','btnShowMatrix'].forEach(id=>$(id)?.classList.remove('active'));
+                    uiState.inspectorMode=null; uiState.songViewMode='parts'; app.selectSong(-1); app.calcTimes();
+                } catch(e) { alert(e.message); }
+            };
+            if(e.target.files[0]) r.readAsText(e.target.files[0]); e.target.value='';
+        }
+    };
+
+    app.editor = {
+        inst: null,
+        save: () => { try { setlist = appTools.looseJsonParse(app.editor.inst.getValue()); uiState.songViewMode='parts'; app.selectSong(0); app.calcTimes(); } catch(e){ alert(e.message); } },
+        export: () => { const b=new Blob([app.editor.inst.getValue()],{type:"text/plain"}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(setlist.playlist_name||"setlist")+".json5"; a.click(); }
+    };
+
+    /* --- 6. RENDER SYSTEM --- */
+    app.render = {
+        sidebar: () => {
+            const l = $('songList'); l.innerHTML = '';
+            
+            // Setlist Header Item
+            const head = document.createElement('li'); head.className = `song-item ${uiState.selSong===-1?'active':''}`; head.dataset.index = -1;
+            head.innerHTML = `<span class="material-symbols-rounded icon-sm text-muted">folder</span><div style="flex:1;font-weight:600;">${setlist.playlist_name||'Setlist'}</div><div class="song-duration text-accent font-bold">${uiState.stats.totalTime.replace('Total: ','')}</div>`;
+            l.appendChild(head);
+
+            setlist.songs.forEach((s, i) => {
+                let bars=0, num=parseInt((s.time_signature||"4/4").split('/')[0])||4;
+                s.parts?.forEach(p => bars += (parseInt(p.bars)||0));
+                const sec = (bars * num * 60) / (setlist.bpm||120);
+                const li = document.createElement('li'); li.className = `song-item ${i===uiState.selSong?'active':''}`;
+                li.draggable=true; li.dataset.index=i;
+                li.innerHTML = `<div class="drag-handle text-muted">⋮⋮</div><div class="color-dot" style="background:${COLOR_MAP[s.color]||'#555'}"></div><div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;">${i+1}. ${s.song_name}</div><div class="song-duration">${sec>0?Math.floor(sec/60)+':'+Math.floor(sec%60).toString().padStart(2,'0'):''}</div>`;
+                l.appendChild(li);
+            });
+            $('btnSetlistNotes')?.classList.toggle('has-notes', !!setlist.notes);
+        },
+
+        parts: () => {
+            document.body.classList.toggle('json-editing', uiState.songViewMode==='json_editor');
+            document.body.classList.toggle('mode-matrix', uiState.songViewMode==='matrix');
+            const cont = $('partsContainer'); cont.innerHTML = ''; 
+            const head = $('partsHeader'); const btn = $('btnAddPart');
+
+            if(uiState.songViewMode === 'json_editor') {
+                cont.innerHTML = `<div class="json-editor-wrapper"><div id="jsonEditorContainer"></div></div><div class="panel-footer" style="position:absolute;bottom:0;width:100%;border-top:1px solid var(--border);z-index:20;"><div class="flex gap-2 j-end w-full"><button id="btnJsonCancel">Cancelar</button><button id="btnJsonSave">Aceptar</button><button id="btnJsonExport" class="icon-only"><span class="material-symbols-rounded icon-sm">download</span></button></div></div>`;
+                const ed = ace.edit("jsonEditorContainer"); ed.setTheme("ace/theme/twilight"); ed.session.setMode("ace/mode/javascript");
+                ed.setValue(JSON.stringify(setlist, null, 2), -1); ed.setShowPrintMargin(false); app.editor.inst = ed;
+                $('btnJsonSave').onclick = app.editor.save; $('btnJsonCancel').onclick = () => { uiState.songViewMode='parts'; app.render.parts(); }; $('btnJsonExport').onclick = app.editor.export;
+                return;
+            }
+
+            if(uiState.inspectorMode === 'devices') {
+                cont.innerHTML = `<div class="p-10"><div class="flex j-between mb-20"><h2 class="m-0">Global Ports</h2><button id="btnSaveDev">Guardar</button></div>
+                    <div class="mb-20"><div class="section-title">Clock/Transport</div><table class="device-table"><thead><tr><th class="col-alias">Alias</th><th>Puerto</th><th></th></tr></thead><tbody id="clockInBody"></tbody><tbody id="transportOutBody"></tbody></table></div>
+                    <div class="mb-20"><div class="section-title">MIDI Inputs</div><table class="device-table"><thead><tr><th class="col-alias">Alias</th><th>Puerto</th><th></th></tr></thead><tbody id="midiInBody"></tbody></table><button data-action="add-dev" data-type="midi_in">+ Add In</button></div>
+                    <div class="mb-20"><div class="section-title">MIDI Outputs</div><table class="device-table"><thead><tr><th class="col-alias">Alias</th><th>Puerto</th><th></th></tr></thead><tbody id="midiOutBody"></tbody></table><button data-action="add-dev" data-type="midi_out">+ Add Out</button></div>
+                    <div><div class="section-title">OSC Out</div><table class="device-table"><thead><tr><th class="col-alias">Alias</th><th class="col-ip">IP</th><th class="col-port">Port</th><th></th></tr></thead><tbody id="oscOutBody"></tbody></table><button data-action="add-dev" data-type="osc_out">+ Add OSC</button></div></div>`;
+                app.devices.renderAll(); return;
+            }
+            if (uiState.songViewMode === 'triggers') {
+    const song = setlist.songs[uiState.selSong];
+    cont.innerHTML = `<div class="p-10"><div class="flex j-between mb-20"><h2 class="m-0">Song Triggers</h2><div class="text-code text-muted">${song.song_name}</div></div><div id="songTriggersList"></div></div>`;
+    
+    const types = [
+        {k:"song_change", l:"On Load"}, 
+        {k:"part_change", l:"On Part Change"}, 
+        {k:"bar_triggers", l:"Cyclic"}, 
+        {k:"countdown_triggers", l:"Countdown"}
+    ];
+
+    const listDiv = cont.querySelector('#songTriggersList');
+    types.forEach(t => {
+        const item = document.createElement('div'); 
+        item.className = 'trigger-item'; 
+        item.innerHTML = `<div class="trigger-header">${t.l}</div><div id="st_${t.k}"></div>`; 
+        listDiv.appendChild(item);
+        
+        // Inicializar objeto triggers si no existe
+        if (!song.triggers) song.triggers = {};
+        
+        app.inspector.renderList(item.querySelector(`#st_${t.k}`), `song_${t.k}`, song.triggers[t.k]||[], (nl) => {
+            if (nl && nl.length > 0) song.triggers[t.k] = nl;
+            else delete song.triggers[t.k];
+        });
+    });
+    return;
+}
+            if(uiState.selSong !== -1 && uiState.songViewMode === 'matrix') {
+                const map = app.visualizer.getMatrixData(setlist.songs[uiState.selSong]);
+                if(!map.length) { cont.innerHTML = '<div class="empty-state">Sin Outputs configurados</div>'; return; }
+                let h = '<div class="matrix-wrapper"><table class="matrix-table"><thead><tr><th class="corner-header">Parte</th>';
+                map.forEach(c => h += `<th><div class="header-device">${c.d}</div>${c.c}</th>`);
+                h += '</tr></thead><tbody>';
+                setlist.songs[uiState.selSong].parts?.forEach((p, pi) => {
+                    const isSel = pi === uiState.selPart;
+                    h += `<tr><td class="row-header ${isSel?'text-main font-bold':''}" style="cursor:pointer;" onclick="app.selectPart(${pi})">${pi+1}. ${p.name}</td>`;
+                    const outs = Array.isArray(p.output)?p.output:(p.output?[p.output]:[]);
+                    map.forEach(c => {
+                        const m = outs.filter(o => (o.device||'default')===c.d && (o.channel!==undefined?o.channel:(o.address?'OSC':'G'))==c.c);
+                        const isEd = uiState.inspectorMode==='cell_edit' && uiState.selPart===pi && app.visualizer.cellState?.dev===c.d && app.visualizer.cellState?.ch==c.c;
+                        h += `<td class="matrix-cell ${isEd?'cell-active':''}" onclick="app.visualizer.editCell(${uiState.selSong},${pi},'${c.d}','${c.c}')">${m.map(x => `<span class="cell-msg">${x.program!==undefined?`PC ${x.program}`:x.control!==undefined?`CC ${x.control} <span class="opacity-70">${x.value}</span>`:x.address||'Trig'}</span>`).join('')||'<span class="opacity-70">+</span>'}</td>`;
+                    });
+                    h += '</tr>';
+                });
+                cont.innerHTML = h + '</tbody></table></div>';
+                return;
+            }
+
+            if (uiState.songViewMode === 'notes') {
+                const target = uiState.selSong===-1 ? setlist : setlist.songs[uiState.selSong];
+                cont.innerHTML = `<div class="flex-col-full p-10"><div class="section-title mb-10">Notas: ${target.song_name||target.playlist_name}</div><textarea id="notesEditor" class="w-full text-code notes-editor" placeholder="Escribe notas...">${target.notes||''}</textarea></div>`;
+                $('notesEditor').oninput = (e) => target.notes = e.target.value;
+                return;
+            }
+
+            // Normal Views
+            if(uiState.selSong === -1) { // Setlist View
+                if(setlist.songs.length === 0) { 
+                    cont.innerHTML = '<div class="empty-state">Setlist vacío</div>'; 
+                } else {
+                    head.innerHTML = `<div></div><div></div><div>Canción</div><div>Info</div><div class="text-center">Total Bars</div><div class="text-center">Duración</div><div class="text-center"></div><div class="text-center"></div>`;
+                    if(btn) { btn.disabled = false; btn.innerText = "+ Añadir Canción"; }
+                    
+                    setlist.songs.forEach((s, i) => {
+                        let tb = 0, num = parseInt((s.time_signature||"4/4").split('/')[0])||4;
+                        s.parts?.forEach(p => tb += (parseInt(p.bars)||0));
+                        const sec = (tb * num * 60) / (setlist.bpm||120);
+                        const row = document.createElement('div'); 
+                        
+                        // CRÍTICO: Atributos data-index y clases para listeners delegados
+                        row.className = 'grid-layout part-row'; 
+                        row.dataset.index = i; 
+                        row.dataset.type = 'song';
+                        row.draggable = true;
+                        
+                        row.innerHTML = `
+                            <div class="text-muted text-center" style="font-size:10px;">${i+1}</div>
+                            <div class="color-dot" style="background:${COLOR_MAP[s.color]||'#555'}"></div>
+                            <div class="text-main font-bold cursor-pointer">${s.song_name}</div>
+                            <div class="text-muted text-code">${(s.parts||[]).length} partes</div>
+                            <div class="text-center text-code font-bold">${tb}</div>
+                            <div class="text-center text-code text-accent">${sec>0?Math.floor(sec/60)+':'+Math.floor(sec%60).toString().padStart(2,'0'):'0:00'}</div>
+                            <div></div>
+                            <div class="flex j-between">
+                                <button class="icon-only btn-dup-song" data-index="${i}" title="Duplicar"><span class="material-symbols-rounded icon-sm">content_copy</span></button>
+                                <button class="icon-only danger btn-del-song" data-index="${i}" title="Eliminar"><span class="material-symbols-rounded icon-sm">delete</span></button>
+                            </div>`;
+                        cont.appendChild(row);
+                    });
+                }
+            } else { // Song Parts View
+                head.innerHTML = `<div></div><div></div><div>Nombre</div><div>Notas</div><div class="text-center">Bars</div><div class="text-center">Pattern</div><div class="text-center">Outs</div><div class="text-center"></div>`;
+                if(btn) { btn.disabled = false; btn.innerText = "+ Añadir Parte"; }
+                const song = setlist.songs[uiState.selSong];
+                
+                if(song.filepath) { 
+                    cont.innerHTML = `<div class="empty-state"><span class="material-symbols-rounded icon-lg mb-10" style="color:var(--danger);">link_off</span>Enlazado Externo<div class="text-code text-muted mt-5">${song.filepath}</div></div>`; 
+                    btn.disabled = true; 
+                    return; 
+                }
+                
+                if(!song.parts?.length) { cont.innerHTML = '<div class="empty-state">Sin partes</div>'; return; }
+                
+                song.parts.forEach((p, i) => {
+                    const row = document.createElement('div'); 
+                    row.className = `grid-layout part-row ${i===uiState.selPart?'selected':''}`;
+                    row.draggable = true; 
+                    row.dataset.index = i; 
+                    row.dataset.type = 'part';
+                    
+                    const hasOut = p.output && (Array.isArray(p.output)?p.output.length:Object.keys(p.output).length);
+                    
+                    // CRÍTICO: Listeners inline restaurados para Tooltips y Envío MIDI
+                    row.innerHTML = `
+                        <div class="drag-handle">⋮⋮</div>
+                        <div class="color-dot" style="background:${COLOR_MAP[p.color]||"#555"}" data-context="part" onclick="app.colors.open('part', ${i})"></div>
+                        <div class="font-bold">${p.name}</div>
+                        <div class="text-muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.notes||''}</div>
+                        <div class="text-center text-code">${p.bars}</div>
+                        <div class="text-center text-code text-muted">${app.pattern.summary(p.repeat_pattern)}</div>
+                        <div class="text-center part-outs-indicator ${hasOut?'cursor-pointer':'text-muted'}" 
+                             onclick="if(${hasOut}) app.midi.send(setlist.songs[uiState.selSong].parts[${i}].output)"
+                             onmouseenter="if(${hasOut}) app.tooltip.show(event, ${uiState.selSong}, ${i})" 
+                             onmouseleave="app.tooltip.hide()">
+                             ${hasOut?'<span class="material-symbols-rounded icon-sm">output</span>':'-'}
+                        </div>
+                        <div class="flex j-between">
+                            <button class="icon-only btn-dup-part" data-index="${i}"><span class="material-symbols-rounded icon-sm">content_copy</span></button>
+                            <button class="icon-only danger btn-del-part" data-index="${i}"><span class="material-symbols-rounded icon-sm">delete</span></button>
+                        </div>`;
+                    cont.appendChild(row);
+                });
+            }
+        },
+
+        inspector: () => {
+            const tit = $('inspectorTitle'); const bod = $('inspectorContent'); const act = $('inspectorActions');
+            bod.innerHTML = ''; act.innerHTML = '';
+
+            if (uiState.inspectorMode === 'cell_edit') {
+                tit.innerText = "Editar Salida";
+                bod.innerHTML = `<div class="prop-group"><div class="flex j-between align-center mb-10"><div class="font-bold">${app.visualizer.cellState.dev}</div><div class="text-code text-muted">${app.visualizer.cellState.ch}</div></div><div id="cellEditList"></div></div><div class="prop-group flex gap-2"><button id="btnSaveCellInspector" class="primary w-full" onclick="app.visualizer.saveCell()">Guardar</button><button class="w-full" onclick="app.visualizer.cancelCell()">Cancelar</button></div>`;
+                app.inspector.renderList($('cellEditList'), 'cell_edit', app.visualizer.cellState.tempOuts, (nl)=>app.visualizer.cellState.tempOuts=nl);
+                return;
+            }
+
+            // Global Level
+            if (uiState.selSong === -1 || uiState.songViewMode === 'matrix') {
+                tit.innerText = "Setlist";
+                act.innerHTML = `<button class="icon-only ${!uiState.inspectorMode||uiState.inspectorMode==='setlist'?'active':''}" id="btnSetlistProps"><span class="material-symbols-rounded icon-sm">list</span></button><button class="icon-only ${setlist.notes?'has-notes':''} ${uiState.songViewMode==='notes'?'active':''}" id="btnSetlistNotes"><span class="material-symbols-rounded icon-sm">description</span></button><button class="icon-only ${uiState.songViewMode==='matrix'?'active':''}" id="btnShowMatrix"><span class="material-symbols-rounded icon-sm">arrows_output</span></button><div class="separator-v"></div><button class="icon-only ${uiState.inspectorMode==='devices'?'active':''}" id="btnShowDevices"><span class="material-symbols-rounded icon-sm">cable</span></button><button class="icon-only ${uiState.inspectorMode==='global'?'active':''}" id="btnShowGlobalTriggers"><span class="material-symbols-rounded icon-sm">output_circle</span></button><button class="icon-only ${uiState.inspectorMode==='cues'?'active':''}" id="btnShowCues"><span class="material-symbols-rounded icon-sm">bookmarks</span></button>`;
+                
+                if (uiState.inspectorMode === 'global') {
+    tit.innerText = "Triggers Globales";
+    
+    // Restaurar visualización de triggers de entorno (Hardware)
+    let envHtml = '';
+    if (setlist._envTriggers) {
+        envHtml = `<div class="prop-group bg-accent-subtle mb-10"><div class="section-title text-accent">HARDWARE (Importado)</div><div id="envTriggersList"></div></div>`;
+    }
+
+    bod.innerHTML = `
+        <div class="prop-group mb-20">
+            <div class="section-title">Advance</div>
+            <div class="flex gap-2 align-center bg-accent-subtle">
+                <input type="number" value="${setlist.advance_value||0}" class="input-tiny" data-action="update-global-adv" data-field="val">
+                <select class="select-tiny" data-action="update-global-adv" data-field="unit">
+                    <option value="beats" ${setlist.advance_unit==='beats'?'selected':''}>Beats</option>
+                    <option value="bars" ${setlist.advance_unit==='bars'?'selected':''}>Bars</option>
+                </select>
+                <div class="text-muted" style="font-size:10px;margin-left:auto;">(0=Man)</div>
+            </div>
+        </div>
+        ${envHtml}
+        <div class="section-title mt-20">Eventos Local</div>
+        <div id="globalTriggersList"></div>
+    `;
+
+    // Renderizar Environment Triggers (Solo lectura)
+    if (setlist._envTriggers) {
+        const envCont = bod.querySelector('#envTriggersList');
+        const envTypes = [{k:"bar_triggers",l:"Cyclic"}, {k:"countdown_triggers",l:"Countdown"}, {k:"song_change",l:"Song Change"}];
+        envTypes.forEach(t => {
+            if(setlist._envTriggers[t.k] && setlist._envTriggers[t.k].length) {
+                const d = document.createElement('div'); d.className='trigger-item'; 
+                d.innerHTML=`<div class="trigger-header text-muted">${t.l}</div><div id="env_${t.k}" class="opacity-70" style="pointer-events:none"></div>`;
+                envCont.appendChild(d);
+                app.inspector.renderList(d.querySelector(`#env_${t.k}`), `env_${t.k}`, setlist._envTriggers[t.k], ()=>{});
+            }
+        });
+    }
+
+    // Renderizar Global Triggers (Existente + Tipos faltantes de index71)
+    const types = [
+        {k:"bar_triggers",l:"Cyclic"}, {k:"countdown_triggers",l:"Countdown"},
+        {k:"playback_start",l:"Play"}, {k:"playback_stop",l:"Stop"}, {k:"playback_continue",l:"Continue"},
+        {k:"song_change",l:"Song Change"}, {k:"part_change",l:"Part Change"}, {k:"setlist_end",l:"End Setlist"}
+    ];
+    types.forEach(t => {
+        const d = document.createElement('div'); d.className='trigger-item'; 
+        d.innerHTML=`<div class="trigger-header">${t.l}</div><div id="gt_${t.k}"></div>`; 
+        bod.querySelector('#globalTriggersList').appendChild(d);
+        if(!setlist.triggers) setlist.triggers={};
+        app.inspector.renderList(d.querySelector(`#gt_${t.k}`), `glob_${t.k}`, setlist.triggers[t.k]||[], (nl)=>setlist.triggers[t.k]=nl);
+    });
+    return;
+} else if (uiState.inspectorMode === 'cues') {
+                    tit.innerText = "Asignación F1-F12";
+                    bod.innerHTML = `<div class="flex-col-full"><div class="flex j-between mb-15"><div class="flex gap-2 w-full"><span class="material-symbols-rounded text-muted icon-sm">search</span><input type="text" id="cueSearch" placeholder="Buscar..." class="cue-search-box"></div><button id="btnSaveCues" onclick="app.cues.save()">Guardar</button></div><div class="prop-label">Fuentes</div><div id="cuesSrc" class="scroll-y cue-src-container"></div><div class="prop-label">Asignaciones</div><div id="cuesSlots" class="scroll-y flex-1"></div></div>`;
+                    bod.querySelector('#cueSearch').oninput = (e) => app.cues.renderSourceList('cuesSrc', e.target.value);
+                    app.cues.renderSourceList = (id, f) => { $(id).innerHTML = `<div class="cue-grid-main">${Object.values(uiState.tempCues).flat().concat(uiState.selSong>-1?[]:[]).filter(x=>!f||x.label.toLowerCase().includes(f.toLowerCase())).map(x=>`<div class="cue-src-item" draggable="true" ondragstart="event.dataTransfer.setData('cueData',JSON.stringify({si:${x.si},pi:${x.pi},label:'${x.label}'}))"><span class="material-symbols-rounded icon-sm">circle</span> ${x.label}</div>`).join('')}</div>` }; // Simple Render stub
+                    app.cues.renderInspectorSlots = () => {
+                        const c = bod.querySelector('#cuesSlots'); c.innerHTML='';
+                        for(let i=1; i<=12; i++) {
+                            const row = document.createElement('div'); row.className='cue-slot-row';
+                            row.innerHTML = `<div class="cue-slot-key">F${i}</div><div class="cue-slot-drop" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="app.cues.drop(event,${i})">${(uiState.tempCues[i]||[]).map((a,idx)=>`<div class="cue-chip">${a.label} <span class="cue-chip-remove" onclick="app.cues.remove(${i},${idx})">×</span></div>`).join('')}</div>`;
+                            c.appendChild(row);
+                        }
+                    };
+                    app.cues.renderSourceList('cuesSrc'); app.cues.renderInspectorSlots();
+                } else if (uiState.inspectorMode === 'devices') {
+                    // Handled in Parts view for full width
+                } else { // Setlist props
+                    bod.innerHTML = `<div class="prop-group"><label class="prop-label">Nombre</label><input type="text" class="font-bold" value="${setlist.playlist_name||''}" data-action="update-setlist" data-field="name"></div><div class="prop-group flex gap-2"><div class="w-full"><label class="prop-label">BPM</label><input type="number" value="${setlist.bpm||124}" data-action="update-setlist" data-field="bpm"><div id="bpmInfo" class="text-center text-code text-muted mt-5">${uiState.stats.bpmInfo}</div></div><div class="w-full"><label class="prop-label">Modo</label><select data-action="update-setlist" data-field="mode"><option value="loop" ${setlist.mode==='loop'?'selected':''}>Loop</option><option value="song" ${setlist.mode==='song'?'selected':''}>Song</option></select></div></div>`;
+                }
+                return;
+            }
+
+            // Song Level
+            const song = setlist.songs[uiState.selSong];
+            tit.innerText = uiState.inspectorMode==='part' ? "Editar Parte" : "Propiedades Canción";
+            act.innerHTML = `<button data-view="parts" class="icon-only ${uiState.songViewMode==='parts'?'active':''}"><span class="material-symbols-rounded icon-sm">list</span></button><button data-view="notes" class="icon-only ${song.notes?'has-notes':''} ${uiState.songViewMode==='notes'?'active':''}"><span class="material-symbols-rounded icon-sm">description</span></button><button data-view="devices" class="icon-only ${uiState.songViewMode==='devices'?'active':''}"><span class="material-symbols-rounded icon-sm">cable</span></button><div class="separator-v"></div><button class="icon-only" id="btnLinkSetlist"><span class="material-symbols-rounded icon-sm">link</span></button><button class="icon-only" id="btnImportContent"><span class="material-symbols-rounded icon-sm">post_add</span></button><button class="icon-only" id="btnExportSong"><span class="material-symbols-rounded icon-sm">download</span></button><div class="separator-v"></div><button class="icon-only" id="btnDupSong"><span class="material-symbols-rounded icon-sm">content_copy</span></button><button class="icon-only danger" id="btnDelSong"><span class="material-symbols-rounded icon-sm">delete</span></button>${uiState.inspectorMode==='part'?`<div class="separator-v"></div><button class="icon-only" onclick="app.midi.send(setlist.songs[uiState.selSong].parts[uiState.selPart].output)"><span class="material-symbols-rounded icon-sm text-accent">play_circle</span></button>`:''}`;
+
+            if(uiState.inspectorMode==='part') {
+                const p = song.parts[uiState.selPart];
+                bod.innerHTML = `<div class="prop-group"><label class="prop-label">Nombre</label><div class="flex gap-2 align-center"><div class="color-dot" style="width:14px;height:14px;background:${COLOR_MAP[p.color]||'#555'}" data-context="part" onclick="app.colors.open('part', ${uiState.selPart})"></div><input type="text" class="w-full font-bold" value="${p.name}" data-action="update-part" data-field="name"></div></div><div class="prop-group flex gap-2"><div class="w-full"><label class="prop-label">Compases</label><input type="number" value="${p.bars}" data-action="update-part" data-field="bars"></div><div class="w-full"><label class="prop-label">Cue</label><div class="flex gap-2"><input type="number" value="${p.cue||''}" placeholder="-" data-action="update-part" data-field="cue"><button class="icon-only" id="btnShowCuesGrid" onclick="app.cues.show()"><span class="material-symbols-rounded icon-sm">grid_view</span></button></div></div></div><div class="prop-group"><label class="prop-label">Notas</label><textarea rows="2" class="resize-v" data-action="update-part" data-field="notes">${p.notes||''}</textarea></div><div class="prop-group"><div class="flex j-between"><label class="prop-label">Patrón</label><button class="icon-only" id="btnOpenPattern" onclick="app.pattern.open()"><span class="material-symbols-rounded icon-sm">account_tree</span></button></div><input type="text" disabled value="${app.pattern.summary(p.repeat_pattern)}" class="text-code text-muted"></div><div class="prop-group"><div class="flex j-between align-center mb-5"><label class="prop-label m-0">Outputs</label></div><div id="partOutputsList"></div></div>`;
+                app.inspector.renderOutputList(bod.querySelector('#partOutputsList'), 'part_outs', Array.isArray(p.output)?p.output:[], (nl) => { p.output=nl; app.render.parts(); });
+            } else {
+                bod.innerHTML = `<div class="prop-group"><label class="prop-label">Nombre</label><div class="flex gap-2 align-center"><div class="color-dot" style="width:14px;height:14px;background:${COLOR_MAP[song.color]||'#555'}" data-context="song" onclick="app.colors.open('song', ${uiState.selSong})"></div><input type="text" class="font-bold" value="${song.song_name}" data-action="update-song" data-field="song_name"></div></div><div class="prop-group flex gap-2"><div class="w-full"><label class="prop-label">Time Sig</label><input type="text" value="${song.time_signature||'4/4'}" data-action="update-song" data-field="time_signature"></div><div class="w-full"><label class="prop-label">Div</label><select data-action="update-song" data-field="time_division"><option value="1/4" ${song.time_division==='1/4'?'selected':''}>1/4</option><option value="1/8" ${song.time_division==='1/8'?'selected':''}>1/8</option><option value="1/16" ${song.time_division==='1/16'?'selected':''}>1/16</option></select></div></div>`;
+            }
+        },
+
+        // CORE INSPECTOR LIST LOGIC
+        contexts: {},
+        renderList: (cont, ctxId, list, cb) => {
+            app.inspector.contexts[ctxId] = { list: JSON.parse(JSON.stringify(list)), cb };
+            const ctx = app.inspector.contexts[ctxId];
+            const devices = [...new Set([...Object.keys(setlist.devices.midi_out), ...Object.keys(setlist.devices.osc_out), ...app.devices.scanGhosts()])];
+            
+            const redraw = () => {
+                cont.innerHTML = '';
+                ctx.list.forEach((it, i) => {
+                    const wrap = document.createElement('div'); wrap.className=`output-wrapper ${it._timing_open?'expanded':''}`;
+                    let devOpt = `<option value="">--</option>` + devices.map(d=>`<option value="${d}" ${it.device===d?'selected':''}>${d}</option>`).join('') + (it.device&&!devices.includes(it.device)?`<option value="${it.device}" selected>${it.device} (?)</option>`:'');
+                    
+                    let type = 'midi_cc';
+                    if(it.address) type='osc'; else if(['start','stop','continue'].includes(it.type)) type='transport';
+                    else if(it.type==='note_off') type='note_off'; else if(it.program!==undefined||it.type==='program_change') type='pc';
+                    else if(it.note!==undefined||it.type==='note_on'||it.type==='note') type='note_on';
+
+                    const card = document.createElement('div');
+                    if(type==='osc') {
+                        card.className = 'output-card flex-col align-start p-10 gap-2';
+                        card.innerHTML = `<div class="flex j-between w-full gap-2"><select class="out-device flex-1" onchange="app.inspector.upd('${ctxId}',${i},'device',this.value)">${devOpt}</select><select class="out-type w-80px-imp" onchange="app.inspector.upd('${ctxId}',${i},'new_type',this.value)"><option value="midi_cc">CC</option><option value="osc" selected>OSC</option></select><div class="flex gap-2"><button class="icon-only btn-timing" onclick="app.inspector.togTime('${ctxId}',${i})"><span class="material-symbols-rounded icon-sm">schedule</span></button><button class="icon-only danger out-del" onclick="app.inspector.del('${ctxId}',${i})">✕</button></div></div><div class="w-full"><input type="text" class="out-val w-full mb-10 font-bold text-code" value="${it.address||''}" placeholder="/addr" onchange="app.inspector.upd('${ctxId}',${i},'address',this.value)"><textarea class="out-val w-full text-code resize-v" rows="3" placeholder="Args: [1]" onchange="app.inspector.upd('${ctxId}',${i},'args',this.value)">${JSON.stringify(it.args||[])}</textarea><div class="osc-var-container"><span class="osc-var-tag" onclick="app.inspector.insOsc('${ctxId}',${i},'part_index')">part_idx</span></div></div>`;
+                    } else {
+                        card.className = 'output-card';
+                        const m = MSG_METADATA[type] || MSG_METADATA.midi_cc;
+                        const v1 = it.program??it.control??it.note??it.song??""; const v2 = it.value??it.velocity??"";
+                        card.innerHTML = `<select class="out-device" onchange="app.inspector.upd('${ctxId}',${i},'device',this.value)">${devOpt}</select><select class="out-type" onchange="app.inspector.upd('${ctxId}',${i},'new_type',this.value)"><option value="midi_cc" ${type==='midi_cc'?'selected':''}>CC</option><option value="pc" ${type==='pc'?'selected':''}>PC</option><option value="note_on" ${type==='note_on'?'selected':''}>Note</option><option value="transport" ${type==='transport'?'selected':''}>Tpt</option><option value="osc">OSC</option></select><input type="text" class="out-ch" placeholder="Ch" value="${it.channel!==undefined?it.channel:''}" ${type==='transport'?'disabled':''} onchange="app.inspector.upd('${ctxId}',${i},'channel',this.value)">${type==='transport'?`<select class="out-val" onchange="app.inspector.upd('${ctxId}',${i},'transport_val',this.value)"><option value="start" ${it.type==='start'?'selected':''}>Play</option><option value="stop" ${it.type==='stop'?'selected':''}>Stop</option></select><input disabled class="out-val out-disabled">`:`<input type="text" class="out-val" placeholder="${m.val1.placeholder}" value="${v1}" onchange="app.inspector.upd('${ctxId}',${i},'val1',this.value)"><input type="text" class="out-val ${m.val2.disabled?'out-disabled':''}" placeholder="${m.val2.placeholder}" value="${v2}" ${m.val2.disabled?'disabled':''} onchange="app.inspector.upd('${ctxId}',${i},'val2',this.value)">`}<button class="icon-only btn-timing" onclick="app.inspector.togTime('${ctxId}',${i})"><span class="material-symbols-rounded icon-sm">schedule</span></button><button class="icon-only danger out-del" onclick="app.inspector.del('${ctxId}',${i})">✕</button>`;
+                    }
+                    wrap.appendChild(card);
+                    wrap.appendChild(Object.assign(document.createElement('div'), {className:'timing-row', innerHTML:`<div class="timing-group"><span class="material-symbols-rounded icon-sm">hourglass_top</span></div><div class="timing-group"><label>Bars</label><input type="number" class="timing-input" value="${it.bar||''}" onchange="app.inspector.upd('${ctxId}',${i},'bar',this.value)"></div><div class="timing-group"><label>Beats</label><input type="number" class="timing-input" value="${it.beats||''}" onchange="app.inspector.upd('${ctxId}',${i},'beats',this.value)"></div>`}));
+                    cont.appendChild(wrap);
+                });
+                const add = document.createElement('button'); add.className='w-full'; add.innerText='+ Añadir Output'; add.onclick=()=>{ ctx.list.push({device:"",control:0,value:0}); redraw(); }; cont.appendChild(add);
+                const clean = ctx.list.map(({_timing_open,...r}) => r);
+                ctx.cb(clean);
+            };
+            redraw();
+        },
+        upd: (cid, i, f, v) => {
+            const l = app.inspector.contexts[cid].list[i];
+            if(f==='device') l.device=v;
+            else if(f==='channel') { const n=parseInt(v); if(!isNaN(n)) l.channel=n; else delete l.channel; }
+            else if(f==='new_type') {
+                const b={device:l.device,bar:l.bar,beats:l.beats,_timing_open:l._timing_open};
+                if(v==='osc') { delete l.channel; l.address="/addr"; l.args=[]; }
+                else if(v==='transport') { l.type='start'; delete l.channel; }
+                else { l.channel=l.channel||0; if(v==='pc'){l.type='program_change';l.program=0;} else if(v==='note_on'){l.type='note_on';l.note=60;l.velocity=100;} else {l.control=0;l.value=0;} }
+                // Quick dirty reset of props based on type switch
+                if(v!=='osc' && v!=='transport') Object.assign(app.inspector.contexts[cid].list[i], b); // Restore basics
+                app.inspector.contexts[cid].list[i] = v==='osc' ? {...b,address:"/",args:[]} : v==='transport' ? {...b,type:'start'} : v==='pc' ? {...b,channel:0,program:0,type:'program_change'} : v==='note_on' ? {...b,channel:0,note:60,velocity:100,type:'note_on'} : {...b,channel:0,control:0,value:0};
+            }
+            else if(f==='val1') { const n=parseInt(v); if(!isNaN(n)) { if(l.program!==undefined||l.type==='program_change') l.program=n; else if(l.note!==undefined) l.note=n; else l.control=n; } }
+            else if(f==='val2') { const n=parseInt(v); if(!isNaN(n)) { if(l.velocity!==undefined) l.velocity=n; else l.value=n; } }
+            else if(f==='address') l.address=v;
+            else if(f==='args') { try { l.args=JSON.parse(v); } catch(e){ l.args=v.split(',').map(s=>s.trim()); } }
+            else if(f==='bar'||f==='beats') { const n=parseInt(v); if(!isNaN(n)) l[f]=n; else delete l[f]; }
+            else if(f==='transport_val') l.type=v;
+            
+            app.inspector.contexts[cid].cb(app.inspector.contexts[cid].list.map(({_timing_open,...r})=>r));
+        },
+        del: (cid, i) => { app.inspector.contexts[cid].list.splice(i, 1); app.render.inspector(); },
+        togTime: (cid, i) => { const l=app.inspector.contexts[cid].list[i]; l._timing_open=!l._timing_open; app.render.inspector(); },
+        insOsc: (cid, i, v) => { app.inspector.contexts[cid].list[i].args.push(v); app.render.inspector(); },
+        clear: () => { uiState.inspectorMode=null; app.render.inspector(); }
+    };
+    
+    app.tooltip = {
+        show: (e, si, pi) => {
+            const p=setlist.songs[si].parts[pi]; const o=Array.isArray(p.output)?p.output:[p.output]; if(!o.length)return;
+            const h = o.map(x => `<tr><td class="text-accent">${x.device||'def'}</td><td>${x.address?'OSC':x.program?'PC':x.note?'Nt':'CC'}</td><td>${x.channel||'-'}</td><td>${x.address||x.program||x.note||x.control}</td><td>${x.args||x.velocity||x.value||'-'}</td></tr>`).join('');
+            const el=$('outputPreview'); el.innerHTML=`<table><thead><tr><th>Dev</th><th>Type</th><th>Ch</th><th>V1</th><th>V2</th></tr></thead><tbody>${h}</tbody></table>`;
+            el.style.display='block'; const r=e.target.getBoundingClientRect(); el.style.top=(r.top-10)+'px'; el.style.left=(r.right+10)+'px';
+        },
+        hide: () => $('outputPreview').style.display='none'
+    };
+
+    /* --- 7. DELEGATION HANDLING & INIT --- */
+    // Moved dynamic click handling to specific render functions or onclick attributes for clarity in this refactor
+    // Global delegation for main areas
+    ['inspectorContent','partsContainer','inspectorActions'].forEach(id => {
+        const el=$(id); if(el) {
+            el.addEventListener('click', e => {
+                const t = e.target.closest('button')||e.target; const inp = e.target;
+                if(t.dataset.action==='update-setlist' || t.dataset.action==='update-song' || t.dataset.action==='update-part' || t.dataset.action==='update-dev') return; // Handled via onchange/oninput
+                if(t.dataset.view) { app.render.songsView(t.dataset.view); } // Stub for view switching
+                
+                // Sidebar toggles
+                if(t.id==='btnShowDevices') app.devices.showInInspector();
+                if(t.id==='btnShowCues') app.cues.show();
+                if(t.id==='btnShowGlobalTriggers') { uiState.selSong=-1; uiState.inspectorMode='global'; app.render.parts(); app.render.inspector(); }
+                if(t.id==='btnShowMatrix') { uiState.songViewMode = uiState.songViewMode==='matrix'?'parts':'matrix'; app.render.parts(); app.render.inspector(); }
+                if(t.id==='btnSetlistProps') { uiState.inspectorMode='setlist'; app.render.inspector(); }
+                if(t.id==='btnSetlistNotes') { uiState.songViewMode=uiState.songViewMode==='notes'?'parts':'notes'; app.render.parts(); app.render.inspector(); }
+                
+                // Song/Part actions
+                if(t.id==='btnLinkSetlist') app.actions.linkSetlist();
+                if(t.id==='btnImportContent') $('importToSong').click();
+                if(t.id==='btnExportSong') app.io.exportSong();
+                if(t.id==='btnDupSong') app.actions.dupSong();
+                if(t.id==='btnDelSong') app.actions.deleteSong();
+                
+                // Generic Select
+                const pRow = t.closest('.part-row');
+                if(pRow && !t.closest('button') && !t.classList.contains('part-outs-indicator')) {
+                    if(pRow.dataset.type==='part') app.selectPart(parseInt(pRow.dataset.index));
+                }
+            });
+            // Global Input Handler
+            el.addEventListener('input', e => {
+                const d=e.target.dataset; if(!d.action) return;
+                DataValidator.validateInput(e.target);
+                if(d.action==='update-setlist') { setlist[d.field] = d.field==='bpm'?parseInt(e.target.value):e.target.value; if(d.field==='bpm') app.calcTimes(); }
+                if(d.action==='update-song') { setlist.songs[uiState.selSong][d.field] = e.target.value; if(d.field==='song_name') app.render.sidebar(); }
+                if(d.action==='update-part') { 
+                    const v = e.target.type==='number'?parseInt(e.target.value):e.target.value; 
+                    setlist.songs[uiState.selSong].parts[uiState.selPart][d.field] = v;
+                    if(d.field==='name'||d.field==='bars'||d.field==='cue') app.render.parts();
+                }
+                if(d.action==='update-dev') app.devices.update(d.type, parseInt(d.idx), d.field, e.target.value);
+                if(d.action==='update-special-dev') app.devices.updateSpecial(d.key, e.target.value);
+            });
+        }
+    });
+    
+    // Additional helpers required for the delegation above
+    app.selectSong = (i) => { uiState.selSong=i; uiState.selPart=-1; uiState.inspectorMode=i===-1?'setlist':'song'; uiState.songViewMode='parts'; app.render.sidebar(); app.render.parts(); app.render.inspector(); app.calcTimes(); };
+    app.selectPart = (i) => { uiState.selPart=i; uiState.inspectorMode='part'; app.render.parts(); app.render.inspector(); };
+    app.render.songsView = (v) => { uiState.songViewMode = uiState.songViewMode===v?'parts':v; app.render.parts(); app.render.inspector(); };
+
+    // Final Init
+    window.onload = app.init;
+</script>
+</body>
+</html>
