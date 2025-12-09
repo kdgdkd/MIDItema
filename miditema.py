@@ -563,7 +563,7 @@ def _process_trigger_action(action, context):
             device_name = _last_used_device
         else:
             # No hay dispositivo en la acción y nunca se ha definido uno. No se puede procesar.
-            return
+            device_name = "MIDItema"
 
     if device_name in midi_outputs:
         port = midi_outputs[device_name]
@@ -744,6 +744,7 @@ def load_song_file(filepath: Path = None, data: dict = None):
     Puede cargar desde un diccionario (data) o desde un archivo (filepath).
     """
     global song_state
+    _last_used_device = None
     
     song_data = None
     if data:
@@ -864,7 +865,8 @@ def load_song_from_playlist(song_index: int):
     context = {
         "song_index": song_index,
         "song_name": song_name_for_osc,
-        "song_color": song_data_to_load.get("color")
+        "song_color": song_data_to_load.get("color"),
+        "part_index": 0
     }
     global last_triggered_song_index
     if last_triggered_song_index != song_index:
@@ -884,7 +886,7 @@ def reset_song_state_on_stop():
     """Resetea el estado de la secuencia cuando el reloj se detiene."""
     # print("DEBUG: reset_song_state_on_stop -> Reseteando contadores de canción")
     global _last_used_device, previous_song_index
-    _last_used_device = None
+    # _last_used_device = None
     previous_song_index = -1 
     song_state.current_part_index = -1
     song_state.remaining_beats_in_part = 0
@@ -1319,7 +1321,7 @@ def execute_song_jump():
             )
             if target_part_index is not None:
                 song_state.pass_count = target_pass_count
-                setup_part(target_part_index, fire_instant_trigger=False)
+                setup_part(target_part_index, fire_instant_trigger=True)
             else:
                 handle_song_end()
         else:
@@ -1381,101 +1383,129 @@ def check_and_execute_pending_action():
 
 def start_next_part():
     """
-    Determina qué parte reproducir a continuación, dando prioridad a las acciones del usuario.
+    Determina qué parte reproducir a continuación de forma iterativa, evitando recursión.
     """
     global part_loop_active, part_loop_index, repeat_override_active
 
-    # --- INICIO DEL CAMBIO ---
-    # PRIORIDAD MÁXIMA: Si hay una acción pendiente, ejecutarla y salir.
-    # Esto asegura que un salto programado por el usuario siempre anule
-    # el comportamiento por defecto de la parte (como "repeat").
-    if pending_action:
-        execute_pending_action()
-        return
-    # --- FIN DEL CAMBIO ---
+    while True:
+        if pending_action:
+            execute_pending_action()
+            if song_state.remaining_beats_in_part <= 0:
+                continue
+            return
 
-    if part_loop_active and song_state.current_part_index == part_loop_index:
-        setup_part(song_state.current_part_index)
-        return
+        if part_loop_active and song_state.current_part_index == part_loop_index:
+            setup_part(song_state.current_part_index)
+            if song_state.remaining_beats_in_part <= 0:
+                continue
+            return
 
-    action_to_execute = "next"
-    if song_state.current_part_index != -1:
-        current_part = song_state.parts[song_state.current_part_index]
-        pattern = current_part.get("repeat_pattern")
-        if isinstance(pattern, list) and pattern:
-            action_to_execute = pattern[song_state.pass_count % len(pattern)]
-        elif isinstance(pattern, str):
-            action_to_execute = pattern
+        action_to_execute = "next"
+        if song_state.current_part_index != -1:
+            current_part = song_state.parts[song_state.current_part_index]
+            pattern = current_part.get("repeat_pattern")
+            if isinstance(pattern, list) and pattern:
+                action_to_execute = pattern[song_state.pass_count % len(pattern)]
+            elif isinstance(pattern, str):
+                action_to_execute = pattern
 
-    action = action_to_execute
-    if action == "song_mode":
-        repeat_override_active = True
-        set_feedback_message("Repeat Pattern: Song Mode activado.")
-        action = "next"
-    elif action == "loop_mode":
-        repeat_override_active = False
-        set_feedback_message("Repeat Pattern: Loop Mode activado.")
-        action = "next"
-
-    if not repeat_override_active:
-        if isinstance(action, dict):
-            song_state.pass_count = 0
-            if "jump_to_part" in action:
-                target_idx = action["jump_to_part"]
-                if 0 <= target_idx < len(song_state.parts): setup_part(target_idx); return
-            elif "jump_to_cue" in action:
-                cue_num = action["jump_to_cue"]
-                for i, part in enumerate(song_state.parts):
-                    if part.get("cue") == cue_num: setup_part(i); return
-            elif "random_part" in action:
-                choices = action["random_part"]
-                if choices and isinstance(choices, list):
-                    target_idx = random.choice(choices)
-                    if 0 <= target_idx < len(song_state.parts): setup_part(target_idx); return
+        action = action_to_execute
+        if action == "song_mode":
+            repeat_override_active = True
+            set_feedback_message("Repeat Pattern: Song Mode activado.")
+            action = "next"
+        elif action == "loop_mode":
+            repeat_override_active = False
+            set_feedback_message("Repeat Pattern: Loop Mode activado.")
             action = "next"
 
-        if action == "repeat": setup_part(song_state.current_part_index); return
-        elif action == "prev":
-            next_index, next_pass_count = find_next_valid_part_index("-1", song_state.current_part_index, song_state.pass_count)
-            if next_index is not None: song_state.pass_count = next_pass_count; setup_part(next_index)
-            else: handle_song_end()
-            return
-        elif action == "first_part":
-            song_state.pass_count = 0
-            next_index, _ = find_next_valid_part_index("+1", -1, 0)
-            if next_index is not None: setup_part(next_index)
-            else: handle_song_end()
-            return
-        elif action == "last_part":
-            song_state.pass_count = 0
-            next_index, _ = find_next_valid_part_index("-1", len(song_state.parts), 0)
-            if next_index is not None: setup_part(next_index)
-            else: handle_song_end()
-            return
-        elif action == "loop_part":
-            part_loop_active = True; part_loop_index = song_state.current_part_index
-            set_feedback_message(f"Repeat Pattern: Loop Part activado."); setup_part(part_loop_index); return
+        target_found = False
+        
+        if not repeat_override_active:
+            if isinstance(action, dict):
+                song_state.pass_count = 0
+                if "jump_to_part" in action:
+                    target_idx = action["jump_to_part"]
+                    if 0 <= target_idx < len(song_state.parts): 
+                        setup_part(target_idx)
+                        target_found = True
+                elif "jump_to_cue" in action:
+                    cue_num = action["jump_to_cue"]
+                    for i, part in enumerate(song_state.parts):
+                        if part.get("cue") == cue_num: 
+                            setup_part(i)
+                            target_found = True
+                            break
+                elif "random_part" in action:
+                    choices = action["random_part"]
+                    if choices and isinstance(choices, list):
+                        target_idx = random.choice(choices)
+                        if 0 <= target_idx < len(song_state.parts): 
+                            setup_part(target_idx)
+                            target_found = True
+                if not target_found: action = "next"
 
-    if playlist_state.is_active:
-        if action == "next_song": handle_song_end(); return
-        elif action == "prev_song":
-            prev_idx = playlist_state.current_song_index - 1
-            if prev_idx >= 0 and load_song_from_playlist(prev_idx): start_next_part()
-            return
-        elif action == "first_song":
-            if load_song_from_playlist(0): start_next_part()
-            return
-        elif action == "last_song":
-            last_idx = len(playlist_state.playlist_elements) - 1
-            if last_idx >= 0 and load_song_from_playlist(last_idx): start_next_part()
+            if not target_found:
+                if action == "repeat": 
+                    setup_part(song_state.current_part_index)
+                    target_found = True
+                elif action == "prev":
+                    next_index, next_pass_count = find_next_valid_part_index("-1", song_state.current_part_index, song_state.pass_count)
+                    if next_index is not None: 
+                        song_state.pass_count = next_pass_count
+                        setup_part(next_index)
+                    else: 
+                        handle_song_end()
+                    return 
+                elif action == "first_part":
+                    song_state.pass_count = 0
+                    next_index, _ = find_next_valid_part_index("+1", -1, 0)
+                    if next_index is not None: 
+                        setup_part(next_index)
+                    else: 
+                        handle_song_end()
+                    return
+                elif action == "last_part":
+                    song_state.pass_count = 0
+                    next_index, _ = find_next_valid_part_index("-1", len(song_state.parts), 0)
+                    if next_index is not None: 
+                        setup_part(next_index)
+                    else: 
+                        handle_song_end()
+                    return
+                elif action == "loop_part":
+                    part_loop_active = True; part_loop_index = song_state.current_part_index
+                    set_feedback_message(f"Repeat Pattern: Loop Part activado.")
+                    setup_part(part_loop_index)
+                    target_found = True
+
+        if target_found:
+            if song_state.remaining_beats_in_part <= 0: continue
             return
 
-    next_index, next_pass_count = find_next_valid_part_index("+1", song_state.current_part_index, song_state.pass_count)
-    if next_index is None:
-        handle_song_end()
-    else:
-        song_state.pass_count = next_pass_count
-        setup_part(next_index)
+        if playlist_state.is_active:
+            if action == "next_song": handle_song_end(); return
+            elif action == "prev_song":
+                prev_idx = playlist_state.current_song_index - 1
+                if prev_idx >= 0 and load_song_from_playlist(prev_idx): continue
+                return
+            elif action == "first_song":
+                if load_song_from_playlist(0): continue
+                return
+            elif action == "last_song":
+                last_idx = len(playlist_state.playlist_elements) - 1
+                if last_idx >= 0 and load_song_from_playlist(last_idx): continue
+                return
+
+        next_index, next_pass_count = find_next_valid_part_index("+1", song_state.current_part_index, song_state.pass_count)
+        if next_index is None:
+            handle_song_end()
+            return
+        else:
+            song_state.pass_count = next_pass_count
+            setup_part(next_index)
+            if song_state.remaining_beats_in_part <= 0: continue
+            return
 
 def setup_part(part_index, fire_instant_trigger=True):
     """
@@ -1522,8 +1552,8 @@ def setup_part(part_index, fire_instant_trigger=True):
         }
         fire_triggers("part_change", context, force_instant=True)
 
-    if song_state.remaining_beats_in_part <= 0:
-        start_next_part()
+    # if song_state.remaining_beats_in_part <= 0:
+    #     start_next_part()
 
 
 def _send_initial_outputs():
@@ -1651,21 +1681,26 @@ def midi_input_listener():
     
     # Obtener los puertos del diccionario
     main_port = midi_inputs.get("clock")
-    control_port = midi_inputs.get("midi_in")
-    # Un puerto es compartido si el puerto de control se ha asignado al de entrada.
-    is_shared_port = control_port is not None and control_port is main_port
-
     if main_port:
-        time.sleep(0.05) # Pequeña pausa para asegurar que el puerto está listo
-        while main_port.poll() is not None:
-            pass # Consumir y descartar todos los mensajes pendientes
+        time.sleep(0.05)
+        while main_port.poll() is not None: pass
 
     while not SHUTDOWN_FLAG:
+        # CORRECCIÓN BUG-001: Leer el puerto dentro del bucle para detectar cambios
+        main_port = midi_inputs.get("clock")
+        control_port = midi_inputs.get("midi_in")
+        is_shared_port = control_port is not None and control_port is main_port
+
         if not main_port:
             time.sleep(0.1)
             continue
 
-        msg = main_port.poll()
+        try:
+            msg = main_port.poll()
+        except Exception:
+            # Protección extra contra puertos cerrados durante la transición
+            time.sleep(0.1)
+            continue
         if not msg:
             time.sleep(0.001)
             continue
