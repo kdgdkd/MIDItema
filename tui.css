@@ -1,10 +1,10 @@
 /* Archivo: tui.css */
+/* Convención: 4 espacios por nivel, 1 propiedad por línea, 1 línea en blanco entre bloques. */
 
-/* Estilos para la nueva cabecera personalizada */
 #header {
     content-align: center middle;
     width: 100%;
-    height: 1; /* Aumentamos la altura para que coincida con el de la parte */
+    height: 1;
     background: #111111;
     color: white;
     text-style: bold;
@@ -37,24 +37,24 @@
 #song-title {
     content-align: center middle;
     width: 100%;
-    height: 3; /* Aumentamos la altura para que coincida con el de la parte */
+    height: 1;
     background: #222222;
     color: white;
     text-style: bold;
-    border: solid #555555;
 }
+
 #part-info-container {
-    height: 3;
+    height: 1;
     background: #444444;
     color: white;
-    /* margin-top: 1; */
-    border: solid #555555;
     content-align: center middle;
 }
+
 #part-title {
     text-style: bold;
     text-align: center;
 }
+
 #part-notes {
     color: #aaaaaa;
 }
@@ -62,44 +62,82 @@
 #counters-container {
     height: 3;
     align: center middle;
-    margin-top: 1;
 }
+
 .label {
     text-align: center;
     color: #888888;
 }
+
 .value {
     text-align: center;
     text-style: bold;
 }
-#countdown,#next-part {
+
+#countdown {
     height: 2;
     content-align: center middle;
 }
+
+#next-part {
+    height: 4;
+    content-align: center middle;
+    color: cyan;
+    text-style: bold;
+}
+
 #action-status, #feedback {
     height: 1;
     content-align: center middle;
 }
+
+#feedback {
+    color: #888888;
+}
+
 #sequencer-container {
-    height: 1fr; 
+    height: 1fr;
     max-height: 13;
     width: 100%;
     text-align: center;
     /* border: round #333333; */
     margin: 0;
 }
-#sequencer {
-width: 100%;
-text-align: center;
-}
-#next-part { color: cyan; text-style: bold; }
-#feedback { color: #888888; }
 
+#sequencer {
+    width: 100%;
+    text-align: center;
+}
 
 Footer {
     align: center middle;
 }
 
+#live-view-container {
+    display: none;
+    layout: vertical;
+    height: 1fr;
+    width: 100%;
+    background: #111111;
+    padding: 0 1;
+}
+
+#live-info-bar {
+    height: 1;
+    background: #000000;
+    color: white;
+    content-align: left middle;
+    padding: 0 1;
+}
+
+#live-sequencer-container {
+    height: 1fr;
+    width: 100%;
+}
+
+#live-sequencer {
+    width: 100%;
+}
 
 .controls-header-text {
     text-style: bold underline;
@@ -182,34 +220,37 @@ Footer {
     color: black;
 }
 
-
 #info-screen-container {
     layout: vertical;
     background: #111111;
-    }
-    .info-screen-content {
+}
+
+.info-screen-content {
     height: 1fr;
     background: #222222;
     border: round #666666;
     padding: 1;
-    }
-    .info-screen-footer {
+}
+
+.info-screen-footer {
     dock: bottom;
     height: 3;
     align: center middle;
-    }
-    .subtle-button {
+}
+
+.subtle-button {
     border: none;
     background: transparent;
     color: #888888;
     min-width: 0;
-    }
-    .subtle-button:hover {
+}
+
+.subtle-button:hover {
     background: transparent;
     color: white;
     text-style: bold;
-    }
-    
+}
+
 PartListItem {
     layout: horizontal;
     padding: 0 1;
@@ -242,4 +283,42 @@ PartListItem:hover {
     content-align: right middle;
     /* color: $text-muted; */
     text-style: italic;
+}
+
+#mini-map {
+    height: auto;
+    width: 100%;
+    padding: 0 1;
+}
+
+#session-screen-container {
+    layout: vertical;
+    background: #111111;
+    padding: 1 2;
+    height: 100%;
+}
+
+#session-title {
+    text-align: center;
+    text-style: bold;
+    width: 100%;
+    margin-bottom: 1;
+    color: #00aaff;
+}
+
+#session-scroll {
+    height: 1fr;
+    background: #111111;
+}
+
+#session-grid {
+    width: 100%;
+    background: #111111;
+    padding: 0 1;
+}
+
+#session-footer {
+    height: 1;
+    content-align: center middle;
+    color: #888888;
 }

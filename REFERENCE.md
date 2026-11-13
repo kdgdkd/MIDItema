@@ -2,19 +2,45 @@
 
 Complete technical reference for configuring MIDItema files, including device setup, trigger system, song structures, and playlists.
 
+## Glossary
+
+Key terms used throughout this document. Skim this first if anything is unclear.
+
+| Term | Meaning | Example |
+|------|---------|---------|
+| **Part** | A named section of a song with a fixed number of bars. The basic unit of sequencing. | `{"name": "Chorus", "bars": 8}` |
+| **Bar** | One musical measure. Bar count drives when MIDItema advances to the next part. | A part with `"bars": 16` lasts 16 measures |
+| **Cue** | A numeric label on a part used for direct jumps (e.g. from MIDI CC). | `{"cue": 3}` — jump here with CC value 3 |
+| **Quantization** | How many bars to wait before a requested part change takes effect. | `next_8` waits until the next 8-bar boundary |
+| **pass_count** | How many times the current part has completed its bar cycle. Used in repeat patterns. | A pattern `[true, false]` plays on pass 1, skips on pass 2, repeats |
+| **repeat_pattern** | Controls what happens when a part finishes. A boolean, string action, or array of per-pass booleans. | `"repeat"` → loop forever; `[true, false]` → alternates |
+| **part_loop** | A live toggle that locks the sequencer on the current part, repeating it until released. | Press `↑` to activate/deactivate |
+| **Live View** | An alternative display mode showing the entire setlist as a scrolling step sequencer. Replaces the normal content area while keeping header and footer. | Press `l` to cycle: Full → Compact → Off |
+| **song_mode** | All repeat patterns are ignored; the sequencer advances linearly through every part exactly once. | `--song-mode` CLI flag or `m` key |
+| **loop_mode** | Repeat patterns are respected; parts loop or branch as configured. | `--loop-mode` CLI flag or `m` key |
+| **Trigger** | A MIDI or OSC message sent automatically at a specific event (part change, song change, etc.). | `"part_change": [{"device": "synth", "program": 5}]` |
+| **Output** | A MIDI/OSC action attached to a specific part, fired when that part becomes active. | `"output": {"program": 3}` |
+| **Advanced timing** | Sending a part's output N beats *before* the actual part change, so the device is ready on time. | `"beats": 2` in a playlist fires outputs 2 beats early |
+| **State-reconstruction navigation** | Ctrl+Arrow navigation that scans all parts from the start up to the destination, collapses MIDI/OSC messages by key (device + channel + type), and sends a single packet — so the destination sounds as if the set had been played from the beginning. | `Ctrl+→` instead of `→` |
+| **Playlist** | A JSON file listing multiple songs to play in sequence, optionally with shared triggers. | `{"songs": [{"filepath": "song1.json"}, ...]}` |
+| **Song mode / Loop mode** | The two playback modes for playlists. Song mode plays each song once; loop mode respects repeat patterns. | Set with `"mode": "song"` in playlist file |
+
 ## Table of Contents
 
-1. [Quick Start - Minimal Examples](#quick-start---minimal-examples)
-2. [File Types Overview](#file-types-overview)
-3. [Main Configuration File](#main-configuration-file)
-4. [Song Files](#song-files)
-5. [Playlist Files](#playlist-files)
-6. [Trigger System Reference](#trigger-system-reference)
-7. [Control Message Reference](#control-message-reference)
-8. [Dynamic Values Reference](#dynamic-values-reference)
-9. [Command Line Options](#command-line-options)
-10. [File Organization](#file-organization)
-11. [Complete Examples](#complete-examples)
+1. [Glossary](#glossary)
+2. [Quick Start - Minimal Examples](#quick-start---minimal-examples)
+3. [File Types Overview](#file-types-overview)
+4. [Main Configuration File](#main-configuration-file)
+5. [Song Files](#song-files)
+6. [Playlist Files](#playlist-files)
+7. [Trigger System Reference](#trigger-system-reference)
+8. [Control Message Reference](#control-message-reference)
+9. [Dynamic Values Reference](#dynamic-values-reference)
+10. [Command Line Options](#command-line-options)
+11. [File Organization](#file-organization)
+12. [Live View](#live-view)
+13. [Complete Examples](#complete-examples)
+14. [Important Implementation Details](#important-implementation-details)
 
 ## Quick Start - Minimal Examples
 
@@ -69,9 +95,7 @@ Plays intro once, then loops main forever.
 
 ```json
 {
-  "devices": {
-    "midi_out": {"synth": "MicroKorg"}
-  },
+  "device_alias": {"synth": "MicroKorg"},
   "parts": [
     {
       "name": "A", 
@@ -117,100 +141,144 @@ The main configuration file is **optional**. Without it, you can:
 
 ```json5
 {
-    "devices": {
-        "midi_in": { /* Input ports */ },
-        "midi_out": { /* Output ports */ },
-        "osc_out": { /* OSC destinations */ }
+    "device_alias": {
+        "CLOCK":   "Port Name",                              // Clock / control MIDI ports
+        "synth":   "Port Name",                              // Output MIDI ports
+        "visuals": { "type": "osc", "ip": "127.0.0.1", "port": 9000 }
     },
+    "clock_in": "CLOCK",          // Alias of the MIDI clock source (required)
+    "transport_out": "synth",     // Optional: relay Start/Stop/Continue to this alias
+    "auto_panic_on_stop": false,  // Optional: send All Notes Off on stop
+    "control": [ /* Optional: custom MIDI control rules — see below */ ],
     "triggers": {
         "event_name": [ /* Action list */ ]
     }
 }
 ```
 
-### Devices Section
+### `device_alias`
 
-#### MIDI Input Ports
+Un diccionario plano que mapea nombres de alias a especificaciones de puerto. Cada alias se referencia por nombre en archivos de canción, triggers y reglas de control.
 
 ```json5
-"midi_in": {
-    "clock": "E-RM Multiclock",        // Required: MIDI clock source
-    "midi_in": "MIDItema Controller"   // Optional: Control input
+"device_alias": {
+    "CLOCK":         "E-RM Multiclock",               // Coincidencia de substring (insensible a mayúsculas)
+    "synth_A":       "Moog Minitaur",
+    "synth_B":       "Roland JP-08",
+    "drums":         "TR-8S",
+    "lights":        "MIDI2DMX",
+    "ctrl":          "APC40 mkII",                    // Control input (usar con "control" rules)
+    "visuals":       { "type": "osc", "ip": "127.0.0.1", "port": 7000 },
+    "touchdesigner": { "type": "osc", "ip": "192.168.1.100", "port": 8000 }
 }
 ```
 
-**Port Matching Rules**:
+**Tipos de valor para cada alias**:
 
-- Case-insensitive substring matching
-- First matching port is selected
-- Example: `"multiclock"` matches `"E-RM Multiclock MIDI 1"`
+| Valor | Significado |
+|---|---|
+| `"string"` | Substring del nombre del puerto MIDI (insensible a mayúsculas). Se usa el primer match. |
+| `{"type": "osc", "ip": ..., "port": ...}` | Destino OSC de salida |
+| `{"type": "bus"}` | Fuente LocalBus (clock recibido vía bus inter-proceso desde midimod) |
 
-**Shared Port Configuration**:
+**Reglas de naming**:
 
-```json5
-"midi_in": {
-    "clock": "Push 2",      // Both clock and control
-    "midi_in": "Push 2"     // from same device
-}
-```
+- Cualquier clave JSON válida; evitar espacios (usar guiones bajos)
+- Case-sensitive cuando se referencia en triggers y outputs
+- El mismo alias puede usarse en `clock_in` y `transport_out`
 
-#### MIDI Output Ports
-
-```json5
-"midi_out": {
-    "transport_out": "Ableton Live",   // Special: Auto-relay transport
-    "synth_A": "Moog Minitaur",        // Custom alias
-    "synth_B": "Roland JP-08",         // Custom alias
-    "drums": "TR-8S",                  // Custom alias
-    "lights": "MIDI2DMX"               // Custom alias
-}
-```
-
-**Special Aliases**:
-
-- `transport_out`: Automatically forwards Start/Stop/Continue messages
-
-**Alias Naming**:
-
-- Any valid JSON key name
-- Avoid spaces (use underscores)
-- Case-sensitive when referenced
-
-#### OSC Output Destinations
+### `clock_in`
 
 ```json5
-"osc_out": {
-    "resolume": { 
-        "ip": "127.0.0.1",    // Required: IP address
-        "port": 7000          // Required: Port number
-    },
-    "touchdesigner": { 
-        "ip": "192.168.1.100", 
-        "port": 8000 
-    }
-}
+"clock_in": "CLOCK"
 ```
+
+Alias (de `device_alias`) a abrir como fuente de MIDI clock. Si el alias apunta a `{"type": "bus"}` o el puerto físico no se encuentra, MIDItema se suscribe a ticks de clock vía LocalBus (publicados por midimod).
+
+### `transport_out`
+
+```json5
+"transport_out": "synth_A"
+```
+
+Opcional. Alias al que reenviar mensajes Start/Stop/Continue. Puede apuntar al mismo alias que `clock_in`.
+
+### `auto_panic_on_stop`
+
+```json5
+"auto_panic_on_stop": true
+```
+
+Opcional (por defecto: `false`). Cuando es `true`, envía All Notes Off a todos los outputs MIDI cada vez que se recibe un Stop.
+
+### `control` — Reglas de control MIDI personalizadas
+
+Lista opcional de reglas que mapean mensajes MIDI entrantes a acciones de MIDItema. Permite asignar cualquier controlador (pedal, launchpad, etc.) a comandos de navegación y modo.
+
+```json5
+"control": [
+    { "device_in": "ctrl", "event": "cc", "ch": 0, "cc": 37, "value": 127, "action": "mode_toggle" },
+    { "device_in": "ctrl", "event": "cc", "ch": 0, "cc": 38, "value": 127, "action": "set_quant_4" },
+    { "device_in": "ctrl", "event": "cc", "ch": 0, "cc": 39, "value": 127, "action": "prev_part" },
+    { "device_in": "ctrl", "event": "cc", "ch": 0, "cc": 40, "value": 127, "action": "next_part" }
+]
+```
+
+Cada regla:
+
+| Campo | Requerido | Descripción |
+|---|---|---|
+| `device_in` | Sí | Alias del dispositivo de control (debe estar en `device_alias`) |
+| `event` | Sí | Tipo de mensaje MIDI: `"cc"`, `"note_on"`, `"pc"`, `"song_select"` |
+| `ch` / `channel` | No | Canal MIDI (0-based). Omitir para coincidir con cualquier canal. |
+| `cc` | Para event cc | Número de CC |
+| `value` | No | Valor exacto a coincidir. Omitir para cualquier valor. |
+| `action` | Sí | Acción a ejecutar (ver tabla abajo) |
+
+**Acciones disponibles para reglas `control`**:
+
+| Acción | Descripción |
+|---|---|
+| `mode_toggle` | Alternar Loop/Song Mode |
+| `set_quant_4` | Fijar cuantización a Next 4 bars |
+| `prev_part` | Parte anterior (cuantización global) |
+| `next_part` | Parte siguiente (cuantización global) |
+| `part_loop_toggle` | Activar/desactivar part loop |
+| `part_restart` | Reiniciar parte actual |
+| `cancel` | Cancelar acción pendiente |
+| `restart_song` | Reiniciar canción desde parte 0 |
+
+El alias `device_in` debe aparecer como clave en `device_alias`. Se abre automáticamente como input MIDI.
 
 ### Device Configuration Merging
 
-When multiple files define devices:
+MIDItema usa `midicore.config.deep_merge` para cargar y combinar configuraciones desde múltiples fuentes:
 
-1. **Main config loads first** (if exists)
-2. **Song/playlist devices merge**: 
-   - New aliases are added
-   - Duplicate aliases override
-   - Existing aliases remain
+1. `midi.conf.json` en la raíz de `midicore/` — configuración compartida con midimod (carga primero)
+2. `miditema.conf.json` — configuración específica de MIDItema (o el archivo indicado con `--conf`)
+3. Secciones `device_alias` dentro de archivos de canción/playlist
+
+El merge es recursivo: los valores de archivos con mayor prioridad sobrescriben los anteriores.
+
+Cuando varios archivos definen `device_alias`:
+
+1. **`midi.conf.json` carga primero** (si existe) — define los aliases compartidos
+2. **El conf principal (`miditema.conf.json` o `--conf`) se fusiona encima** — añade o sobreescribe aliases
+3. **El `device_alias` de la canción/playlist se fusiona encima**:
+   - Los aliases nuevos se añaden
+   - Los aliases duplicados sobreescriben
+   - Los aliases existentes permanecen
 
 Example:
 
 ```json5
+// midi.conf.json (raíz de midicore/)
+{"device_alias": {"CLOCK": "USB Uno MIDI", "synth": "Minilogue"}}
+
 // miditema.conf.json
-{"devices": {"midi_out": {"synth": "Minilogue"}}}
+{"device_alias": {"synth": "MicroKorg", "drums": "TR-8"}, "clock_in": "CLOCK"}
 
-// song.json  
-{"devices": {"midi_out": {"synth": "MicroKorg", "drums": "TR-8"}}}
-
-// Result: synth → MicroKorg, drums → TR-8
+// Result: CLOCK → USB Uno MIDI, synth → MicroKorg, drums → TR-8
 ```
 
 ## Song Files
@@ -219,13 +287,14 @@ Example:
 
 ```json5
 {
-    "song_name": "My Song",         // Optional: Display name
-    "color": "blue",                // Optional: Title bar color
-    "time_signature": "4/4",        // Optional: Meter (default: 4/4)
-    "time_division": "1/4",         // Optional: Beat division (default: 1/4)
-    "devices": { /* Optional */ },  // Optional: Device overrides
-    "triggers": { /* Optional */ },  // Optional: Song triggers
-    "parts": [                      // Required: At least one part
+    "song_name": "My Song",            // Optional: Display name
+    "color": "blue",                   // Optional: Title bar color
+    "time_signature": "4/4",           // Optional: Meter (default: 4/4)
+    "time_division": "1/4",            // Optional: Beat division (default: 1/4)
+    "device_alias": { /* Optional */ }, // Optional: Device overrides (merged with conf)
+    "bus_outputs": false,              // Optional: Route outputs via LocalBus to midimod
+    "triggers": { /* Optional */ },    // Optional: Song triggers
+    "parts": [                         // Required: At least one part
         {
             "name": "Part Name",     // Required: Display name
             "bars": 16,              // Required: Length (1-999)
@@ -347,7 +416,7 @@ Example:
 // Mode changes
 "repeat_pattern": "song_mode"    // Enable Song Mode, then next
 "repeat_pattern": "loop_mode"    // Enable Loop Mode, then next
-"repeat_pattern": "loop_part"    // Activate manual part loop
+"repeat_pattern": "loop_part"    // Activate manual part loop (enables Silent Mode automatically)
 ```
 
 **Array Patterns (Loop Mode only)**:
@@ -380,8 +449,10 @@ Arrays define different behaviors for each pass through the song:
 
 - **Type**: object or array of objects
 - **Default**: none
-- **Purpose**: Local triggers when part starts
+- **Purpose**: Local triggers sent in advance of the part change
 - **Note**: Executes AFTER global `part_change` triggers
+
+**Timing**: Each action fires according to `playlist.beats` (global default) unless it defines its own `bar` or `beats` field, in which case that value takes precedence. This allows sending different messages to different devices at different moments, all within the same `output` array.
 
 ```json5
 // Single action
@@ -398,7 +469,20 @@ Arrays define different behaviors for each pass through the song:
     {"device": "drums", "channel": 9, "program": 1},
     {"note": 36}  // Inherits drums & channel 9
 ]
+
+// Per-action timing (playlist has "beats": 2)
+"output": [
+    {"device": "synth", "channel": 0, "program": 5},           // fires 2 beats early (playlist default)
+    {"device": "synth_slow", "channel": 1, "program": 5, "bar": 2},  // fires 2 bars early
+    {"device": "lights", "address": "/prepare", "beats": 4}    // fires 4 beats early
+]
 ```
+
+| Action has...  | Fires at                              |
+| -------------- | ------------------------------------- |
+| `"bar": N`     | N bars before end of part             |
+| `"beats": N`   | N beats before end of part            |
+| neither        | `playlist.beats` beats before end (default) |
 
 ## Playlist Files
 
@@ -407,8 +491,9 @@ Arrays define different behaviors for each pass through the song:
 ```json5
 {
     "playlist_name": "Festival Set",    // Optional: Display name
-    "mode": "loop",                     // Optional: Playback mode
-    "devices": { /* Optional */ },      // Optional: Device config
+    "mode": "song",                     // Optional: Playback mode
+    "device_alias": { /* Optional */ }, // Optional: Device overrides (merged with conf)
+    "bus_outputs": false,               // Optional: Route outputs via LocalBus to midimod
     "triggers": { /* Optional */ },     // Optional: Global triggers
     "songs": [                          // Required: Song list
         {
@@ -435,11 +520,28 @@ Arrays define different behaviors for each pass through the song:
 #### mode
 
 - **Type**: string
-- **Default**: `"loop"`
+- **Default**: `"song"`
 - **Values**:
   - `"loop"`: Respects all repeat_pattern settings (Loop Mode)
   - `"song"`: Forces linear progression (Song Mode)
 - **Effect**: Can be toggled live with 'M' key
+
+#### beats
+
+- **Type**: integer
+- **Default**: `2`
+- **Purpose**: Global default for advanced timing — how many beats before a part change to send `part_change` triggers and `output` actions that have no explicit `beats` or `bar` field
+- **Example**: `"beats": 4` — fire outputs 4 beats before each transition
+
+```json5
+{
+  "playlist_name": "My Set",
+  "beats": 4,              // All transitions fire 4 beats early by default
+  "songs": [...]
+}
+```
+
+Individual actions can still override this with their own `"beats"` or `"bar"` fields.
 
 ### Songs Array
 
@@ -491,7 +593,7 @@ This creates a playlist with:
 
 - **Name**: Directory name
 - **Songs**: All `.json` and `.json5` files in alphabetical order
-- **Mode**: Default "loop"
+- **Mode**: Default "song"
 
 ## Trigger System Reference
 
@@ -606,6 +708,32 @@ Fire at regular intervals:
 ### Action Object Types
 
 #### MIDI Actions
+
+##### Vocabulario de campos
+
+MIDItema acepta tanto los nombres legacy como el vocabulario semántico unificado de `midicore.output`. Esto permite copiar/pegar bloques entre midimod y miditema sin reescribir:
+
+| Campo legacy | Campo semántico (midicore) | Sufijo `_out` (compatible midimod) | Significado |
+|---|---|---|---|
+| `type` | `event` | `event_out` | Tipo de mensaje MIDI |
+| `control` | `cc` | `cc_out` | Número de CC |
+| `program` | `pc` | `pc_out` | Número de programa |
+| `note` | `note` | `note_out` | Número de nota |
+| `velocity` | `velocity` | `velocity_out` | Velocidad de nota |
+| `value` | `value` | `value_out` | Valor de CC / aftertouch |
+| `pitch` | `pitch` | `pitch_out` | Valor de pitch bend |
+| `pressure` | `pressure` | `pressure_out` | Valor de aftertouch |
+| `song` | `song` | `song_out` | Número de song select |
+| `channel` | `channel` / `ch` | `channel_out` / `ch_out` | Canal MIDI (0-15) |
+
+Todas las formas son equivalentes. Internamente, `session.py:_build_mido_message` resuelve las variantes a la representación canónica. Los campos con sufijo `_out` se aceptan para facilitar el copia/pega desde configuraciones de midimod.
+
+```json5
+// Estas tres acciones son equivalentes:
+{"device": "synth", "type": "control_change", "channel": 0, "control": 74, "value": 100}  // legacy
+{"device": "synth", "event": "cc",            "channel": 0, "cc": 74,      "value": 100}  // semántico
+{"device": "synth", "event_out": "cc",        "channel_out": 0, "cc_out": 74, "value_out": 100}  // midimod
+```
 
 ##### Type Inference System
 
@@ -732,6 +860,36 @@ MIDItema automatically infers message type from parameters:
 }
 ```
 
+#### Integración con MIDImod: `midimod_version` y `midimod_trigger`
+
+Shorthands específicos para enviar comandos a midimod durante un cambio de parte. Se definen en `midicore.protocol` y pueden enviarse por OSC o por MIDI (fallback en canal 16, CCs 20-22):
+
+```json5
+// Activar la versión 3 de midimod al entrar en esta parte
+"output": {"midimod_version": 3}
+// → OSC: /midimod/version 3   o   MIDI CC 20 value=3 en canal 16
+
+// Arrancar el secuenciador "intro_seq" en midimod
+"output": {"midimod_trigger": "intro_seq"}
+// → OSC: /midimod/seq/intro_seq/play
+
+// Parar el secuenciador "intro_seq"
+"output": {"midimod_trigger": "intro_seq", "stop": true}
+// → OSC: /midimod/seq/intro_seq/stop
+```
+
+El dispositivo de destino por defecto es `"midimod"` (el alias definido en la configuración de dispositivos). Se puede sobrescribir con `"device"` explícitamente.
+
+También pueden usarse en triggers globales:
+
+```json5
+"triggers": {
+  "part_change": [
+    {"midimod_version": "part_index"}  // cada parte activa su versión correspondiente
+  ]
+}
+```
+
 #### OSC Actions
 
 ```json5
@@ -807,7 +965,9 @@ MIDItema automatically infers message type from parameters:
 
 ### Delayed Triggers (Advanced Timing)
 
-Fire triggers BEFORE the actual event:
+Fire triggers BEFORE the actual event. Supported in:
+- Actions within `triggers.part_change` and `triggers.song_change`
+- Actions within `parts[i].output`
 
 ```json5
 // One bar early
@@ -839,6 +999,9 @@ Fire triggers BEFORE the actual event:
 - Fade effects before transitions
 - Cue lighting changes
 - Trigger samples with lead time
+- Send early PC to slow devices while fast devices use the playlist default
+
+**Timing resolution**: `bar` is converted to beats using the current time signature numerator. In 4/4, `"bar": 1` equals `"beats": 4`. In 3/4, `"bar": 1` equals `"beats": 3`.
 
 ### Output Initialization
 
@@ -877,6 +1040,55 @@ MIDItema allows pre-sending the first part's outputs before starting the master 
 2. **Press Enter** - Immediately sends the `output` messages from the first part
 3. **Start your master clock** - These outputs will NOT be sent again, avoiding duplication
 
+#### State Diagram
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                        STOPPED                               │
+│                   (no clock received)                        │
+└──────────────────┬────────────────────┬─────────────────────┘
+                   │                    │
+            Press Enter          Clock START
+           (playlist active)   (without Enter)
+                   │                    │
+                   ▼                    ▼
+┌──────────────────────────┐   ┌────────────────────────────┐
+│   INIT_OUTPUTS_SENT      │   │         PLAYING            │
+│                          │   │                            │
+│  First part outputs sent │   │  First outputs sent on     │
+│  immediately (no delay)  │   │  beat 1 (timing risk)      │
+└──────────────┬───────────┘   └────────────────────────────┘
+               │
+        Clock START received
+        (outputs NOT resent)
+               │
+               ▼
+┌──────────────────────────┐
+│         PLAYING          │
+│                          │
+│  Perfect sync from       │
+│  first beat              │
+└──────────────────────────┘
+```
+
+**Recommended flow** (with advanced timing configured):
+
+```
+Load file → Press Enter → Start master clock → Performance runs
+               ↑                  ↑
+       outputs sent now    outputs skipped (already sent)
+```
+
+#### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| First part output fires twice | Clock arrived before Enter | Always press Enter before starting clock |
+| Outputs never sent | `--no-output` active or `o` key toggled | Check output status indicator in the status bar |
+| Enter doesn't start playback | Initial outputs not yet sent (first press) | Press Enter once more to start |
+| Enter does nothing at all | No song loaded, or outputs disabled | Load a song file first; check `o` key |
+| Wrong program at start | Did not press Enter | Press Enter after loading, before starting clock |
+
 #### Behavior Details
 
 **Initialization sequence**:
@@ -914,33 +1126,113 @@ This ensures devices start in the correct state while maintaining perfect timing
 
 #### Transport Controls
 
-| Key     | Action        | Notes                             |
-| ------- | ------------- | --------------------------------- |
-| `Enter` | Start/Stop    | Toggles between Start and Stop    |
-| `Space` | Continue/Stop | Toggles between Continue and Stop |
+| Key     | Action              | Notes                                                                    |
+| ------- | ------------------- | ------------------------------------------------------------------------ |
+| `Enter` | Init / Start / Stop | 1st press sends initial outputs; 2nd press starts; subsequent presses stop |
+| `Space` | Continue/Stop       | Toggles between Continue and Stop                                        |
 
 #### Navigation Controls
 
-| Key        | Action        | Quantization | Requirements         |
-| ---------- | ------------- | ------------ | -------------------- |
-| `←`        | Previous Part | Global       | -                    |
-| `→`        | Next Part     | Global       | -                    |
-| `PageUp`   | Previous Song | Global       | Playlist active      |
-| `PageDown` | Next Song     | Global       | Playlist active      |
-| `Home`     | First Song    | Global       | Playlist active      |
-| `End`      | Last Song     | Global       | Playlist active      |
-| `.` or `,` | Go to Part... | Global       | Enter number + Enter |
+| Key               | Action                               | Quantization | Requirements              |
+| ----------------- | ------------------------------------ | ------------ | ------------------------- |
+| `←`               | Previous Part                        | Global       | -                         |
+| `→`               | Next Part                            | Global       | -                         |
+| `Ctrl+←`          | Previous Part (state reconstruction) | Global       | -                         |
+| `Ctrl+→`          | Next Part (state reconstruction)     | Global       | -                         |
+| `PageUp`          | Previous Song                        | Global       | Playlist active           |
+| `PageDown`        | Next Song                            | Global       | Playlist active           |
+| `Home`            | First Song                           | Global       | Playlist active           |
+| `End`             | Last Song                            | Global       | Playlist active           |
+| `.` or `,`        | Go to Part...                        | Global       | Enter number + Enter      |
+| `+` then `digit`  | Jump +N parts (global setlist)       | Global       | Enter digit after `+`     |
+| `-` then `digit`  | Jump −N parts (global setlist)       | Global       | Enter digit after `-`     |
 
 #### Action Controls
 
-| Key | Action           | Effect                                                |
-| --- | ---------------- | ----------------------------------------------------- |
-| `↓` | Cancel/Reset     | Cancel pending action OR reset to song 1 when stopped |
-| `↑` | Toggle Part Loop | Manual loop on current part                           |
-| `m` | Toggle Mode      | Switch between Loop/Song Mode                         |
-| `o` | Toggle Outputs   | Enable/disable MIDI and OSC output sending           |
-| `v` | View Parts       | Open parts list window                                |
-| `q` | Quit             | Exit application                                      |
+| Key       | Action           | Effect                                                                           |
+| --------- | ---------------- | -------------------------------------------------------------------------------- |
+| `↓`       | Cancel/Reset     | When playing: cancel pending action, or cancel part loop if no action pending. When stopped: reset to song 1 |
+| `↑`       | Toggle Part Loop | Manual loop on current part (see below)                                          |
+| `m`       | Toggle Mode      | Switch between Loop/Song Mode                                                    |
+| `o`       | Toggle Outputs   | Enable/disable MIDI and OSC output sending (Silent Mode)                         |
+| `l`       | Live View        | Cycle display: Full → Compact → Off (see below)                                  |
+| `v`       | Setlist          | Open parts list window                                                           |
+| `g`       | Clips            | Open clip-launcher screen (see below)                                            |
+| `h`       | Help             | Open keyboard controls reference screen                                          |
+| `r`       | Reload           | Reload current file from disk (if changed)                                       |
+| `M`       | Monitor          | Open real-time MIDI/OSC event monitor                                            |
+| `Ctrl+P`  | Panic            | Send All Notes Off to all MIDI outputs                                           |
+| `q`       | Quit             | Exit application                                                                 |
+
+##### Loop Part and Silent Mode
+
+When Loop Part is activated (`↑`, CC#0 value 16, or `repeat_pattern: "loop_part"`), MIDItema automatically manages output sending:
+
+1. **On activation**: the current output state is saved. If outputs were enabled, they are disabled automatically (no output messages will be sent during the loop).
+2. **While looping**: output sending can be toggled freely with `o` as needed.
+3. **On deactivation**: output state is restored to whatever it was before Loop Part was activated.
+
+This prevents repeated output messages from being sent on every loop iteration while keeping normal playback behavior once the loop ends.
+
+| Before Loop Part | On activation        | On deactivation       |
+| ---------------- | -------------------- | --------------------- |
+| Outputs ON       | Outputs forced OFF   | Outputs restored ON   |
+| Outputs OFF      | Outputs stay OFF     | Outputs remain OFF    |
+
+##### Ctrl+Arrow: State-Reconstruction Navigation
+
+**The problem**: MIDItema's output messages are assigned only where they change, not repeated on every part. If you jump backwards from part 8 to part 3, part 3 may not carry a Program Change for a channel that was set back in part 1 — so the connected device stays in the wrong state.
+
+**The solution**: `Ctrl+←` / `Ctrl+→` perform a *state-reconstruction jump*. Before activating the destination part, MIDItema scans all parts from the beginning of the setlist up to and including the destination, collects every output message they define, and collapses them into a single packet — one message per key (device + channel + message type, plus control number for CCs). That single packet is then sent instead of the destination part's output alone.
+
+**Algorithm**:
+1. Scan parts 0 … N (destination inclusive).
+2. For each `(device, channel, type[, control/note])` key, keep the **last** value seen. The destination part participates equally — if it defines a PC on channel 0, that value wins.
+3. Preserve the `bar`/`beats` timing offset of the winning message, so advanced timing still applies.
+4. Send the collapsed packet via the normal trigger system, respecting quantization.
+
+**When to use it**:
+- Navigating backwards in a set where earlier parts set synth patches.
+- Skipping forward several parts when intermediate parts carry state-changing messages.
+- Any time you need the destination to sound exactly as it would if the set had been played from the beginning.
+
+**Timing and quantization**: Ctrl+Arrow obeys the same global quantization setting as regular `←` / `→`. Advanced timing offsets (`bar`, `beats`) in the winning messages are respected — a message that normally fires 2 beats early will still fire 2 beats early. When the clock is stopped, the collapsed outputs are queued and sent on the first `Enter` press (initialization), just like normal outputs.
+
+**Difference from regular navigation**:
+
+| | `←` / `→` | `Ctrl+←` / `Ctrl+→` |
+|---|---|---|
+| Messages sent | Destination part's output only | Collapsed packet from parts 0 → N |
+| Use case | Normal sequential playback | Jump with correct device state |
+| Quantization | Global | Global |
+| Advanced timing | Respected | Respected |
+
+##### Clips Mode
+
+Clips Mode turns MIDItema into a clip-launcher: when the current part ends it restarts instead of advancing, staying there until you manually trigger a jump.
+
+**Activation**:
+
+- Press `g` to open the Clips screen
+- Inside the screen, press `Backspace` to toggle Clips Mode ON/OFF
+- A purple `CLIPS ON` badge appears in the UI while active
+
+**Clips screen keys**:
+
+| Key          | Action                                                                  |
+| ------------ | ----------------------------------------------------------------------- |
+| `1`–`9`      | Jump to parts 1–9 (using global quantization)                          |
+| `a`–`z`      | Jump to parts 10–35                                                     |
+| `Backspace`  | Toggle Clips Mode ON/OFF                                                |
+| `PgUp/PgDn`  | Browse previous/next song in playlist (view-only, does not jump to it) |
+| `Esc`        | Close screen (Clips Mode state persists)                                |
+
+**Behavior details**:
+
+- Clips Mode is independent of Loop Mode / Song Mode — both remain active in the background
+- Part Loop (`↑`) temporarily overrides Clips Mode (the looped part wins until loop is cancelled)
+- Output triggers still fire normally on each restart
+- Clips Mode is reset to OFF on stop
 
 #### Cue Keys
 
@@ -1038,6 +1330,12 @@ This ensures devices start in the correct state while maintaining perfect timing
 - **Values**: 1-127 (cue numbers)
 - **Quantization**: Dynamic (speeds up on repeat)
 - **Scope**: Searches entire playlist
+
+### Panic
+
+`Ctrl+P` sends All Notes Off (CC#123 value 0), All Sound Off (CC#120 value 0), and Reset All Controllers (CC#121 value 0) to every configured MIDI output port on every channel (0–15). Use it to clear stuck notes without stopping the clock.
+
+A feedback message `⚡ PANIC — All Notes Off` confirms the action. OSC outputs are not affected.
 
 ### Quantization Modes
 
@@ -1211,20 +1509,29 @@ python miditema.py --conf venue.conf.json --quant 8 --loop-mode setlist/
 ### Default Directory Structure
 
 ```
-miditema/
-├── miditema.py              # Main program
-├── tui.py                   # Terminal UI
-├── schema_validator.py      # JSON validation
-├── miditema.conf.json       # Optional main config
-├── requirements.txt         # Python dependencies
-└── temas/                   # Default content directory
-    ├── song1.json
-    ├── song2.json
-    ├── live_set.json        # Playlist file
-    └── festival/            # Directory as playlist
-        ├── opener.json
-        ├── main_set.json
-        └── encore.json
+midicore/                     # Raíz del workspace compartido
+├── midicore/                 # Librería compartida MIDI/OSC
+│   ├── ports.py, clock.py, osc.py, ...
+│   └── bus/                  # Pub/sub inter-proceso
+├── midi.conf.json            # Config de dispositivos compartida (miditema + midimod)
+├── midimod/                  # Aplicación MIDImod
+├── miditema/                 # Aplicación MIDItema
+│   ├── miditema.py           # CLI entry point y module facade
+│   ├── session.py            # Motor, estado, MIDI/OSC I/O
+│   ├── tui.py                # Terminal UI (Textual)
+│   ├── ui_helpers.py         # Paleta de colores y utilidades de estilo
+│   ├── schema_validator.py   # Validación JSON
+│   ├── palettes.json         # Definiciones de color
+│   ├── miditema.conf.json    # Config principal opcional
+│   └── temas/                # Directorio de contenido por defecto
+│       ├── song1.json
+│       ├── song2.json
+│       ├── live_set.json     # Archivo de playlist
+│       └── festival/         # Directorio como playlist
+│           ├── opener.json
+│           ├── main_set.json
+│           └── encore.json
+└── pyproject.toml
 ```
 
 ### File Search Order
@@ -1236,10 +1543,115 @@ miditema/
 
 ### Config File Priority
 
-1. Command line `--conf` option (highest)
-2. `miditema.conf.json` in root
-3. Devices in song/playlist files
-4. UI device selection (lowest)
+1. `device_alias` en archivos de canción/playlist (más alta — se fusiona encima)
+2. Archivo especificado con `--conf`, o `miditema.conf.json` si no se usa `--conf`
+3. `midi.conf.json` en la raíz de `midicore/` (base compartida, siempre carga primero)
+4. Selección de dispositivo por UI (más baja — si no hay `clock_in` configurado)
+
+### File Hot-Reload
+
+MIDItema watches the loaded file for changes on disk. When a modification is detected:
+
+- A notification appears in the feedback bar
+- Press `r` to reload immediately without restarting the app
+- Clock state, playlist position, and part loop state are preserved across reloads
+- Useful for live editing song structures mid-performance
+
+## Live View
+
+Live View replaces the normal content area with a full-setlist scrolling step sequencer. The header (MIDItema, status, BPM, devices) and the status/footer bar (mode, quantize, action, key bindings) remain visible at all times.
+
+### Activation
+
+Press `l` to cycle through three states:
+
+| Press | State         | Rows per line |
+|-------|---------------|---------------|
+| 1st   | Live Full     | 3 (visual padding, same height as normal sequencer) |
+| 2nd   | Live Compact  | 1 (dense view — more parts visible simultaneously) |
+| 3rd   | Off           | Returns to normal view |
+
+### Info Bar
+
+A black bar below the header shows the current position at a glance:
+
+```
+ {2/5} PRETES  (8/23)  06:18 / 16:45  live:FULL
+```
+
+| Field | Meaning |
+|---|---|
+| `{2/5}` | Current song / total songs in playlist (`{1/1}` for single-song mode) |
+| `PRETES` | Active song name |
+| `(8/23)` | Active part index / total parts in the current song |
+| `06:18` | Song elapsed time |
+| `16:45` | Set elapsed time |
+| `live:FULL` | Current display mode (FULL or COMPACT) |
+
+### Sequencer Layout
+
+Each row represents one **8-bar chunk** of a part. Parts longer than 8 bars span multiple rows; parts shorter than 8 bars leave trailing space on their row.
+
+```
+ 0  ████ ████ ░░░░ ░░░░ ░░░░ ░░░░ ░░░░ ░░░░   ch0 pc7  ch9 pc0
+    ████ ████ ░░░░ ░░░░ ░░░░ ░░░░ ░░░░ ░░░░
+                                              
+ 1  ████ ████ ████ ████                        ch0 pc8
+    ████ ████ ████ ████
+                                              
+    ████ ████ ████ ████ ████ ████ ████ ████   ← continuation row (same part, bars 9–16)
+    ████ ████ ████ ████ ████ ████ ████ ████
+                                              
+ 2  [W]███ ████ ████ ████ ████ ████ ████ ████  ch0 pc9
+```
+
+- **Shortcut number** (`0`, `1`, `2` …) — appears only on the first visible row of each distinct part. Up to 10 parts (0–9) can have shortcuts in the current viewport.
+- **Blocks** — each group of blocks is one bar. Within a bar, each block is one beat (4 blocks in 4/4).
+- **MIDI hints** (right column) — only on the first chunk row of each part. Lists all output messages that fire when the part starts.
+
+#### Color Coding
+
+| Rows / blocks | Appearance |
+|---|---|
+| Parts before the active part | Dark gray (`#222222`) — consumed |
+| Active part — consumed bars | Dark gray |
+| Active part — current bar | Beat-by-beat animation (yellow at 4 bars left, red at 1 bar) |
+| Active part — remaining bars | Part color |
+| Parts after the active part | Part color — pending |
+| First bar of the next part | **White** (or **blue** if the part's color is white) |
+| First bar of a pending jump target | **White** / **blue** (overrides natural next-part highlight) |
+
+Navigating backwards automatically re-colors parts that were previously consumed — any part ahead of the current position is shown in its part color regardless of playback history.
+
+#### Row Shortcuts
+
+When Live View is active, pressing `0`–`9` jumps to the part assigned to that number in the current viewport (using the global quantization setting). Shortcuts are assigned left-to-right to the first visible occurrence of each distinct part; continuation rows of the same part share the same number on its first visible row (subsequent rows show no number).
+
+```
+ 0  ████ …   ← press 0 → jump to this part
+    ████ …   ← (no shortcut — same part, row 2)
+ 1  ████ …   ← press 1 → jump to this part
+ 2  ████ …   ← press 2 → jump to this part
+```
+
+Pressing a shortcut key always jumps to the **start** of the part (bar 1), firing all MIDI/OSC output messages as normal.
+
+#### MIDI Hint Format
+
+Output messages attached to a part are summarised to the right of the sequencer row:
+
+| Message type | Format | Example |
+|---|---|---|
+| Program Change | `chX pcY` | `ch0 pc5` |
+| Control Change | `chX ccY` | `ch9 cc7` |
+| Note On/Off | `chX ntY` | `ch0 nt60` |
+| Song Select | `ssY` | `ss3` |
+
+Multiple messages are separated by two spaces: `ch0 pc5  ch9 pc0  ss3`
+
+### Autoscroll
+
+The sequencer scrolls automatically during playback so the active row stays at the **second position from the top** (or the first position when at the beginning of the setlist, and the last position when at the end). When playback is stopped the view shows from the top.
 
 ## Complete Examples
 
@@ -1270,7 +1682,7 @@ miditema/
 
 ```json
 {
-  "devices": {"midi_out": {"synth": "Minilogue"}},
+  "device_alias": {"synth": "Minilogue"},
   "parts": [
     {"name": "A", "bars": 16, "output": {"device": "synth", "channel": 0, "program": 0}},
     {"name": "B", "bars": 16, "output": {"program": 1}}  // inherits device & channel
@@ -1284,23 +1696,19 @@ miditema/
 
 ```json5
 {
-  "devices": {
-    "midi_in": {
-      "clock": "Ableton Push 2",
-      "midi_in": "APC40 mkII"
-    },
-    "midi_out": {
-      "transport_out": "Ableton Live",
-      "bass": "Moog Sub 37",
-      "lead": "Nord Lead A1",
-      "drums": "TR-8S",
-      "fx": "Eventide H9"
-    },
-    "osc_out": {
-      "resolume": {"ip": "127.0.0.1", "port": 7000},
-      "lights": {"ip": "192.168.1.100", "port": 8000}
-    }
+  "device_alias": {
+    "clock":     "Ableton Push 2",
+    "ctrl":      "APC40 mkII",
+    "transport": "Ableton Live",
+    "bass":      "Moog Sub 37",
+    "lead":      "Nord Lead A1",
+    "drums":     "TR-8S",
+    "fx":        "Eventide H9",
+    "resolume":  {"type": "osc", "ip": "127.0.0.1", "port": 7000},
+    "lights":    {"type": "osc", "ip": "192.168.1.100", "port": 8000}
   },
+  "clock_in": "clock",
+  "transport_out": "transport",
 
   "triggers": {
     "playback_start": [
@@ -1406,16 +1814,12 @@ miditema/
 ```json5
 {
   "playlist_name": "Summer Festival 2024",
-  "mode": "loop",  // Respects repeat_pattern
+  "mode": "song",  // Linear progression (default)
 
-  // Override some devices for festival
-  "devices": {
-    "midi_out": {
-      "festival_lights": "GrandMA3"
-    },
-    "osc_out": {
-      "video_wall": {"ip": "192.168.2.50", "port": 9000}
-    }
+  // Add festival-specific aliases (merged with conf's device_alias)
+  "device_alias": {
+    "festival_lights": "GrandMA3",
+    "video_wall": {"type": "osc", "ip": "192.168.2.50", "port": 9000}
   },
 
   // Additional festival triggers
@@ -1497,23 +1901,19 @@ miditema/
 
 ```json5
 {
-  "devices": {
-    "midi_in": {
-      "clock": "MOTU MIDI Express",
-      "midi_in": "FCB1010"  // Foot controller
-    },
-    "midi_out": {
-      "transport_out": "Pro Tools",
-      "guitar": "Axe-FX III",
-      "keys": "Kronos",
-      "bass": "Helix",
-      "tracks": "MainStage",
-      "mixer": "X32"
-    },
-    "osc_out": {
-      "lights": {"ip": "192.168.1.100", "port": 9000}
-    }
+  "device_alias": {
+    "clock":     "MOTU MIDI Express",
+    "fcb1010":   "FCB1010",        // Foot controller (configure via "control" rules)
+    "transport": "Pro Tools",
+    "guitar":    "Axe-FX III",
+    "keys":      "Kronos",
+    "bass":      "Helix",
+    "tracks":    "MainStage",
+    "mixer":     "X32",
+    "lights":    {"type": "osc", "ip": "192.168.1.100", "port": 9000}
   },
+  "clock_in": "clock",
+  "transport_out": "transport",
 
   "triggers": {
     "part_change": [
@@ -1604,11 +2004,9 @@ miditema/
   "song_name": "DJ Tool",
   "color": "electric_blue",
 
-  "devices": {
-    "midi_out": {
-      "cdj": "CDJ-3000",
-      "mixer": "DJM-900NXS2"
-    }
+  "device_alias": {
+    "cdj":   "CDJ-3000",
+    "mixer": "DJM-900NXS2"
   },
 
   "parts": [
@@ -1667,11 +2065,9 @@ miditema/
 {
   "song_name": "Modular Exploration",
 
-  "devices": {
-    "midi_out": {
-      "cv": "Expert Sleepers ES-8",  // MIDI to CV
-      "seq": "Eloquencer"
-    }
+  "device_alias": {
+    "cv":  "Expert Sleepers ES-8",  // MIDI to CV
+    "seq": "Eloquencer"
   },
 
   "triggers": {
@@ -1736,14 +2132,10 @@ miditema/
   "song_name": "Act 1 - Scene 2",
   "color": "purple",
 
-  "devices": {
-    "midi_out": {
-      "qlc": "QLC+"  // Lighting software
-    },
-    "osc_out": {
-      "sound": {"ip": "192.168.1.10", "port": 53000},  // QLab
-      "video": {"ip": "192.168.1.11", "port": 53001}   // QLab video
-    }
+  "device_alias": {
+    "qlc":   "QLC+",                                                       // Lighting software
+    "sound": {"type": "osc", "ip": "192.168.1.10", "port": 53000},        // QLab
+    "video": {"type": "osc", "ip": "192.168.1.11", "port": 53001}         // QLab video
   },
 
   "parts": [
@@ -1852,7 +2244,7 @@ In Loop Mode, the system tracks passes through the song:
 | `color`          | None (UI default)              | Song/Part        |
 | `time_signature` | `"4/4"`                        | Song root        |
 | `time_division`  | `"1/4"`                        | Song root        |
-| `mode`           | `"loop"`                       | Playlist root    |
+| `mode`           | `"song"`                       | Playlist root    |
 | `repeat_pattern` | `false` (advance)              | Part             |
 | `notes`          | `""`                           | Part             |
 | `velocity`       | 127                            | Note messages    |
@@ -1883,6 +2275,11 @@ In Loop Mode, the system tracks passes through the song:
 6. **Test with --debug** before performance
 7. **Keep backup config** files for different venues
 8. **Use comments** in JSON5 files
+9. **Use Clips Mode (`g`)** to hold on a part and jump manually — ideal for improvised sets
+10. **Use Panic (`Ctrl+P`)** when stuck notes occur without stopping the clock
+11. **Use hot-reload (`r`)** to edit song files mid-performance without restarting
+12. **Use Live View (`l`)** for a bird's-eye view of the entire setlist — press `0`–`9` to jump directly to any visible part
+13. **Use `Ctrl+←` / `Ctrl+→`** when navigating backwards or skipping parts — it reconstructs device state so the destination sounds correct without having to replay the set from the beginning
 
 #### Limitations
 

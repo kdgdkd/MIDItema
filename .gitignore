@@ -1,0 +1,26 @@
+# Backups locales (backup_txxl)
+.backup/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Logs y estado de ejecucion
+*.log
+
+# Config local de herramientas
+.claude/settings.local.json
+.vscode/
+.idea/
+
+# Sistema
+Thumbs.db
+Desktop.ini

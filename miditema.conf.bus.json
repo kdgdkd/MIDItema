@@ -1,0 +1,34 @@
+// miditema config para modo "bus": miditema recibe el clock por LocalBus
+// publicado por midimod (no abre el puerto físico CLOCK).
+//
+// Carga: python -m miditema --conf miditema.conf.bus.json temas/Lista_de_Objetivos_16_direct.json
+//
+// midimod sigue abriendo CLOCK físicamente (con su clock_in: "CLOCK" + filtro
+// CLOCK→KSP/BSP/Virus de router_direct.json), y como side-effect publica
+// clock.tick / clock.transport al bus para que miditema los reciba.
+//
+// El CLOCK del midi.conf.json raíz ("USB Uno MIDI") se OVERRIDEA aquí con
+// {"type": "bus"} para forzar suscripción por bus en lugar de apertura física.
+{
+    "auto_panic_on_stop": true,
+    "clock_in": "CLOCK",
+
+    "device_alias": {
+        "CLOCK":         {"type": "bus"},
+        "LaunchControl": "LCXL3"
+    },
+
+    "control": [
+        // CC 37 ch0 val 127 → toggle Loop/Song mode
+        { "device_in": "LaunchControl", "event": "cc", "ch": 0, "cc": 37, "value": 127, "action": "mode_toggle" },
+
+        // CC 38 ch0 val 127 → cuantización a 4 bars
+        { "device_in": "LaunchControl", "event": "cc", "ch": 0, "cc": 38, "value": 127, "action": "set_quant_4" },
+
+        // CC 39 ch0 val 127 → parte anterior
+        { "device_in": "LaunchControl", "event": "cc", "ch": 0, "cc": 39, "value": 127, "action": "prev_part" },
+
+        // CC 40 ch0 val 127 → parte siguiente
+        { "device_in": "LaunchControl", "event": "cc", "ch": 0, "cc": 40, "value": 127, "action": "next_part" }
+    ]
+}

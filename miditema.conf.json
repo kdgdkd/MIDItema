@@ -1,14 +1,5 @@
 {
-    "devices": {
-        "midi_in": {
-            "clock": "CLOCK",
-            // "midi_in": "MIDItema"
-        },
-        "midi_out": {
-            "transport_out": "TPT"
-        },
-        "osc_out": {
-            "MIDImod": { "ip": "127.0.0.1", "port": 9000 }
-        }
-    }
+    "auto_panic_on_stop": true,
+
+    "clock_in": "CLOCK"
 }

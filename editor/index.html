@@ -1,0 +1,2460 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDItema Studio</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="app-header">
+    <div class="app-title">
+        <span class="material-symbols-rounded">album</span>
+        MIDItema Studio 
+    </div>
+    <div class="app-subtitle"></div>
+</header>
+
+<aside class="sidebar panel-col">
+    <input type="file" id="importFile" hidden accept=".json,.json5">
+    <input type="file" id="importConf" hidden accept=".json,.json5">
+    <input type="file" id="importToSong" hidden accept=".json,.json5">
+    <input type="file" id="linkSetlistFile" hidden accept=".json,.json5">
+
+    <datalist id="dyn-vals">
+        <option value="song_index"><option value="song_name"><option value="song_color">
+        <option value="part_index"><option value="part_name"><option value="part_bars">
+        <option value="part_color"><option value="part_notes"><option value="part_cue">
+        <option value="part_index_in_setlist">
+        <option value="playlist_name"><option value="playlist_song_count"><option value="playlist_part_count">
+        <option value="completed_bar"><option value="block_number">
+        <option value="current_song_name"><option value="current_part_name"><option value="current_part_index">
+        <option value="remaining_beats"><option value="remaining_bars">
+    </datalist>
+
+    <div class="panel-header">
+        <span>File</span>
+        <div class="flex gap-2">   
+            <button class="icon-only" id="btnImport" title="Importar Setlist"><span class="material-symbols-rounded icon-sm">upload</span></button>
+            <button class="icon-only" id="btnImportConf" title="Importar Entorno"><span class="material-symbols-rounded icon-sm">drive_folder_upload</span></button>
+            <button class="icon-only" id="btnTestMode" title="Activar Envío MIDI"><span class="material-symbols-rounded icon-sm">plug_connect</span></button>
+            <button class="icon-only" id="btnEditJson" title="Editar JSON"><span class="material-symbols-rounded icon-sm">data_object</span></button>
+            <button class="icon-only" id="btnExport" title="Exportar Setlist"><span class="material-symbols-rounded icon-sm">download</span></button>
+        </div>
+    </div>
+    
+    <div class="sidebar-search">
+        <span class="material-symbols-rounded icon-sm">search</span>
+        <input type="text" id="songSearchInput" placeholder="Buscar canción... (/)">
+        <button class="icon-only" id="btnClearSongSearch" style="display:none" title="Limpiar"><span class="material-symbols-rounded icon-sm">close</span></button>
+    </div>
+    <ul class="song-list panel-body" id="songList"></ul>
+    
+    <div class="panel-footer">
+        <button id="btnAddSong" class="w-full">+ Añadir Canción</button>
+    </div>
+</aside>
+
+<main class="panel-col">
+    <div class="panel-header">
+        <span>Partes</span>
+    </div>
+
+    <div class="grid-layout grid-header" id="partsHeader">
+        <div></div> <div></div> <div>Nombre</div>
+        <div>Notas</div>
+        <div class="text-center">Bars</div>
+        <div class="text-center">Pattern</div>
+        <div class="text-center">Outs</div>
+        <div class="text-center"></div> 
+    </div>
+    
+    <div id="partsContainer" class="panel-body">
+        <div class="empty-state">Selecciona una Canción</div>
+    </div>
+
+    <div class="panel-footer">
+        <button id="btnAddPart" class="w-full" disabled>+ Añadir Parte</button>
+    </div>
+</main>
+
+<aside class="inspector panel-col">
+    <div id="inspectorResizer" class="resizer-handle"></div>
+    <div class="panel-header">
+        <span id="inspectorTitle">Propiedades</span>
+        <div id="inspectorActions" class="flex gap-2"></div>
+    </div>
+    
+    <div id="inspectorContent" class="panel-body inspector-body">
+        <div class="empty-state">
+            <span class="material-symbols-rounded icon-xl empty-state-icon">tune</span>
+            Selecciona item
+        </div>
+    </div>
+
+    <div class="panel-footer j-end">
+        <button id="btnHelp">
+           <span class="material-symbols-rounded icon-sm">help</span> Ayuda
+        </button>
+    </div>
+</aside>
+
+<div id="patternModal" class="overlay">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <h3>Editor Visual de Patrones</h3>
+            <button class="icon-only danger btn-close-modal"><span class="material-symbols-rounded icon-sm">close</span></button>
+        </div>
+        <div class="modal-body">
+            <div class="prop-label">Flujo de Ejecución:</div>
+            <div id="patternFlow" class="flow-container"></div>
+            
+            <hr class="mt-20 mb-20 separator-hr">
+            
+            <div class="prop-label mb-10">Comandos:</div>
+            
+            <div class="pattern-grid-4">
+                <button class="btn-pattern-add" data-type="true"><span class="material-symbols-rounded icon-sm">repeat</span> Loop</button>
+                <button class="btn-pattern-add" data-type="false"><span class="material-symbols-rounded icon-sm">skip_next</span> Skip</button>
+                <button class="btn-pattern-add" data-type="first_part">Start</button>
+                <button class="btn-pattern-add" data-type="last_part">End</button>
+                
+                <button class="btn-pattern-add" data-type="next_song">Next Song</button>
+                <button class="btn-pattern-add" data-type="prev_song">Prev Song</button>
+                <button class="btn-pattern-add" data-type="song_mode">Song Mode</button>
+                <button class="btn-pattern-add" data-type="loop_mode">Loop Mode</button>
+                <button class="btn-pattern-add" data-type="first_song">First Song</button>
+                <button class="btn-pattern-add" data-type="last_song">Last Song</button>
+                <button class="btn-pattern-add" data-type="loop_part">Loop Part</button>
+                <button class="btn-pattern-add" data-type="prev">Prev</button>
+            </div>
+            
+            <div class="pattern-controls-row">
+                <div class="flex-col gap-2">
+                    <label class="prop-label">Saltar a Parte</label>
+                    <div class="flex gap-2">
+                        <select id="patternJumpTarget"></select>
+                        <button class="btn-pattern-add" data-type="jump">Add</button>
+                    </div>
+                </div>
+                <div class="flex-col gap-2">
+                    <label class="prop-label">Saltar a Cue (F1-F12)</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="patternJumpCue" class="input-tiny" min="1" max="127" placeholder="Nº">
+                        <button class="btn-pattern-add" data-type="jump_cue">Add</button>
+                    </div>
+                </div>
+                <div class="flex-col gap-2">
+                    <label class="prop-label">Aleatorio (IDs)</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="rndParts" placeholder="ej: 1, 2, 4">
+                        <button class="btn-pattern-add" data-type="random">Add</button>
+                    </div>
+                </div>
+                <div class="flex-col gap-2">
+                    <label class="prop-label">Salto Relativo</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="patternJumpRel" class="input-tiny" placeholder="+/-">
+                        <button class="btn-pattern-add" data-type="jump_rel">Add</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-close-modal">Cancelar</button>
+            <button id="btnPatternSave">Aceptar</button>
+        </div>
+    </div>
+</div>
+
+<div id="colorPickerModal" class="overlay">
+    <div class="modal modal-sm w-400">
+        <div class="modal-header">
+            <h3>Seleccionar Color</h3>
+            <button class="icon-only danger btn-close-modal"><span class="material-symbols-rounded icon-sm">close</span></button>
+        </div>
+        <div class="modal-body">
+            <div id="colorGridContainer" class="color-grid"></div>
+            <div class="flex gap-2 align-center mt-10">
+                <label class="prop-label m-0" style="white-space:nowrap">Hex:</label>
+                <input type="color" id="colorHexPicker" style="width:36px;height:28px;padding:1px;cursor:pointer;border:1px solid var(--border);border-radius:4px;background:none;">
+                <input type="text" id="colorHexInput" placeholder="#RRGGBB" maxlength="7" style="width:90px;font-family:var(--font-code);font-size:12px;">
+                <button id="btnApplyHex">Aplicar</button>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-close-modal">Cancelar</button>
+        </div>
+    </div>
+</div>
+
+<div id="validateModal" class="overlay">
+    <div class="modal modal-sm w-400">
+        <div class="modal-header">
+            <h3>Validación pre-exportación</h3>
+            <button class="icon-only danger btn-close-modal"><span class="material-symbols-rounded icon-sm">close</span></button>
+        </div>
+        <div class="modal-body">
+            <div id="validateModalBody"></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-close-modal">Cancelar</button>
+            <button id="btnValidateContinue" style="display:none">Exportar de todas formas</button>
+        </div>
+    </div>
+</div>
+
+<div id="helpModal" class="overlay">
+    <div class="modal modal-sm w-500">
+        <div class="modal-header">
+            <h3>Ayuda — MIDItema Studio</h3>
+            <button class="icon-only danger btn-close-modal"><span class="material-symbols-rounded icon-sm">close</span></button>
+        </div>
+        <div class="modal-body" style="font-size:13px;line-height:1.6">
+            <div class="prop-label mb-5">Atajos de teclado</div>
+            <table style="width:100%;border-collapse:collapse;margin-bottom:12px">
+                <tr><td class="text-code" style="padding:2px 8px 2px 0;white-space:nowrap">Ctrl+S</td><td>Guardar / Exportar</td></tr>
+                <tr><td class="text-code" style="padding:2px 8px 2px 0;white-space:nowrap">Ctrl+Z / Y</td><td>Deshacer / Rehacer</td></tr>
+                <tr><td class="text-code" style="padding:2px 8px 2px 0;white-space:nowrap">Ctrl+F</td><td>Búsqueda global</td></tr>
+                <tr><td class="text-code" style="padding:2px 8px 2px 0;white-space:nowrap">Ctrl+D</td><td>Duplicar canción / parte</td></tr>
+                <tr><td class="text-code" style="padding:2px 8px 2px 0;white-space:nowrap">Del</td><td>Eliminar selección</td></tr>
+                <tr><td class="text-code" style="padding:2px 8px 2px 0;white-space:nowrap">/ (barra)</td><td>Foco en búsqueda de canciones</td></tr>
+                <tr><td class="text-code" style="padding:2px 8px 2px 0;white-space:nowrap">Esc</td><td>Cerrar modal / deseleccionar</td></tr>
+                <tr><td class="text-code" style="padding:2px 8px 2px 0;white-space:nowrap">F2</td><td>Editar JSON del setlist</td></tr>
+            </table>
+            <div class="prop-label mb-5">Vistas del inspector</div>
+            <div class="text-muted" style="margin-bottom:8px">Setlist · Canción · Parte · Matrix · Cues · Devices · Triggers · Editor JSON</div>
+            <div class="prop-label mb-5">Documentación</div>
+            <div>Ver <span class="text-code">REFERENCE.md</span> y <span class="text-code">README.md</span> en el repositorio del proyecto.</div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-close-modal">Cerrar</button>
+        </div>
+    </div>
+</div>
+
+<div id="globalSearchModal" class="overlay">
+    <div class="modal modal-sm w-500">
+        <div class="modal-header">
+            <h3>Búsqueda Global <span class="text-muted" style="font-size:11px;font-weight:400;">Ctrl+F</span></h3>
+            <button class="icon-only danger btn-close-modal"><span class="material-symbols-rounded icon-sm">close</span></button>
+        </div>
+        <div class="modal-body">
+            <input type="text" id="globalSearchInput" class="w-full mb-10" placeholder="Buscar canción, parte, notas, cue...">
+            <div id="globalSearchResults" class="global-search-results"></div>
+        </div>
+    </div>
+</div>
+
+<div id="outputPreview"></div>
+<div id="midiFeedback"></div>
+<script>
+    /* --- 1. CONFIGURACIÓN & ESTADO --- */
+    let setlist = { 
+        playlist_name: "Nuevo Setlist", 
+        mode: "song",
+        bpm: 124, 
+        advance_value: 0, 
+        advance_unit: "beats", 
+        device_alias: {}, clock_in: "", transport_out: "", control: [],
+        triggers: {},
+        _envTriggers: null,
+        songs: [] 
+    };
+    
+    // Almacén temporal para importaciones parciales
+    let _preserved = {};
+
+    const uiState = {
+        selSong: -1,
+        selPart: -1,
+        inspectorMode: null,
+        songViewMode: 'parts',
+        tempPattern: [],
+        tempCues: {},
+        tempDevices: [],
+        stats: { bpmInfo: '--', totalTime: 'Total: 00:00' },
+        testMode: false,
+        dirty: false
+    };
+
+    /* --- 2. CONSTANTES & METADATOS --- */
+    const MSG_METADATA = {
+        midi_cc: { val1: { title: "Controller (0-127)", placeholder: "CC#" }, val2: { title: "Value (0-127)", placeholder: "Val", disabled: false } },
+        pc: { val1: { title: "Program (0-127)", placeholder: "Prog#" }, val2: { title: "No aplica", placeholder: "-", disabled: true } },
+        note: { val1: { title: "Note (0-127)", placeholder: "Note" }, val2: { title: "Velocity (0-127)", placeholder: "Vel", disabled: false } }, // Legacy alias
+        note_on: { val1: { title: "Note (0-127)", placeholder: "Note" }, val2: { title: "Velocity (0-127)", placeholder: "Vel", disabled: false } },
+        note_off: { val1: { title: "Note (0-127)", placeholder: "Note" }, val2: { title: "Release (0-127)", placeholder: "Rel", disabled: false } },
+        transport: { val1: { title: "Comando", placeholder: "Cmd" }, val2: { title: "No aplica", placeholder: "-", disabled: true } },
+        song: { val1: { title: "Song ID (0-127)", placeholder: "Song#" }, val2: { title: "No aplica", placeholder: "-", disabled: true } },
+        osc: { val1: { title: "Address", placeholder: "/addr" }, val2: { title: "Args", placeholder: "[args]" } }
+    };
+
+    const SELECTABLE_COLORS = [
+        "default", "red", "green", "yellow", "blue", "magenta", "cyan", "orange", 
+        "ruby_pink", "indigo_blue", "purple", "forest_green", "ivory", "bright_red", 
+        "neon_green", "electric_blue", "bright_yellow", "hot_pink", "electric_cyan", 
+        "electric_orange", "dark_gray", "mid_gray", "light_gray", "white"
+    ];
+
+    const COLOR_MAP = {
+        "default": "#4b5563", "red": "#8b0000", "green": "#006400", "yellow": "#ffd700", 
+        "blue": "#0000ff", "magenta": "#ff00ff", "cyan": "#00ffff", "orange": "#ff7e00",
+        "ruby_pink": "#e30052", "indigo_blue": "#5564eb", "purple": "#800040", 
+        "forest_green": "#3d642d", "ivory": "#ffffbf", "bright_red": "#FF004D", 
+        "neon_green": "#39FF14", "electric_blue": "#0099FF", "bright_yellow": "#FFFF00", 
+        "hot_pink": "#FF1493", "electric_cyan": "#08E8DE", "electric_orange": "#FF3300",
+        "dark_gray": "#404040", "mid_gray": "#888888", "light_gray": "#CCCCCC", "white": "#FFFFFF"
+    };
+
+    /* --- 3. UTILIDADES --- */
+    const $ = (id) => document.getElementById(id);
+    
+    const appTools = {
+        looseJsonParse: (text) => {
+            try { 
+                const clean = text.replace(/("(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*')|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, str) => str || '');
+                return (new Function("return " + clean))(); 
+            } catch (e) { console.error("Fallo parsing JSON5", e); return JSON.parse(text); }
+        }
+    };
+
+    const DataValidator = {
+        rules: {
+            midi7bit: (val) => val === "" || val === undefined || (!isNaN(Number(val)) && Number(val) >= 0 && Number(val) <= 127) || (typeof val === 'string' && val.trim().length > 0),
+            midiChannel: (val) => val === "" || val === undefined || (!isNaN(Number(val)) && Number(val) >= 0 && Number(val) <= 15),
+            positiveInt: (val) => !isNaN(Number(val)) && Number.isInteger(Number(val)) && Number(val) > 0,
+            timeSig: (val) => /^\d+\/\d+$/.test(val),
+            oscAddress: (val) => typeof val === 'string' && val.startsWith('/'),
+            jsonArray: (val) => { try { return Array.isArray(JSON.parse(val)); } catch(e) { return false; } },
+            port: (val) => Number.isInteger(Number(val)) && Number(val) > 0 && Number(val) <= 65535,
+            notEmpty: (val) => typeof val === 'string' && val.trim().length > 0
+        },
+        tooltipEl: null,
+        
+        validateInput: (input) => {
+            const { action, field } = input.dataset;
+            const val = input.value;
+            let isValid = true, errorMsg = "Valor inválido";
+
+            // Se añade 'update-inspector-list' a la condición
+            if (action === 'update-out' || action === 'update-inspector-list') {
+                const row = input.closest('.output-card') || input.closest('tr') || input.closest('.output-wrapper');
+                const typeEl = row?.querySelector('.out-type');
+                const type = typeEl ? typeEl.value : 'midi_cc';
+                
+                if (field === 'channel' && type !== 'osc' && type !== 'transport') isValid = DataValidator.rules.midiChannel(val);
+                else if (field === 'each_bar' || field === 'each_beat') isValid = DataValidator.rules.positiveInt(val); 
+                else if ((field === 'val1' || field === 'val2') && ['midi_cc','note','note_on','note_off','pc'].includes(type)) isValid = DataValidator.rules.midi7bit(val);
+                else if (field === 'address') isValid = DataValidator.rules.oscAddress(val);
+                else if (field === 'args') isValid = DataValidator.rules.jsonArray(val);
+                else if (field === 'port') isValid = DataValidator.rules.port(val);
+            } 
+            else if (action === 'update-song') {
+                if (field === 'time_signature') isValid = DataValidator.rules.timeSig(val);
+                else if (field === 'song_name') isValid = DataValidator.rules.notEmpty(val);
+            }
+            else if (action === 'update-setlist') {
+                if (field === 'name') isValid = DataValidator.rules.notEmpty(val);
+                else if (field === 'bpm') isValid = DataValidator.rules.positiveInt(val);
+            }
+            else if (action === 'update-global-adv') {
+                if (field === 'val') isValid = !isNaN(Number(val)) && Number(val) >= 0;
+            }
+            else if (action === 'update-part') {
+                if (field === 'bars') isValid = DataValidator.rules.positiveInt(val);
+                else if (field === 'name') isValid = DataValidator.rules.notEmpty(val);
+                else if (field === 'cue') isValid = val === '' || (!isNaN(Number(val)) && Number.isInteger(Number(val)) && Number(val) >= 1 && Number(val) <= 127);
+            }
+            else if (action === 'update-alias') {
+                if (field === 'port') isValid = DataValidator.rules.port(val);
+                else if (field === 'ip') isValid = typeof val === 'string' && (val.trim() === '' || /^[\d.]+$/.test(val));
+            }
+            else if (action === 'update-song') {
+                if (field === 'time_signature') isValid = DataValidator.rules.timeSig(val);
+                else if (field === 'song_name') isValid = DataValidator.rules.notEmpty(val);
+            }
+            
+            DataValidator.toggleError(input, isValid, errorMsg);
+            return isValid;
+        },
+
+        toggleError: (input, isValid, msg) => {
+            input.classList.toggle('input-error', !isValid);
+            if (!isValid) DataValidator.showTooltip(input, msg);
+            else DataValidator.hideTooltip();
+        },
+
+        showTooltip: (input, msg) => {
+            if (!DataValidator.tooltipEl) {
+                DataValidator.tooltipEl = document.createElement('div');
+                DataValidator.tooltipEl.className = 'validation-msg';
+                document.body.appendChild(DataValidator.tooltipEl);
+            }
+            const rect = input.getBoundingClientRect();
+            DataValidator.tooltipEl.innerText = msg;
+            DataValidator.tooltipEl.style.display = 'block';
+            DataValidator.tooltipEl.style.top = (rect.top - 30) + 'px';
+            DataValidator.tooltipEl.style.left = rect.left + 'px';
+        },
+        
+        hideTooltip: () => { if (DataValidator.tooltipEl) DataValidator.tooltipEl.style.display = 'none'; }
+    };
+
+    /* --- 4. APP CORE --- */
+    const app = {
+        // Inicialización parcial (se completa en parte 4)
+        init: () => {
+            app.bindGlobalListeners();
+            app.selectSong(-1);
+            if(app.ui?.initResizer) app.ui.initResizer();
+            app.autosave.restore();
+        },
+
+        bindGlobalListeners: () => {
+            // 1. INPUTS DE ARCHIVO (Crítico: Restaurado eventos 'change')
+            $('importConf').addEventListener('change', app.io.importConf);
+            $('importFile').addEventListener('change', app.io.import);
+            $('importToSong').addEventListener('change', app.actions.importSetlistContent);
+            $('linkSetlistFile').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file || uiState.selSong === -1) return;
+                const cur = setlist.songs[uiState.selSong];
+                cur.filepath = file.name;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const parsed = JSON.parse(ev.target.result);
+                        cur._linkedParts = parsed.parts || [];
+                    } catch(err) {
+                        cur._linkedParts = [];
+                    }
+                    app.render.sidebar(); app.render.inspector(); app.render.parts();
+                };
+                reader.onerror = () => { app.render.sidebar(); app.render.inspector(); app.render.parts(); };
+                reader.readAsText(file);
+            });
+
+            // 2. BOTONES HEADER SIDEBAR (Restaurado mapeo directo)
+            $('btnImport').addEventListener('click', () => $('importFile').click());
+            $('btnImportConf').addEventListener('click', () => $('importConf').click());
+            $('btnTestMode').addEventListener('click', app.midi.toggleTestMode); // Faltaba toggle explícito
+            $('btnEditJson').addEventListener('click', () => { 
+                uiState.selSong = -1; 
+                uiState.songViewMode = 'json_editor'; 
+                // Desactivar otros modos visuales al entrar al editor
+                ['btnShowDevices', 'btnShowGlobalTriggers', 'btnShowCues', 'btnShowMatrix'].forEach(id => $(id)?.classList.remove('active'));
+                app.render.parts(); 
+            });
+            $('btnExport').addEventListener('click', app.io.export);
+
+            window.addEventListener('beforeunload', (e) => {
+                if(uiState.dirty) { e.preventDefault(); e.returnValue = ''; }
+            });
+
+            // BÚSQUEDA LATERAL DE CANCIONES
+            const ssi = $('songSearchInput');
+            if (ssi) {
+                ssi.addEventListener('input', () => {
+                    app.render.sidebar();
+                    const cb = $('btnClearSongSearch');
+                    if (cb) cb.style.display = ssi.value ? '' : 'none';
+                });
+                ssi.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') { ssi.value = ''; app.render.sidebar(); ssi.blur(); const cb = $('btnClearSongSearch'); if (cb) cb.style.display = 'none'; }
+                });
+            }
+            $('btnClearSongSearch')?.addEventListener('click', () => { ssi.value = ''; app.render.sidebar(); $('btnClearSongSearch').style.display = 'none'; });
+            $('globalSearchInput')?.addEventListener('input', (e) => app.search.runGlobal(e.target.value));
+
+            // SNAPSHOT EN FOCO DE INPUTS (para Undo/Redo)
+            ['inspectorContent', 'partsContainer'].forEach(id => {
+                $(id)?.addEventListener('focusin', (e) => {
+                    if (['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName) && e.target.dataset.action) {
+                        app.history.snapshot();
+                    }
+                });
+            });
+
+            // ATAJOS DE TECLADO GLOBALES
+            document.addEventListener('keydown', (e) => {
+                const tag = e.target.tagName;
+                const isEditable = ['INPUT','TEXTAREA','SELECT'].includes(tag) || e.target.contentEditable === 'true';
+
+                if (e.key === 'Escape') {
+                    if (document.querySelector('.overlay.open')) { app.modals.closeAll(); return; }
+                    if (!isEditable) {
+                        if (uiState.selPart !== -1) { uiState.selPart = -1; uiState.inspectorMode = 'song'; app.render.parts(); app.render.inspector(); }
+                    }
+                    return;
+                }
+
+                if (e.key === '/' && !isEditable) { e.preventDefault(); $('songSearchInput')?.focus(); return; }
+
+                if (e.key === 'F2' && !isEditable && uiState.selPart !== -1) {
+                    e.preventDefault(); app.actions.startRenameInline(uiState.selPart); return;
+                }
+
+                if (!isEditable && (e.key === 'Delete' || e.key === 'Backspace')) {
+                    if (uiState.selPart !== -1) { e.preventDefault(); app.history.snapshot(); app.actions.deletePart(uiState.selPart); }
+                    else if (uiState.selSong !== -1) { e.preventDefault(); app.history.snapshot(); app.actions.deleteSong(); }
+                    return;
+                }
+
+                const ctrl = e.ctrlKey || e.metaKey;
+                if (!ctrl) return;
+
+                if (e.key === 's') { e.preventDefault(); app.io.export(); }
+                else if (e.key === 'z') { e.preventDefault(); app.history.undo(); }
+                else if (e.key === 'y') { e.preventDefault(); app.history.redo(); }
+                else if (e.key === 'f') { e.preventDefault(); app.search.openGlobal(); }
+                else if (e.key === 'd' && !isEditable) { e.preventDefault(); if (uiState.selPart !== -1) { app.history.snapshot(); app.actions.dupPart(uiState.selPart); } else if (uiState.selSong !== -1) { app.history.snapshot(); app.actions.dupSong(); } }
+                else if (e.key === 'Enter') { e.preventDefault(); app.history.snapshot(); app.actions.addPart(); }
+                else if (e.key === 'n' && !isEditable) { e.preventDefault(); app.history.snapshot(); app.actions.addSong(); }
+            });
+
+            // 3. BOTONES DE ACCIÓN PRINCIPAL
+            $('btnAddSong').addEventListener('click', app.actions.addSong);
+            $('btnAddPart').addEventListener('click', app.actions.addPart);
+            $('btnHelp').addEventListener('click', () => $('helpModal').classList.add('open'));
+
+            // 4. DELEGACIÓN LISTA CANCIONES (Drag & Drop + Click)
+            const songList = $('songList');
+            songList.addEventListener('click', (e) => { 
+                if (e.target.classList.contains('color-dot')) {
+                    const item = e.target.closest('.song-item');
+                    if (item) app.colors.open('song', parseInt(item.dataset.index));
+                    return;
+                }
+                const item = e.target.closest('.song-item'); 
+                if (item) app.selectSong(parseInt(item.dataset.index)); 
+            });
+            songList.addEventListener('dragstart', (e) => {
+                const item = e.target.closest('.song-item'); 
+                if(item) { e.dataTransfer.setData('type', 'song'); e.dataTransfer.setData('idx', item.dataset.index); } 
+            });
+            songList.addEventListener('dragover', (e) => e.preventDefault());
+            songList.addEventListener('drop', (e) => app.actions.handleDrop(e, 'song'));
+
+            // 5. DELEGACIÓN CONTENEDOR PARTES (Drag & Drop + Click Genérico)
+            const partsCont = $('partsContainer');
+            partsCont.addEventListener('dblclick', (e) => {
+                const nameCell = e.target.closest('.part-name-cell');
+                const row = nameCell?.closest('.part-row[data-type="part"]');
+                if (row) app.actions.startRenameInline(parseInt(row.dataset.index));
+            });
+            partsCont.addEventListener('dragstart', (e) => {
+                const row = e.target.closest('.part-row');
+                if(row) {
+                    e.dataTransfer.setData('type', row.dataset.type || 'part');
+                    e.dataTransfer.setData('idx', row.dataset.index);
+                }
+            });
+            partsCont.addEventListener('dragover', (e) => e.preventDefault());
+            partsCont.addEventListener('drop', (e) => app.actions.handleDrop(e, 'part'));
+
+            // 6. MODALES Y CIERRE GLOBAL
+            document.querySelectorAll('.btn-close-modal').forEach(b => b.onclick = app.modals.closeAll);
+            $('btnPatternSave').onclick = app.pattern.save;
+            
+            document.querySelectorAll('.btn-pattern-add').forEach(btn => {
+                btn.onclick = () => app.pattern.addStep(btn.dataset.type);
+            });
+            
+            // 7. LISTENERS DELEGADOS ESPECÍFICOS (Inspector y Acciones)
+            // Se restaura la lógica para botones dinámicos dentro de contenedores
+            ['inspectorContent', 'partsContainer', 'inspectorActions'].forEach(id => {
+                const el = $(id);
+                if(el) {
+                    el.addEventListener('click', app.handleUIEvents); // Función extraída abajo para claridad
+                    el.addEventListener('input', app.handleInputEvents); // Función extraída abajo
+                    el.addEventListener('change', app.handleInputEvents);
+                }
+            });
+        },
+
+// --- PEGAR DENTRO DE const app = { ... } ---
+    
+inspector: {
+        contexts: {}, // Unificando almacenamiento (outputContexts -> contexts)
+        
+        // Renderiza listas de outputs (MIDI/OSC) con soporte de edición
+        renderOutputList: (container, contextId, dataList, onUpdate) => {
+            const oldCtx = app.inspector.contexts[contextId];
+            const newList = JSON.parse(JSON.stringify(dataList));
+            
+            // Persistencia de estado visual (timing toggles)
+            if (oldCtx && oldCtx.list) {
+                newList.forEach((item, idx) => {
+                    if (oldCtx.list[idx]) item._timing_open = oldCtx.list[idx]._timing_open;
+                });
+            }
+
+            app.inspector.contexts[contextId] = { list: newList, cb: onUpdate };
+            const ctx = app.inspector.contexts[contextId];
+            
+            const ghosts = app.devices.scanGhosts();
+            const devices = [...new Set([...Object.keys(setlist.device_alias || {}), ...ghosts])];
+            
+            const globalUnit = setlist.advance_unit || 'beats';
+            const globalVal = setlist.advance_value || 0;
+            const phBar = globalUnit === 'bars' ? globalVal : '-';
+            const phBeats = globalUnit === 'beats' ? globalVal : '-';
+        
+            const redraw = () => {
+                container.innerHTML = '';
+                ctx.list.forEach((item, idx) => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = `output-wrapper ${item._timing_open ? 'expanded' : ''}`;
+                    const card = document.createElement('div');
+                    
+                    let devOpts = `<option value="">--</option>`;
+                    devices.forEach(d => devOpts += `<option value="${d}" ${item.device===d?'selected':''}>${d}</option>`);
+                    if(item.device && !devices.includes(item.device)) devOpts += `<option value="${item.device}" selected>${item.device} (?)</option>`;
+        
+                    let type = 'midi_cc';
+                    if(item.address) type = 'osc';
+                    else if(item.midimod_version !== undefined) type = 'midimod_version';
+                    else if(item.midimod_trigger !== undefined) type = 'midimod_trigger';
+                    else if(['start', 'stop', 'continue'].includes(item.type)) type = 'transport';
+                    else if(item.type === 'note_off') type = 'note_off';
+                    else if(item.program !== undefined || (item.type === 'program_change')) type = 'pc';
+                    else if(item.note !== undefined || item.type === 'note_on' || item.type === 'note') type = 'note_on';
+                    else if(item.song !== undefined || (item.type === 'song_select')) type = 'song';
+                    else if(item.pitch !== undefined) type = 'pitchwheel';
+                    else if(item.pressure !== undefined) type = 'aftertouch';
+        
+                    let auxControl = `<button class="icon-only btn-timing" data-action="toggle-timing" data-ctx="${contextId}" data-idx="${idx}"><span class="material-symbols-rounded icon-sm">schedule</span></button>`;
+                    if (contextId.includes('bar_triggers')) {
+                        auxControl = `<input type="number" class="out-ch input-code" style="width:50px!important;" placeholder="Bars" value="${item.each_bar || ''}" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="each_bar">`;
+                    } else if (contextId.includes('countdown_triggers')) {
+                        auxControl = `<input type="number" class="out-ch input-code" style="width:50px!important;" placeholder="Beats" value="${item.each_beat || ''}" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="each_beat">`;
+                    }
+        
+                    if (type === 'osc') {
+                        card.className = 'output-card flex-col align-start';
+                        card.style.padding = "8px";
+                        card.style.gap = "8px";
+                        card.innerHTML = `
+                            <div class="flex j-between w-full gap-2">
+                                <select class="out-device" style="flex:1" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="device">${devOpts}</select>
+                                <select class="out-type" style="width:80px;" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="new_type">
+                                    <option value="pc">PC</option><option value="midi_cc">CC</option><option value="note_on">Note On</option><option value="note_off">Note Off</option><option value="transport">Tpt</option><option value="song">Song</option><option value="pitchwheel">Pitch</option><option value="aftertouch">AT</option><option value="midimod_version">mm:Ver</option><option value="midimod_trigger">mm:Trig</option><option value="osc" selected>OSC</option>
+                                </select>
+                                <div class="flex gap-2">${auxControl}<button class="icon-only danger out-del" data-action="remove-out" data-ctx="${contextId}" data-idx="${idx}"><span class="material-symbols-rounded icon-sm">close</span></button></div>
+                            </div>
+                            <div class="w-full">
+                                <input type="text" class="out-val w-full mb-10 font-bold" style="font-family:var(--font-code);" placeholder="/address" value="${item.address}" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="address" onmouseenter="app.inspector.showFieldTooltip(this,'OSC Address (starts with /)')" onmouseleave="app.inspector.hideFieldTooltip()" onfocus="app.inspector.showFieldTooltip(this,'OSC Address (starts with /)')" onblur="app.inspector.hideFieldTooltip()">
+                                <textarea class="out-val w-full text-code" rows="3" placeholder="Args: [1, 'text']" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="args" style="resize:vertical;" onmouseenter="app.inspector.showFieldTooltip(this,'OSC Arguments (JSON array e.g. [1,&quot;text&quot;])')" onmouseleave="app.inspector.hideFieldTooltip()" onfocus="app.inspector.showFieldTooltip(this,'OSC Arguments (JSON array e.g. [1,&quot;text&quot;])')" onblur="app.inspector.hideFieldTooltip()">${JSON.stringify(item.args||[])}</textarea>
+                            </div>
+                        `;
+                    } else if (type === 'midimod_version' || type === 'midimod_trigger') {
+                        card.className = 'output-card';
+                        const mmOpts = `<option value="pc" ${type==='pc'?'selected':''}>PC</option><option value="midi_cc" ${type==='midi_cc'?'selected':''}>CC</option><option value="note_on" ${type==='note_on'?'selected':''}>Note On</option><option value="note_off" ${type==='note_off'?'selected':''}>Note Off</option><option value="transport" ${type==='transport'?'selected':''}>Tpt</option><option value="song" ${type==='song'?'selected':''}>Song</option><option value="pitchwheel" ${type==='pitchwheel'?'selected':''}>Pitch</option><option value="aftertouch" ${type==='aftertouch'?'selected':''}>AT</option><option value="midimod_version" ${type==='midimod_version'?'selected':''}>mm:Ver</option><option value="midimod_trigger" ${type==='midimod_trigger'?'selected':''}>mm:Trig</option><option value="osc" ${type==='osc'?'selected':''}>OSC</option>`;
+                        if (type === 'midimod_version') {
+                            card.innerHTML = `<select class="out-device" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="device">${devOpts}</select><select class="out-type" style="width:80px" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="new_type">${mmOpts}</select><input type="number" class="out-val" style="width:60px" placeholder="Ver#" value="${item.midimod_version}" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="val1">${auxControl}<button class="icon-only danger out-del" data-action="remove-out" data-ctx="${contextId}" data-idx="${idx}"><span class="material-symbols-rounded icon-sm">close</span></button>`;
+                        } else {
+                            card.innerHTML = `<select class="out-device" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="device">${devOpts}</select><select class="out-type" style="width:80px" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="new_type">${mmOpts}</select><input type="text" class="out-val" style="width:80px" placeholder="seq_name" value="${item.midimod_trigger||''}" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="midimod_seq"><label style="display:flex;align-items:center;gap:3px;font-size:11px;white-space:nowrap;color:var(--text-muted)"><input type="checkbox" ${item.stop?'checked':''} onchange="(function(chk){var c=app.inspector.contexts['${contextId}'];c.list[${idx}].stop=chk;c.cb(c.list);})(this.checked)">stop</label>${auxControl}<button class="icon-only danger out-del" data-action="remove-out" data-ctx="${contextId}" data-idx="${idx}"><span class="material-symbols-rounded icon-sm">close</span></button>`;
+                        }
+                    } else {
+                        card.className = 'output-card';
+                        const hideCh = (type === 'transport' || type === 'song');
+                        const chPh = "0-15";
+                        const chTt = "MIDI Channel (0-15)";
+                        const chVal = item.channel !== undefined ? item.channel : '';
+                        const chAttrs = `data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="channel" onmouseenter="app.inspector.showFieldTooltip(this,'${chTt}')" onmouseleave="app.inspector.hideFieldTooltip()" onfocus="app.inspector.showFieldTooltip(this,'${chTt}')" onblur="app.inspector.hideFieldTooltip()"`;
+                        const v1 = item.program ?? item.control ?? item.note ?? item.song ?? item.pitch ?? item.pressure ?? "";
+                        const v2 = item.value ?? item.velocity ?? "";
+
+                        let ph1 = 'CC#', tt1 = 'Controller Number (0-127)', ph2 = 'Value', tt2 = 'Controller Value (0-127)';
+                        let hideV2 = false;
+                        if (type === 'pc') { ph1 = 'Prog#'; tt1 = 'Program Number (0-127)'; hideV2 = true; }
+                        else if (type === 'note_on') { ph1 = 'Note'; tt1 = 'Note Number (0-127)'; ph2 = 'Vel'; tt2 = 'Velocity (0-127)'; }
+                        else if (type === 'note_off') { ph1 = 'Note'; tt1 = 'Note Number (0-127)'; hideV2 = true; }
+                        else if (type === 'transport') { hideV2 = true; }
+                        else if (type === 'song') { ph1 = 'Song#'; tt1 = 'Song Number (0-127)'; hideV2 = true; }
+                        else if (type === 'pitchwheel') { ph1 = 'Pitch'; tt1 = 'Pitch Bend (-8192 to 8191)'; hideV2 = true; }
+                        else if (type === 'aftertouch') { ph1 = 'Pressure'; tt1 = 'Channel Pressure (0-127)'; hideV2 = true; }
+
+                        let val1Html, val2Html;
+                        const tipAttrs1 = `onmouseenter="app.inspector.showFieldTooltip(this,'${tt1}')" onmouseleave="app.inspector.hideFieldTooltip()" onfocus="app.inspector.showFieldTooltip(this,'${tt1}')" onblur="app.inspector.hideFieldTooltip()"`;
+                        const tipAttrs2 = `onmouseenter="app.inspector.showFieldTooltip(this,'${tt2}')" onmouseleave="app.inspector.hideFieldTooltip()" onfocus="app.inspector.showFieldTooltip(this,'${tt2}')" onblur="app.inspector.hideFieldTooltip()"`;
+
+                        if (type === 'transport') {
+                            val1Html = `<select class="out-val" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="transport_val"><option value="start" ${item.type==='start'?'selected':''}>Play</option><option value="stop" ${item.type==='stop'?'selected':''}>Stop</option><option value="continue" ${item.type==='continue'?'selected':''}>Cont</option></select>`;
+                        } else {
+                            val1Html = `<input type="text" class="out-val" placeholder="${ph1}" value="${v1}" list="dyn-vals" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="val1" ${tipAttrs1}>`;
+                        }
+                        if (hideV2) {
+                            val2Html = `<input type="text" class="out-val" style="display:none">`;
+                        } else {
+                            val2Html = `<input type="text" class="out-val" placeholder="${ph2}" value="${v2}" list="dyn-vals" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="val2" ${tipAttrs2}>`;
+                        }
+
+                        card.innerHTML = `
+                            <select class="out-device" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="device">${devOpts}</select>
+                            <select class="out-type" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="new_type">
+                                <option value="pc" ${type==='pc'?'selected':''}>PC</option><option value="midi_cc" ${type==='midi_cc'?'selected':''}>CC</option><option value="note_on" ${type==='note_on'?'selected':''}>Note On</option><option value="note_off" ${type==='note_off'?'selected':''}>Note Off</option><option value="transport" ${type==='transport'?'selected':''}>Tpt</option><option value="song" ${type==='song'?'selected':''}>Song</option><option value="pitchwheel" ${type==='pitchwheel'?'selected':''}>Pitch</option><option value="aftertouch" ${type==='aftertouch'?'selected':''}>AT</option><option value="midimod_version" ${type==='midimod_version'?'selected':''}>mm:Ver</option><option value="midimod_trigger" ${type==='midimod_trigger'?'selected':''}>mm:Trig</option><option value="osc" ${type==='osc'?'selected':''}>OSC</option>
+                            </select>
+                            <input type="text" class="out-ch" placeholder="${chPh}" value="${chVal}" style="${hideCh?'display:none;':''}" ${chAttrs} ${type==='transport'?'disabled':''}>
+                            ${val1Html}${val2Html}${auxControl}
+                            <button class="icon-only danger out-del" data-action="remove-out" data-ctx="${contextId}" data-idx="${idx}"><span class="material-symbols-rounded icon-sm">close</span></button>
+                        `;
+                    }
+        
+                    const timingRow = document.createElement('div');
+                    timingRow.className = 'timing-row';
+                    timingRow.innerHTML = `<div class="timing-group"><span class="material-symbols-rounded icon-sm">hourglass_top</span></div><div class="timing-group"><label>Bars:</label><input type="number" class="timing-input" placeholder="${phBar}" value="${item.bar !== undefined ? item.bar : ''}" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="bar"></div><div class="timing-group"><label>Beats:</label><input type="number" class="timing-input" placeholder="${phBeats}" value="${item.beats !== undefined ? item.beats : ''}" data-action="update-out" data-ctx="${contextId}" data-idx="${idx}" data-field="beats"></div>`;
+                    
+                    wrapper.appendChild(card); wrapper.appendChild(timingRow); container.appendChild(wrapper);
+                });
+                const addBtn = document.createElement('button');
+                addBtn.className = "w-full"; addBtn.innerHTML = '+ Añadir Output';
+                addBtn.dataset.action = "add-out"; addBtn.dataset.ctx = contextId;
+                container.appendChild(addBtn);
+            };
+            ctx.redraw = redraw; redraw();
+        },
+        
+        // Métodos de utilidad lógica
+        removeOut: (ctxId, idx) => { const c = app.inspector.contexts[ctxId]; if(c) { c.list.splice(idx, 1); c.redraw(); c.cb(c.list); } },
+        
+        updateOut: (ctxId, idx, field, val) => {
+            const ctx = app.inspector.contexts[ctxId]; if(!ctx) return;
+            const item = ctx.list[idx];
+            
+            // Lógica simplificada de actualización
+            if(field === 'device') item.device = val;
+            else if(field === 'channel') { const n=parseInt(val); if(!isNaN(n)) item.channel=n; else delete item.channel; }
+            else if(field === 'val1') { const n=parseInt(val); if(!isNaN(n)) { if(item.program!==undefined||item.type==='program_change') item.program=n; else if(item.note!==undefined) item.note=n; else if(item.song!==undefined||item.type==='song_select') item.song=n; else if(item.pitch!==undefined) item.pitch=n; else if(item.pressure!==undefined&&item.note===undefined) item.pressure=n; else if(item.midimod_version!==undefined) item.midimod_version=n; else item.control=n; } }
+            else if(field === 'val2') { const n=parseInt(val); if(!isNaN(n)) { if(item.velocity!==undefined) item.velocity=n; else item.value=n; } }
+            else if(field === 'midimod_seq') { item.midimod_trigger = val; }
+            else if(field === 'address') item.address = val;
+            else if(field === 'args') { try { item.args = JSON.parse(val); } catch(e) { item.args = [val]; } }
+            else if(field === 'new_type') {
+                const b = { device:item.device, bar:item.bar, beats:item.beats, each_bar:item.each_bar, each_beat:item.each_beat, _timing_open:item._timing_open };
+                if(val==='osc') ctx.list[idx] = {...b, address:"/addr", args:[]};
+                else if(val==='transport') ctx.list[idx] = {...b, type:'start'};
+                else if(val==='note_on') ctx.list[idx] = {...b, channel:0, note:60, velocity:100, type:'note_on'};
+                else if(val==='note_off') ctx.list[idx] = {...b, channel:0, note:60, type:'note_off'};
+                else if(val==='pc') ctx.list[idx] = {...b, channel:0, program:0, type:'program_change'};
+                else if(val==='song') ctx.list[idx] = {...b, channel:0, song:0, type:'song_select'};
+                else if(val==='pitchwheel') ctx.list[idx] = {...b, channel:0, pitch:0};
+                else if(val==='aftertouch') ctx.list[idx] = {...b, channel:0, pressure:0};
+                else if(val==='midimod_version') ctx.list[idx] = {...b, device:'midimod', midimod_version:1};
+                else if(val==='midimod_trigger') ctx.list[idx] = {...b, device:'midimod', midimod_trigger:'', stop:false};
+                else ctx.list[idx] = {...b, channel:0, control:0, value:0};
+                ctx.redraw();
+            }
+            else if(field==='bar'||field==='beats'||field==='each_bar'||field==='each_beat') { const n=parseInt(val); if(!isNaN(n)) item[field]=n; else delete item[field]; }
+            else if(field==='transport_val') item.type=val;
+
+            const clean = ctx.list.map(({_timing_open, ...r}) => r);
+            ctx.cb(clean);
+        },
+
+        renderList: (cont, ctxId, list, cb) => app.inspector.renderOutputList(cont, ctxId, list, cb),
+        upd: (cid, i, f, v) => app.inspector.updateOut(cid, i, f, v),
+
+        // Alias para manejar eventos delegados (data-action="toggle-timing")
+        toggleTiming: (cid, i) => app.inspector.togTime(cid, i),
+
+        togTime: (cid, i) => { 
+            const ctx = app.inspector.contexts[cid];
+            if (!ctx || !ctx.list[i]) return;
+            
+            // 1. Invertir estado local
+            ctx.list[i]._timing_open = !ctx.list[i]._timing_open;
+            
+            // 2. Sincronizar con datos originales (Callback)
+            // Es vital pasar el objeto limpio pero mantener el estado visual en memoria
+            ctx.cb(ctx.list.map(({_timing_open, ...rest}) => rest));
+            
+            // 3. Redibujar
+            app.render.inspector(); 
+        },
+        insOsc: (cid, i, v) => { app.inspector.contexts[cid].list[i].args.push(v); app.render.inspector(); },
+        clear: () => { uiState.inspectorMode=null; app.render.inspector(); },
+        fieldTooltipEl: null,
+        showFieldTooltip: (input, msg) => {
+            if (!app.inspector.fieldTooltipEl) {
+                app.inspector.fieldTooltipEl = document.createElement('div');
+                app.inspector.fieldTooltipEl.className = 'field-tooltip';
+                document.body.appendChild(app.inspector.fieldTooltipEl);
+            }
+            const rect = input.getBoundingClientRect();
+            const el = app.inspector.fieldTooltipEl;
+            el.textContent = msg;
+            el.style.cssText = `display:block;position:fixed;top:${rect.top - 26}px;left:${rect.left}px;z-index:9999;padding:3px 8px;font-size:11px;background:var(--bg-accent,#2d2d2d);color:var(--text,#ccc);border:1px solid var(--border,#444);border-radius:4px;pointer-events:none;white-space:nowrap;`;
+        },
+        hideFieldTooltip: () => { if (app.inspector.fieldTooltipEl) app.inspector.fieldTooltipEl.style.display = 'none'; }
+    },
+
+        // Lógica restaurada del original para manejo de eventos delegados
+        handleUIEvents: (e) => {
+            const hwItem = e.target.closest('[data-action="assign-hw"]');
+            if (hwItem) {
+                const portName = hwItem.dataset.port;
+                const defaultAlias = portName.split(' ')[0].slice(0,10).toLowerCase().replace(/[^a-z0-9]/g,'') || 'dev';
+                const alias = prompt(`Alias para "${portName}":`, defaultAlias);
+                if (alias?.trim()) { setlist.device_alias[alias.trim()] = portName; app.devices.showInInspector(true); app.markDirty(); }
+                return;
+            }
+            const target = e.target.closest('button') || e.target;
+
+            const row = target.closest('.part-row');
+            if (row && !target.closest('button') && !target.classList.contains('part-outs-indicator') && !target.classList.contains('color-dot')) { 
+                const index = parseInt(row.dataset.index);
+                if (row.dataset.type === 'song') app.selectSong(index);
+                else app.selectPart(index);
+                return;
+            }
+
+            if (target.dataset.action === 'add-out') {
+                const context = app.inspector.contexts[target.dataset.ctx]; 
+                if (context) {
+                    const firstDev = Object.keys(setlist.device_alias || {}).find(k => k && k.trim().length > 0) || "";
+
+                    const newObj = { device: firstDev, type: 'program_change', channel: 0, program: 0 };
+                    
+                    if (target.dataset.ctx.includes('bar_triggers')) newObj.each_bar = 4;
+                    context.list.push(newObj);
+                    context.redraw();
+                    const clean = context.list.map(({_timing_open, ...rest}) => rest);
+                    context.cb(clean);
+                }
+                return;
+            }
+            if (target.dataset.action === 'remove-out') { app.inspector.removeOut(target.dataset.ctx, parseInt(target.dataset.idx)); return; }
+            if (target.dataset.action === 'toggle-timing') { app.inspector.toggleTiming(target.dataset.ctx, parseInt(target.dataset.idx)); return; }
+            if (target.dataset.action === 'add-alias') { app.devices.add(target.dataset.type); return; }
+            if (target.dataset.action === 'remove-alias') { app.devices.remove(parseInt(target.dataset.idx)); return; }
+            if (target.dataset.action === 'confirm-alias') { app.devices.confirmGhost(parseInt(target.dataset.idx)); return; }
+            if (target.dataset.action === 'remove-ctrl') { app.control.remove(parseInt(target.dataset.idx)); return; }
+
+            // Botones de Parte (Duplicar/Borrar)
+            if (target.closest('.btn-dup-part')) { e.stopPropagation(); app.actions.dupPart(parseInt(target.closest('.btn-dup-part').dataset.index)); return; }
+            if (target.closest('.btn-del-part')) { e.stopPropagation(); app.actions.deletePart(parseInt(target.closest('.btn-del-part').dataset.index)); return; }
+            
+            // Botones de Canción en vista Setlist (Duplicar/Borrar)
+            if (target.closest('.btn-dup-song')) { e.stopPropagation(); app.actions.dupSong(parseInt(target.closest('.btn-dup-song').dataset.index)); return; }
+            if (target.closest('.btn-del-song')) { e.stopPropagation(); app.actions.deleteSong(parseInt(target.closest('.btn-del-song').dataset.index)); return; }
+
+            // Navegación de filas (Selección)
+            if (target.dataset.view) { 
+                let v = target.dataset.view;
+                if (v === 'parts') {
+                    if (uiState.songViewMode === 'parts') v = 'matrix';
+                    else if (uiState.songViewMode === 'matrix') v = 'parts';
+                    else v = 'parts';
+                }
+                app.render.songsView(v); 
+                return; 
+            }
+            
+            if (target.id === 'btnLinkSetlist') app.actions.linkSetlist();
+            if (target.id === 'btnImportContent') $('importToSong').click();
+            if (target.id === 'btnExportSong') app.io.exportSong();
+            if (target.id === 'btnDupSong') app.actions.dupSong();
+            if (target.id === 'btnDelSong') app.actions.deleteSong();
+            if (target.id === 'btnSetlistProps') { 
+                if (setlist.songs.length > 0) {
+                    uiState.songViewMode = 'matrix';
+                    app.selectSong(0);
+                }
+                return;
+            }
+            if (target.id === 'btnSetlistNotes') { uiState.songViewMode = uiState.songViewMode === 'notes' ? 'parts' : 'notes'; app.render.parts(); app.render.inspector(); }
+            if (target.id === 'btnShowDevices') app.devices.showInInspector();
+            if (target.id === 'btnShowGlobalTriggers') { uiState.selSong = -1; uiState.inspectorMode = 'global'; app.render.parts(); app.render.inspector(); }
+            if (target.id === 'btnShowCues') app.cues.show();
+        },
+
+        markDirty: () => {
+            uiState.dirty = true;
+            const el = document.querySelector('.app-subtitle');
+            if(el) el.textContent = '• Cambios sin guardar';
+            app.autosave.schedule();
+        },
+        clearDirty: () => {
+            uiState.dirty = false;
+            const el = document.querySelector('.app-subtitle');
+            if(el) el.textContent = '';
+        },
+
+        handleInputEvents: (e) => {
+            const d = e.target.dataset;
+            if(!d.action) return;
+
+            if (!DataValidator.validateInput(e.target)) return;
+            app.markDirty();
+            
+            if(d.action === 'update-setlist') {
+                if(d.field === 'bpm') { setlist.bpm = parseInt(e.target.value); app.calcTimes(); }
+                else if(d.field === 'bus_outputs') setlist.bus_outputs = e.target.checked;
+                else setlist[d.field] = e.target.value;
+            }
+            if(d.action === 'update-song') {
+                setlist.songs[uiState.selSong][d.field] = e.target.value;
+                if(d.field === 'song_name') app.render.sidebar();
+            }
+            if(d.action === 'update-part') {
+                const val = e.target.type === 'number' ? parseInt(e.target.value) : e.target.value;
+                setlist.songs[uiState.selSong].parts[uiState.selPart][d.field] = val;
+                if(['name', 'bars', 'cue'].includes(d.field)) app.render.parts();
+            }
+            if(d.action === 'update-alias') { app.devices.update(parseInt(d.idx), d.field, e.target.value); app.devices.renderAll(); }
+            if(d.action === 'update-out') app.inspector.updateOut(d.ctx, parseInt(d.idx), d.field, e.target.value);
+            if(d.action === 'update-inspector-list') {
+                app.inspector.upd(d.ctx, parseInt(d.idx), d.field, e.target.value);
+            }
+            if(d.action === 'update-global-adv') {
+                if(d.field === 'val') setlist.advance_value = parseInt(e.target.value) || 0;
+                else if(d.field === 'unit') setlist.advance_unit = e.target.value;
+            }
+            if(d.action === 'update-ctrl') { app.control.update(parseInt(d.idx), d.field, e.target.value); }
+        },
+        calcTimes: () => {
+            let totalSec = 0;
+            const bpm = setlist.bpm || 124;
+            const bars8sec = ((8 * 4 * 60) / bpm).toFixed(1);
+            uiState.stats.bpmInfo = `8 bars ≈ ${bars8sec}s`;
+            
+            const elBpm = $('bpmInfo');
+            if(elBpm) elBpm.innerText = uiState.stats.bpmInfo;
+
+            setlist.songs.forEach(song => {
+                let bars = 0, num = 4;
+                if(song.time_signature) num = parseInt(song.time_signature.split('/')[0]) || 4;
+                if(song.parts) song.parts.forEach(p => bars += (parseInt(p.bars)||0));
+                totalSec += (bars * num * 60) / bpm;
+            });
+
+            const m = Math.floor(totalSec / 60);
+            const s = Math.floor(totalSec % 60);
+            uiState.stats.totalTime = `Total: ${m}:${s.toString().padStart(2,'0')}`;
+            
+            const elTotal = document.querySelector('.song-item:first-child .song-duration');
+            if(elTotal) elTotal.innerText = `${m}:${s.toString().padStart(2,'0')}`;
+        },
+
+        actions: {
+            addSong: () => {
+                setlist.songs.push({ song_name: "Nueva Canción", color: "default", time_signature: "4/4", parts: [] });
+                app.selectSong(setlist.songs.length - 1);
+                app.markDirty();
+            },
+            deleteSong: (targetIdx = uiState.selSong) => {
+                if (targetIdx === -1 || !confirm("¿Eliminar canción?")) return;
+                setlist.songs.splice(targetIdx, 1);
+                if (uiState.selSong === targetIdx) app.selectSong(-1);
+                else if (uiState.selSong > targetIdx) uiState.selSong--;
+                app.render.sidebar();
+                if (uiState.selSong === -1) app.render.parts();
+                app.markDirty();
+            },
+            dupSong: (targetIdx = uiState.selSong) => {
+                if (targetIdx === -1) return;
+                const copy = JSON.parse(JSON.stringify(setlist.songs[targetIdx]));
+                copy.song_name += " (Copia)";
+                setlist.songs.splice(targetIdx + 1, 0, copy);
+                app.render.sidebar();
+                app.markDirty();
+            },
+            addPart: () => {
+                if(uiState.selSong === -1) { app.actions.addSong(); return; }
+                const s = setlist.songs[uiState.selSong];
+                if (!s.parts) s.parts = [];
+                s.parts.push({ name: `Parte ${s.parts.length + 1}`, bars: 8, color: "default", repeat_pattern: false, output: [] });
+                app.render.parts();
+                app.selectPart(s.parts.length - 1);
+                app.markDirty();
+            },
+            deletePart: (idx) => {
+                const s = setlist.songs[uiState.selSong];
+                s.parts.splice(idx, 1);
+                // Limpiar referencias en repeat_pattern (Soporte Array y Objeto recuperado)
+                s.parts.forEach(p => {
+                    if (Array.isArray(p.repeat_pattern)) {
+                        p.repeat_pattern = p.repeat_pattern.filter(step => {
+                            if (typeof step === 'object' && step.jump_to_part === idx) return false;
+                            if (typeof step === 'object' && step.jump_to_part > idx) step.jump_to_part--;
+                            return true;
+                        });
+                        if (!p.repeat_pattern.length) p.repeat_pattern = false;
+                    } else if (typeof p.repeat_pattern === 'object' && p.repeat_pattern && p.repeat_pattern.jump_to_part !== undefined) {
+                        // Gestión de objeto único recuperada
+                        if (p.repeat_pattern.jump_to_part === idx) p.repeat_pattern = false;
+                        else if (p.repeat_pattern.jump_to_part > idx) p.repeat_pattern.jump_to_part--;
+                    }
+                });
+                uiState.selPart = -1;
+                app.render.parts();
+                app.inspector.clear();
+                app.markDirty();
+            },
+            dupPart: (idx) => {
+                const copy = JSON.parse(JSON.stringify(setlist.songs[uiState.selSong].parts[idx]));
+                copy.name += " (Cp)";
+                setlist.songs[uiState.selSong].parts.splice(idx + 1, 0, copy);
+                app.render.parts();
+                app.markDirty();
+            },
+            movePartUp: () => {
+                const i = uiState.selPart;
+                if (i <= 0 || uiState.selSong === -1) return;
+                const parts = setlist.songs[uiState.selSong].parts;
+                [parts[i-1], parts[i]] = [parts[i], parts[i-1]];
+                uiState.selPart = i - 1;
+                app.render.parts(); app.render.inspector(); app.markDirty();
+            },
+            movePartDown: () => {
+                const i = uiState.selPart;
+                if (uiState.selSong === -1) return;
+                const parts = setlist.songs[uiState.selSong].parts;
+                if (i >= parts.length - 1) return;
+                [parts[i], parts[i+1]] = [parts[i+1], parts[i]];
+                uiState.selPart = i + 1;
+                app.render.parts(); app.render.inspector(); app.markDirty();
+            },
+            startRenameInline: (idx) => {
+                if (uiState.selSong === -1) return;
+                const row = $('partsContainer')?.querySelector(`.part-row[data-index="${idx}"][data-type="part"]`);
+                if (!row) return;
+                const nameCell = row.querySelector('.part-name-cell');
+                if (!nameCell) return;
+                const currentName = setlist.songs[uiState.selSong].parts[idx].name;
+                const input = document.createElement('input');
+                input.type = 'text'; input.value = currentName;
+                input.className = 'font-bold'; input.style.cssText = 'width:100%;padding:2px 4px;height:22px;';
+                nameCell.innerHTML = '';
+                nameCell.appendChild(input);
+                input.focus(); input.select();
+                const commit = () => {
+                    const newName = input.value.trim();
+                    if (newName && newName !== currentName) {
+                        setlist.songs[uiState.selSong].parts[idx].name = newName;
+                        app.render.parts(); app.render.inspector(); app.markDirty();
+                    } else { app.render.parts(); }
+                };
+                input.addEventListener('blur', commit, { once: true });
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') { e.stopPropagation(); input.removeEventListener('blur', commit); commit(); }
+                    if (e.key === 'Escape') { e.stopPropagation(); input.removeEventListener('blur', commit); app.render.parts(); }
+                });
+            },
+            linkSetlist: () => {
+                $('linkSetlistFile').value = '';
+                $('linkSetlistFile').click();
+            },
+            handleDrop: (e, dropType) => {
+                e.preventDefault();
+                const type = e.dataTransfer.getData('type');
+                const src = parseInt(e.dataTransfer.getData('idx'));
+                const target = e.target.closest(dropType === 'song' ? '.song-item' : '.part-row');
+                
+                if (target && (target.dataset.type || dropType) === type) {
+                    const dest = parseInt(target.dataset.index);
+                    if (src !== dest) {
+                        if (type === 'part') {
+                            const parts = setlist.songs[uiState.selSong].parts;
+                            const selectedRef = parts[uiState.selPart];
+                            const [moved] = parts.splice(src, 1);
+                            parts.splice(dest, 0, moved);
+                            uiState.selPart = parts.indexOf(selectedRef);
+                            app.render.parts();
+                        } else {
+                            const [moved] = setlist.songs.splice(src, 1);
+                            setlist.songs.splice(dest, 0, moved);
+                            app.render.sidebar();
+                        }
+                        app.markDirty();
+                    }
+                }
+            },
+            importSetlistContent: (e) => {
+                if(uiState.selSong === -1) { alert("Selecciona una canción primero"); e.target.value = ''; return; }
+                const r = new FileReader();
+                r.onload = (ev) => {
+                    try {
+                        const raw = appTools.looseJsonParse(ev.target.result);
+                        if (raw.songs && Array.isArray(raw.songs) && confirm(`¿Insertar ${raw.songs.length} canciones?`)) {
+                            setlist.songs.splice(uiState.selSong, 1, ...raw.songs);
+                            app.render.sidebar(); app.selectSong(uiState.selSong);
+                        } else {
+                            const newSong = { ...raw, song_name: setlist.songs[uiState.selSong].song_name, color: setlist.songs[uiState.selSong].color };
+                            setlist.songs[uiState.selSong] = newSong;
+                            app.render.sidebar(); app.render.inspector(); app.render.parts();
+                        }
+                    } catch(err) { alert("Error: " + err.message); }
+                };
+                if(e.target.files[0]) r.readAsText(e.target.files[0]);
+                e.target.value = '';
+            }
+        },
+
+        colors: {
+            context: null, 
+            targetIndex: -1, 
+            open: (context, idx) => {
+                if(uiState.selSong === -1) return;
+                app.colors.context = context;
+                app.colors.targetIndex = idx;
+                const current = context === 'song' ? setlist.songs[uiState.selSong].color : setlist.songs[uiState.selSong].parts[idx].color;
+                const container = $('colorGridContainer');
+                container.innerHTML = '';
+                
+                SELECTABLE_COLORS.forEach(key => {
+                    const btn = document.createElement('div');
+                    btn.className = `btn-color-select ${key === (current || 'default') ? 'active-color' : ''}`;
+                    btn.style.backgroundColor = COLOR_MAP[key];
+                    btn.title = key.replace('_', ' ').toUpperCase();
+                    btn.onclick = () => app.colors.pick(key);
+                    container.appendChild(btn);
+                });
+                const hexVal = current?.startsWith('#') ? current : (COLOR_MAP[current || 'default'] || '#4b5563');
+                const hexInp = $('colorHexInput'); const hexPkr = $('colorHexPicker');
+                if (hexInp) { hexInp.value = hexVal; hexInp.oninput = () => { if(hexPkr) hexPkr.value = hexInp.value; }; }
+                if (hexPkr) { hexPkr.value = hexVal; hexPkr.oninput = () => { if(hexInp) hexInp.value = hexPkr.value; }; }
+                const applyBtn = $('btnApplyHex');
+                if (applyBtn) applyBtn.onclick = () => { const h = ($('colorHexInput')||{}).value?.trim(); if(h && /^#[0-9A-Fa-f]{6}$/.test(h)) app.colors.pick(h); };
+                $('colorPickerModal').classList.add('open');
+            },
+            pick: (key) => {
+                const { context, targetIndex } = app.colors;
+                if (context === 'song') setlist.songs[uiState.selSong].color = key;
+                else setlist.songs[uiState.selSong].parts[targetIndex].color = key;
+                
+                app.render.sidebar();
+                if (context === 'part') app.render.parts();
+                app.render.inspector();
+                app.modals.closeAll();
+            }
+        },
+
+        modals: { closeAll: () => document.querySelectorAll('.overlay').forEach(el => el.classList.remove('open')) },
+
+        // UI Helpers
+        ui: {
+            initResizer: () => {
+                const resizer = $('inspectorResizer');
+                if (!resizer) return;
+                let startX, startW;
+                const doResize = (e) => {
+                    const newW = startW + (startX - e.clientX);
+                    if (newW > 300 && newW < 900) document.documentElement.style.setProperty('--inspector-w', `${newW}px`);
+                };
+                const stopResize = () => {
+                    document.body.classList.remove('resizing'); resizer.classList.remove('active');
+                    document.removeEventListener('mousemove', doResize); document.removeEventListener('mouseup', stopResize);
+                };
+                resizer.addEventListener('mousedown', (e) => {
+                    startX = e.clientX;
+                    startW = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--inspector-w'), 10) || 500;
+                    document.body.classList.add('resizing'); resizer.classList.add('active');
+                    document.addEventListener('mousemove', doResize); document.addEventListener('mouseup', stopResize);
+                });
+            }
+        }
+    };
+    /* --- 5. EXTENSIÓN DE LÓGICA (MODULES) --- */
+    
+    // 5.1. DEVICES & HARDWARE
+    app.devices = {
+        showInInspector: (skipReset = false) => {
+            if (!skipReset) { uiState.selSong = -1; uiState.selPart = -1; uiState.inspectorMode = 'devices'; }
+
+            uiState.tempDevices = [];
+            Object.entries(setlist.device_alias || {}).forEach(([alias, spec]) => {
+                if (typeof spec === 'string') {
+                    uiState.tempDevices.push({ alias, type: 'midi', name: spec });
+                } else if (spec?.type === 'osc') {
+                    uiState.tempDevices.push({ alias, type: 'osc', ip: spec.ip || '127.0.0.1', port: spec.port || 8000 });
+                } else if (spec?.type === 'bus') {
+                    uiState.tempDevices.push({ alias, type: 'bus' });
+                }
+            });
+            app.devices.scanGhosts().forEach(g => {
+                if (!uiState.tempDevices.some(d => d.alias === g))
+                    uiState.tempDevices.push({ alias: g, type: 'midi', name: g, _ghost: true });
+            });
+
+            if (!skipReset) { app.render.parts(); app.render.inspector(); }
+            setTimeout(app.devices.renderAll, 0);
+        },
+
+        scanGhosts: () => {
+            const used = new Set();
+            const defined = new Set(Object.keys(setlist.device_alias || {}));
+            const scan = (l) => l?.forEach(o => { if (o.device) used.add(o.device); });
+            Object.values(setlist.triggers || {}).forEach(scan);
+            setlist.songs.forEach(s => { Object.values(s.triggers || {}).forEach(scan); s.parts?.forEach(p => scan(Array.isArray(p.output) ? p.output : (p.output ? [p.output] : []))); });
+            return [...used].filter(d => !defined.has(d));
+        },
+
+        scanHardware: async (contId) => {
+            const el = $(contId);
+            if (!navigator.requestMIDIAccess) { el.innerHTML = '<div class="hw-empty">API no soportada</div>'; return; }
+            try {
+                const access = await navigator.requestMIDIAccess();
+                let h = '<div class="prop-group mb-15"><div class="prop-label">MIDI Inputs</div><ul class="hardware-list">';
+                h += Array.from(access.inputs.values()).map(i => `<li class="hardware-item hw-clickable" title="Click para asignar alias" data-action="assign-hw" data-port="${i.name.replace(/"/g,'&quot;')}"><span class="hw-name">${i.name}</span> <span class="hw-badge">In</span> <span class="material-symbols-rounded icon-sm hw-add-icon">add_circle</span></li>`).join('') || '<li class="hardware-item hw-empty">No inputs</li>';
+                h += '</ul></div><div class="prop-group"><div class="prop-label">MIDI Outputs</div><ul class="hardware-list">';
+                h += Array.from(access.outputs.values()).map(o => `<li class="hardware-item hw-clickable" title="Click para asignar alias" data-action="assign-hw" data-port="${o.name.replace(/"/g,'&quot;')}"><span class="hw-name">${o.name}</span> <span class="hw-badge">Out</span> <span class="material-symbols-rounded icon-sm hw-add-icon">add_circle</span></li>`).join('') || '<li class="hardware-item hw-empty">No outputs</li>';
+                el.innerHTML = h + '</ul></div>';
+            } catch (e) { el.innerHTML = `<div class="hw-empty">Error: ${e.message}</div>`; }
+        },
+
+        save: () => {
+            const newAlias = {};
+            uiState.tempDevices.forEach(item => {
+                if (!item.alias) return;
+                if (item.type === 'midi') newAlias[item.alias] = item.name || '';
+                else if (item.type === 'osc') newAlias[item.alias] = { type: 'osc', ip: item.ip || '127.0.0.1', port: parseInt(item.port) || 8000 };
+                else if (item.type === 'bus') newAlias[item.alias] = { type: 'bus' };
+            });
+            setlist.device_alias = newAlias;
+            setlist.clock_in = $('devClockIn')?.value || '';
+            setlist.transport_out = $('devTransportOut')?.value || '';
+
+            const btn = $('btnSaveDev');
+            if (btn) { btn.innerText = "Guardado"; setTimeout(() => btn.innerText = "Guardar", 1500); }
+            app.devices.renderAll();
+        },
+
+        add: (type = 'midi') => {
+            const item = { alias: '', type };
+            if (type === 'osc') { item.ip = '127.0.0.1'; item.port = 8000; }
+            uiState.tempDevices.push(item);
+            app.devices.renderAll();
+        },
+        remove: (i) => { uiState.tempDevices.splice(i, 1); app.devices.renderAll(); },
+        update: (i, field, value) => { uiState.tempDevices[i][field] = field === 'port' ? (parseInt(value) || 0) : value; },
+        confirmGhost: (i) => { delete uiState.tempDevices[i]._ghost; app.devices.save(); },
+
+        renderAll: () => {
+            const tbody = $('aliasTableBody');
+            if (!tbody) return;
+            const aliases = uiState.tempDevices.map(d => d.alias).filter(Boolean);
+
+            tbody.innerHTML = uiState.tempDevices.map((item, i) => {
+                const isGhost = !!item._ghost;
+                const gs = isGhost ? 'color:var(--accent);font-style:italic' : '';
+                const typeSelect = `<select data-action="update-alias" data-idx="${i}" data-field="type"${isGhost ? ' disabled' : ''}>
+                    <option value="midi"${item.type==='midi'?' selected':''}>MIDI</option>
+                    <option value="osc"${item.type==='osc'?' selected':''}>OSC</option>
+                    <option value="bus"${item.type==='bus'?' selected':''}>Bus</option>
+                </select>`;
+                let spec = '';
+                if (item.type === 'midi') {
+                    spec = `<input type="text" value="${item.name||''}" placeholder="Puerto MIDI" style="${gs}" data-action="update-alias" data-idx="${i}" data-field="name">`;
+                } else if (item.type === 'osc') {
+                    spec = `<input type="text" value="${item.ip||'127.0.0.1'}" placeholder="IP" style="width:110px" data-action="update-alias" data-idx="${i}" data-field="ip"> `
+                         + `<input type="number" value="${item.port||8000}" placeholder="Port" style="width:70px" data-action="update-alias" data-idx="${i}" data-field="port">`;
+                } else {
+                    spec = `<span class="text-muted">—</span>`;
+                }
+                const btn = isGhost
+                    ? `<button class="icon-only primary" data-action="confirm-alias" data-idx="${i}"><span class="material-symbols-rounded icon-sm">save</span></button>`
+                    : `<button class="icon-only danger" data-action="remove-alias" data-idx="${i}"><span class="material-symbols-rounded icon-sm">close</span></button>`;
+                return `<tr>
+                    <td><input type="text" value="${item.alias}" placeholder="alias" style="${gs}" data-action="update-alias" data-idx="${i}" data-field="alias"></td>
+                    <td>${typeSelect}</td>
+                    <td class="dev-spec">${spec}</td>
+                    <td>${btn}</td>
+                </tr>`;
+            }).join('');
+
+            const buildOpts = (cur) => `<option value="">—</option>` + aliases.map(a => `<option value="${a}"${a===cur?' selected':''}>${a}</option>`).join('');
+            const clk = $('devClockIn'), trp = $('devTransportOut');
+            if (clk) clk.innerHTML = buildOpts(setlist.clock_in || '');
+            if (trp) trp.innerHTML = buildOpts(setlist.transport_out || '');
+        }
+    };
+
+    // 5.2. MIDI ENGINE
+    app.midi = {
+        access: null,
+        toggleTestMode: async () => {
+            uiState.testMode = !uiState.testMode;
+            $('btnTestMode').classList.toggle('test-active', uiState.testMode);
+            if (uiState.testMode && !app.midi.access) {
+                try {
+                    app.midi.log("Conectando WebMIDI...", "info");
+                    app.midi.access = await navigator.requestMIDIAccess();
+                    app.midi.log("WebMIDI Activo", "success");
+                } catch (e) { app.midi.log("Error: " + e.message, "error"); uiState.testMode = false; }
+            }
+        },
+        send: (outs) => {
+            if (!uiState.testMode || !app.midi.access || !outs?.length) return;
+            let sent = 0, err = 0;
+            const outputs = Array.from(app.midi.access.outputs.values());
+            
+            outs.forEach(o => {
+                if(o.address) return; // Ignore OSC
+                const aliasSpec = setlist.device_alias?.[o.device];
+                const target = typeof aliasSpec === 'string' ? aliasSpec : o.device;
+                const port = outputs.find(p => p.name.toLowerCase().includes(target?.toLowerCase()));
+                
+                if(!port) { if(o.device!=='default') err++; return; }
+                
+                try {
+                    const ch = o.channel || 0;
+                    if(['start','stop','continue'].includes(o.type)) port.send([o.type==='start'?0xFA:o.type==='stop'?0xFC:0xFB]);
+                    else if(o.program!==undefined || o.type==='program_change') port.send([0xC0|ch, o.program||0]);
+                    else if(o.note!==undefined || o.type==='note' || o.type==='note_on') port.send([0x90|ch, o.note, o.velocity||100]);
+                    else if(o.type==='note_off') port.send([0x80|ch, o.note, 0]);
+                    else port.send([0xB0|ch, o.control||0, o.value||0]);
+                    sent++;
+                } catch(e) { err++; }
+            });
+            app.midi.log(`Sent: ${sent}, Errors: ${err}`, err>0?"error":"success");
+        },
+        log: (msg, type) => {
+            const b = $('midiFeedback');
+            b.innerHTML += `<div class="log-line log-${type}">> ${msg}</div>`;
+            b.style.display = 'block'; b.scrollTop = b.scrollHeight;
+            clearTimeout(app.midi._t); app.midi._t = setTimeout(() => { b.style.display='none'; b.innerHTML=''; }, 4000);
+        }
+    };
+
+    // 5.3. VISUALIZERS (Pattern, Cues, Matrix)
+    app.pattern = {
+        open: () => {
+            if(uiState.selSong === -1 || uiState.selPart === -1) return;
+            const p = setlist.songs[uiState.selSong].parts[uiState.selPart].repeat_pattern;
+            uiState.tempPattern = !p && p!==0 ? [] : (Array.isArray(p) ? JSON.parse(JSON.stringify(p)) : [typeof p==='object' ? JSON.parse(JSON.stringify(p)) : p]);
+            
+            const sel = $('patternJumpTarget'); sel.innerHTML = '';
+            setlist.songs[uiState.selSong].parts.forEach((pt, i) => sel.innerHTML += `<option value="${i}">${i+1}. ${pt.name}</option>`);
+            app.pattern.render(); $('patternModal').classList.add('open');
+        },
+        render: () => {
+            const c = $('patternFlow'); c.innerHTML = '';
+            if(!uiState.tempPattern.length) { c.innerHTML = '<span class="text-muted flow-placeholder">Flujo Lineal (Siguiente Parte)</span>'; return; }
+            
+            uiState.tempPattern.forEach((s, i) => {
+                if(i>0) c.innerHTML += '<span class="material-symbols-rounded flow-arrow">arrow_right_alt</span>';
+                let cls='next', txt='UNK', icon='';
+                
+                if(s===true||s==='true'||s==='repeat') { cls='loop'; txt='LOOP'; icon='repeat'; }
+                else if(s===false||s==='false'||s==='next') { cls='next'; txt='NEXT'; icon='skip_next'; }
+                else if(s==='first_part') { cls='jump'; txt='START'; icon='first_page'; }
+                else if(s==='last_part') { cls='jump'; txt='END'; icon='last_page'; }
+                else if(s==='next_song') { cls='jump'; txt='>> SONG'; icon='skip_next'; }
+                else if(s==='prev_song') { cls='jump'; txt='<< SONG'; icon='skip_previous'; }
+                else if(s==='first_song') { cls='jump'; txt='FIRST SONG'; icon='first_page'; }
+                else if(s==='last_song') { cls='jump'; txt='LAST SONG'; icon='last_page'; }
+                else if(s==='loop_part') { cls='loop'; txt='LOOP PART'; icon='loop'; }
+                else if(s==='prev') { cls='jump'; txt='PREV'; icon='arrow_back'; }
+                else if(s==='song_mode') { cls='jump'; txt='SONG MODE'; icon='queue_music'; }
+                else if(s==='loop_mode') { cls='loop'; txt='LOOP MODE'; icon='repeat'; }
+                else if(typeof s==='object') {
+                    cls='jump';
+                    if(s.jump_to_cue!==undefined) { txt=`JUMP CUE F${s.jump_to_cue}`; icon='bookmark'; }
+                    else if(s.jump_to_part!==undefined) { txt=`GOTO P:${s.jump_to_part+1}`; icon='subdirectory_arrow_right'; }
+                    else if(s.jump_rel!==undefined) { txt=`REL ${s.jump_rel>=0?'+':''}${s.jump_rel}`; icon='subdirectory_arrow_right'; }
+                    else if(s.random_part) { txt=`RND [${s.random_part.map(x=>x+1).join(',')}]`; icon='shuffle'; }
+                }
+                
+                const d = document.createElement('div'); d.className = `flow-step ${cls}`;
+                d.innerHTML = `${icon?`<span class="material-symbols-rounded icon-sm" style="margin-right:4px;">${icon}</span>`:''}${txt} <div class="flow-step-remove"><span class="material-symbols-rounded icon-sm">close</span></div>`;
+                d.querySelector('.flow-step-remove').onclick = (e) => { e.stopPropagation(); app.pattern.remove(i); };
+                c.appendChild(d);
+            });
+        },
+        addStep: (t) => {
+            if(t==='jump') uiState.tempPattern.push({jump_to_part: parseInt($('patternJumpTarget').value)});
+            else if(t==='random') {
+                const v = $('rndParts').value.split(',').map(x=>parseInt(x.trim())-1).filter(x=>!isNaN(x)&&x>=0);
+                if(v.length) uiState.tempPattern.push({random_part:v});
+            } else if(t==='jump_cue') {
+                const n = parseInt($('patternJumpCue').value);
+                if(!isNaN(n) && n >= 1) uiState.tempPattern.push({jump_to_cue: n});
+            } else if(t==='jump_rel') {
+                const n = parseInt($('patternJumpRel').value);
+                if(!isNaN(n)) uiState.tempPattern.push({jump_rel: n});
+            } else uiState.tempPattern.push(t);
+            app.pattern.render();
+        },
+        remove: (i) => { uiState.tempPattern.splice(i, 1); app.pattern.render(); },
+        save: () => {
+            const clean = uiState.tempPattern.map(p => (p==="true"?true:p==="false"?false:p));
+            setlist.songs[uiState.selSong].parts[uiState.selPart].repeat_pattern = clean.length===0 ? false : (clean.length===1 && (clean[0]===true||clean[0]==='repeat') ? true : clean);
+            app.render.parts(); app.render.inspector(); app.modals.closeAll();
+        },
+        summary: (p) => {
+            if(p===true||p==='repeat') return "Loop";
+            if(!p||p===false||p==='next') return "Next";
+            if(Array.isArray(p)) return `Complex (${p.length})`;
+            const names = {first_part:"Start",last_part:"End",prev:"Prev",loop_part:"Loop Part",
+                           next_song:"Next Song",prev_song:"Prev Song",first_song:"First Song",
+                           last_song:"Last Song",song_mode:"Song Mode",loop_mode:"Loop Mode"};
+            return names[p] || "Custom";
+        }
+    };
+
+    app.cues = {
+        show: (skipR) => {
+            if(!skipR) { uiState.selSong=-1; uiState.selPart=-1; uiState.inspectorMode='cues'; }
+            uiState.tempCues = {};
+            setlist.songs.forEach((s,si) => s.parts?.forEach((p,pi) => { if(p.cue) { if(!uiState.tempCues[p.cue]) uiState.tempCues[p.cue]=[]; uiState.tempCues[p.cue].push({si,pi,label:`${s.song_name} - ${p.name}`}); } }));
+            if(!skipR) { app.render.parts(); app.render.inspector(); }
+        },
+        renderInspector: () => { // Lógica movida a app.render.inspector para unificar
+            // Solo métodos de manipulación aquí
+        },
+        drop: (e, slot) => {
+            try {
+                const d = JSON.parse(e.dataTransfer.getData('cueData'));
+                if(!uiState.tempCues[slot]) uiState.tempCues[slot] = [];
+                if(!uiState.tempCues[slot].some(x=>x.si===d.si && x.pi===d.pi)) { uiState.tempCues[slot].push(d); app.render.inspector(); }
+            } catch(e){}
+        },
+        remove: (slot, i) => { uiState.tempCues[slot].splice(i,1); app.render.inspector(); },
+        save: () => {
+            setlist.songs.forEach(s=>s.parts?.forEach(p=>delete p.cue));
+            Object.entries(uiState.tempCues).forEach(([k,v]) => v.forEach(i => { if(setlist.songs[i.si]?.parts[i.pi]) setlist.songs[i.si].parts[i.pi].cue=parseInt(k); }));
+            const b = $('btnSaveCues'); if(b) { b.innerText="Guardado"; setTimeout(()=>b.innerText="Guardar",1500); }
+        },
+        renderSourceList: (containerId, filter) => {
+            const cont = $(containerId); if(!cont) return;
+            const term = (filter||'').toLowerCase();
+            cont.innerHTML = '';
+            setlist.songs.forEach((s, si) => {
+                s.parts?.forEach((p, pi) => {
+                    const label = `${s.song_name} - ${p.name}`;
+                    if(term && !label.toLowerCase().includes(term)) return;
+                    const item = document.createElement('div');
+                    item.className = 'cue-source-item';
+                    item.draggable = true;
+                    item.innerHTML = `<span class="text-code text-muted icon-sm">${si+1}.${pi+1}</span><span>${label}</span>`;
+                    item.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.setData('cueData', JSON.stringify({si, pi, label}));
+                    });
+                    cont.appendChild(item);
+                });
+            });
+        },
+        renderInspectorSlots: () => {
+            const slots = $('cuesSlots'); if(!slots) return;
+            slots.innerHTML = '';
+            const usedNums = Object.keys(uiState.tempCues).map(Number).filter(n => n > 0);
+            const maxSlot = Math.min(Math.max(12, ...usedNums, 0) + 3, 127);
+            for(let i=1; i<=maxSlot; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'cue-slot';
+                slot.innerHTML = `<div class="cue-slot-header">F${i}</div><div class="cue-slot-items" id="cueSlot_${i}"></div>`;
+                slot.addEventListener('dragover', (e) => e.preventDefault());
+                slot.addEventListener('drop', (e) => app.cues.drop(e, i));
+                slots.appendChild(slot);
+                
+                const items = uiState.tempCues[i] || [];
+                const itemsCont = slot.querySelector(`#cueSlot_${i}`);
+                items.forEach((item, idx) => {
+                    const el = document.createElement('div');
+                    el.className = 'cue-slot-item';
+                    el.innerHTML = `<span>${item.label}</span><button class="cue-slot-remove" onclick="app.cues.remove(${i},${idx})">&times;</button>`;
+                    itemsCont.appendChild(el);
+                });
+            }
+        }
+    };
+
+    app.visualizer = {
+        cellState: null,
+        
+        getMatrixData: (song) => {
+            const colMap = []; 
+            const keySet = new Set();
+            
+            song.parts?.forEach(part => {
+                const outputs = Array.isArray(part.output) ? part.output : (part.output ? [part.output] : []);
+                outputs.forEach(output => {
+                    const device = output.device || 'default';
+                    const channel = output.channel !== undefined ? output.channel : (output.address ? 'OSC' : 'G');
+                    const key = `${device}||${channel}`;
+                    
+                    if (!keySet.has(key)) { 
+                        keySet.add(key); 
+                        colMap.push({ key, device, channel }); 
+                    }
+                });
+            });
+            
+            // Sort columns: Devices alpha, then channels numeric (OSC at end)
+            return colMap.sort((a, b) => (
+                a.device !== b.device 
+                    ? a.device.localeCompare(b.device) 
+                    : (a.channel === 'OSC' ? 1 : b.channel === 'OSC' ? -1 : a.channel - b.channel)
+            ));
+        },
+
+        editCell: (songIndex, partIndex, device, channel) => {
+            const part = setlist.songs[songIndex].parts[partIndex];
+            const allOuts = Array.isArray(part.output) ? part.output : (part.output ? [part.output] : []);
+            
+            const relevantOuts = allOuts.filter(o => 
+                (o.device || 'default') === device && 
+                (o.channel !== undefined ? o.channel : (o.address ? 'OSC' : 'G')) == channel
+            );
+            
+            // Handle empty cell initialization
+            const defaultNew = { device: device };
+            if (channel === 'OSC') { defaultNew.address = "/addr"; defaultNew.args = []; }
+            else if (channel !== 'G') { defaultNew.channel = parseInt(channel); defaultNew.control = 0; defaultNew.value = 0; }
+            else { defaultNew.control = 0; defaultNew.value = 0; }
+
+            app.visualizer.cellState = { 
+                songIndex, 
+                partIndex, 
+                device, 
+                channel, 
+                tempOuts: JSON.parse(JSON.stringify(relevantOuts.length ? relevantOuts : [defaultNew])) 
+            };
+            
+            uiState.selSong = songIndex; 
+            uiState.selPart = partIndex; 
+            uiState.inspectorMode = 'cell_edit';
+            app.render.parts(); 
+            app.render.inspector();
+        },
+
+        saveCell: () => {
+            const { songIndex, partIndex, device, channel, tempOuts } = app.visualizer.cellState;
+            const part = setlist.songs[songIndex].parts[partIndex];
+            
+            // Filter out existing outputs but keep position
+            const allOuts = Array.isArray(part.output) ? part.output : (part.output ? [part.output] : []);
+            
+            // Find insertion index and remove old items
+            const matchFn = o => (o.device || 'default') === device && (o.channel !== undefined ? o.channel : (o.address ? 'OSC' : 'G')) == channel;
+            const firstIdx = allOuts.findIndex(matchFn);
+            const insertPos = firstIdx === -1 ? allOuts.length : firstIdx;
+            const cleanOuts = allOuts.filter(o => !matchFn(o));
+
+            tempOuts.forEach(out => { 
+                out.device = device; 
+                if (channel === 'OSC') { 
+                    delete out.channel; 
+                    if (!out.address) out.address = "/"; 
+                } 
+                else if (channel !== 'G') out.channel = parseInt(channel); 
+                else delete out.channel; 
+            });
+            
+            cleanOuts.splice(insertPos, 0, ...tempOuts);
+            part.output = cleanOuts;
+
+            uiState.inspectorMode = 'part';
+            app.render.parts(); 
+            app.render.inspector();
+        },
+
+        cancelCell: () => { 
+            uiState.inspectorMode = 'part'; 
+            app.render.parts(); 
+            app.render.inspector(); 
+        }
+    };
+
+    // 5.4. IO & EDITOR
+    app.io = {
+        download: (d, n) => { const a=document.createElement('a'); a.href="data:text/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(d,null,2)); a.download=n; a.click(); },
+        exportSong: () => uiState.selSong!==-1 && app.io.download(setlist.songs[uiState.selSong], (setlist.songs[uiState.selSong].song_name||"song").replace(/\s+/g,'_')+".json"),
+        validate: (sl) => {
+            const errors = [], warnings = [];
+            if(!sl.playlist_name?.trim()) warnings.push('El nombre del setlist está vacío.');
+            if(!sl.songs?.length) { errors.push('El setlist no tiene canciones.'); return {errors, warnings}; }
+            const cueCount = {};
+            sl.songs.forEach((song, si) => {
+                const sn = song.song_name || `Canción ${si+1}`;
+                if(!song.parts?.length) { warnings.push(`"${sn}" no tiene partes.`); return; }
+                song.parts.forEach((part, pi) => {
+                    const pn = `"${sn}" › Part ${pi+1} (${part.name||'sin nombre'})`;
+                    const bars = parseInt(part.bars);
+                    if(!bars || bars <= 0) errors.push(`${pn}: bars inválido (${part.bars}).`);
+                    if(Array.isArray(part.output)) part.output.forEach((out, oi) => {
+                        if(!out.device?.trim()) warnings.push(`${pn} output #${oi+1}: device vacío.`);
+                    });
+                    if(part.cue) { cueCount[part.cue] = (cueCount[part.cue]||0) + 1; }
+                    if(Array.isArray(part.repeat_pattern)) {
+                        part.repeat_pattern.forEach(step => {
+                            if(typeof step === 'object' && step.jump_to_part !== undefined) {
+                                if(step.jump_to_part < 0 || step.jump_to_part >= song.parts.length)
+                                    errors.push(`${pn}: jump_to_part=${step.jump_to_part+1} fuera de rango (${song.parts.length} partes).`);
+                            }
+                        });
+                    }
+                });
+            });
+            Object.entries(cueCount).forEach(([cue, n]) => { if(n > 1) warnings.push(`Cue ${cue} aparece ${n} veces en el setlist.`); });
+            // Ghost devices
+            const definedAliases = new Set(Object.keys(sl.device_alias || {}));
+            const usedDevs = new Set();
+            const scanOutputDevs = (list) => list?.forEach(o => { if(o?.device) usedDevs.add(o.device); });
+            sl.songs.forEach(s => {
+                s.parts?.forEach(p => { if(Array.isArray(p.output)) scanOutputDevs(p.output); });
+                Object.values(s.triggers || {}).forEach(ev => scanOutputDevs(ev));
+            });
+            Object.values(sl.triggers || {}).forEach(ev => scanOutputDevs(ev));
+            usedDevs.forEach(d => { if (!definedAliases.has(d)) warnings.push(`Dispositivo "${d}" referenciado en outputs/triggers pero no definido en device_alias.`); });
+            // repeat_pattern enum
+            const VALID_RP = new Set(['next','prev','loop_part','first_part','last_part','first_song','last_song','prev_song','next_song','song_mode','loop_mode']);
+            sl.songs.forEach((song, si) => {
+                const sn = song.song_name || `Canción ${si+1}`;
+                song.parts?.forEach((part, pi) => {
+                    const pn = `"${sn}" › Parte ${pi+1}`;
+                    const rp = part.repeat_pattern;
+                    if (typeof rp === 'string' && !VALID_RP.has(rp)) errors.push(`${pn}: repeat_pattern "${rp}" desconocido.`);
+                    if (Array.isArray(rp)) rp.forEach((step, si2) => {
+                        if (typeof step === 'string' && step !== 'true' && step !== 'false' && !VALID_RP.has(step))
+                            errors.push(`${pn}: repeat_pattern[${si2}] "${step}" desconocido.`);
+                    });
+                });
+            });
+            // Control actions
+            const VALID_CTRL_ACTIONS = new Set(['next_part','prev_part','next_song','prev_song','song_first','song_last','song_restart','song_jump','part_loop_toggle','part_restart','action_cancel','mode_toggle','global_part_jump','cue_jump','set_quant_4','set_quant_8','set_quant_16','set_quant_bar','set_quant_end','set_quant_instant','quant_jump_instant','quant_jump_bar','quant_jump_8','quant_jump_16']);
+            (sl.control || []).forEach((rule, ri) => {
+                if (rule.action && !VALID_CTRL_ACTIONS.has(rule.action)) errors.push(`Control rule #${ri+1}: action "${rule.action}" no está en el catálogo.`);
+                if (rule.event === 'cc' && rule.cc === undefined) warnings.push(`Control rule #${ri+1}: event cc sin campo cc.`);
+                if ((rule.event === 'note' || rule.event === 'note_off') && rule.note === undefined) warnings.push(`Control rule #${ri+1}: event ${rule.event} sin campo note.`);
+            });
+            return {errors, warnings};
+        },
+        buildExportData: () => {
+            const finalAlias = { ...(_preserved.device_alias || {}), ...(setlist.device_alias || {}) };
+            const finalClockIn = setlist.clock_in || _preserved.clock_in || '';
+            const finalTransportOut = setlist.transport_out || _preserved.transport_out || '';
+
+            const orderedSongs = (setlist.songs || []).map(s => {
+                const { song_name, parts, devices, triggers, notes, _linkedParts, ...otherMeta } = s;
+                return {
+                    song_name: song_name || "Nueva Canción",
+                    ...otherMeta,
+                    ...(notes ? {notes} : {}),
+                    ...(triggers ? {triggers} : {}),
+                    parts: parts || []
+                };
+            });
+
+            return {
+                playlist_name: setlist.playlist_name || "Setlist",
+                mode: setlist.mode || "song",
+                ...(setlist.bpm ? { bpm: setlist.bpm } : {}),
+                ...((setlist.advance_value || 0) > 0 ? { [setlist.advance_unit || 'beats']: setlist.advance_value } : {}),
+                ...(Object.keys(finalAlias).length > 0 ? { device_alias: finalAlias } : {}),
+                ...(finalClockIn ? { clock_in: finalClockIn } : {}),
+                ...(finalTransportOut ? { transport_out: finalTransportOut } : {}),
+                ...(setlist.bus_outputs ? { bus_outputs: true } : {}),
+                ...(setlist.control?.length ? { control: setlist.control } : {}),
+                ...(setlist.triggers && Object.keys(setlist.triggers).length > 0 ? { triggers: setlist.triggers } : {}),
+                songs: orderedSongs
+            };
+        },
+        export: () => {
+            const exportData = app.io.buildExportData();
+
+            // --- 2. FORMATEADOR VISUAL ---
+            const formatCustomJSON = (data) => {
+                let json = JSON.stringify(data, null, 2);
+                const colWidths = {
+                    '"device":': 26, '"channel":': 16, '"control":': 16, '"program":': 16, 
+                    '"note":': 16, '"type":': 18, '"value":': 14, '"velocity":': 14, 
+                    '"address":': 26, '"name":': 26, '"bars":': 12, '"repeat_pattern":': 26, 
+                    '"color":': 22, '"cue":': 12, '"time_signature":': 18
+                };
+
+                let oldJson = '';
+                while(oldJson !== json) {
+                    oldJson = json;
+                    json = json.replace(/\{\n\s+([^{}\[\]]+?)\n\s+\}/g, (match, content) => {
+                        let singleLine = content.replace(/\n\s*/g, ' ').trim();
+                        const isOutput = singleLine.includes('"device":') || singleLine.includes('"channel":');
+                        const isPart = singleLine.includes('"name":') && singleLine.includes('"bars":');
+                        if (!isOutput && !isPart) return `{ ${singleLine} }`;
+
+                        let parts = singleLine.split(', ');
+                        let formatted = parts.map((part, index) => {
+                            let isLast = index === parts.length - 1;
+                            let token = part + (isLast ? '' : ', '); 
+                            if (isLast) return token; 
+                            for (const [key, width] of Object.entries(colWidths)) {
+                                if (part.trim().startsWith(key)) return token.padEnd(width, ' ');
+                            }
+                            return token;
+                        }).join('');
+                        return `{ ${formatted} }`;
+                    });
+                }
+                
+                const simpleKeys = ['name', 'bars', 'color', 'cue', 'repeat_pattern', 'time_signature'];
+                const keyPattern = simpleKeys.join('|');
+                const partHeaderRegex = new RegExp(`("(${keyPattern})":\\s*[^,\\{\\}\\[\\]]+),\\n\\s+("(${keyPattern})":)`, 'g');
+                
+                for(let i=0; i<6; i++) { 
+                    json = json.replace(partHeaderRegex, (match, p1, keyName, p3, nextKeyName) => {
+                        const width = colWidths[`"${keyName}":`] || 0;
+                        return (p1 + ', ').padEnd(width, ' ') + p3;
+                    });
+                }
+                const closeBraceRegex = new RegExp(`("(${keyPattern})":\\s*[^,\\{\\}\\[\\]]+)\\n\\s+\\}`, 'g');
+                json = json.replace(/\{\n\s+("name":)/g, '{ $1').replace(closeBraceRegex, '$1 }');
+                return json;
+            };
+
+            // --- 3. VALIDACIÓN + DESCARGA ---
+            const doDownload = () => {
+                const jsonString = formatCustomJSON(exportData);
+                const blob = new Blob([jsonString], {type: "text/json;charset=utf-8"});
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = (exportData.playlist_name).replace(/\s+/g,'_') + ".json";
+                a.click();
+                URL.revokeObjectURL(a.href);
+                app.clearDirty();
+                app.autosave.clear();
+            };
+
+            const {errors, warnings} = app.io.validate(setlist);
+            if(errors.length || warnings.length) {
+                const body = $('validateModalBody');
+                let html = '';
+                if(errors.length) html += `<p class="text-accent" style="font-weight:600;margin-bottom:6px;">Errores (${errors.length}):</p><ul style="margin:0 0 12px 0;padding-left:16px;">${errors.map(e=>`<li>${e}</li>`).join('')}</ul>`;
+                if(warnings.length) html += `<p style="color:var(--warning,#f0a500);font-weight:600;margin-bottom:6px;">Avisos (${warnings.length}):</p><ul style="margin:0;padding-left:16px;">${warnings.map(w=>`<li>${w}</li>`).join('')}</ul>`;
+                body.innerHTML = html;
+                const continueBtn = $('btnValidateContinue');
+                continueBtn.style.display = errors.length ? 'none' : '';
+                continueBtn.onclick = () => { app.modals.closeAll(); doDownload(); };
+                $('validateModal').classList.add('open');
+            } else {
+                doDownload();
+            }
+        },
+        importConf: (e) => {
+            const r = new FileReader();
+            r.onload = (ev) => {
+                try {
+                    const c = appTools.looseJsonParse(ev.target.result);
+                    if (c.device_alias) {
+                        Object.assign(setlist.device_alias, c.device_alias);
+                        if (c.clock_in) setlist.clock_in = c.clock_in;
+                        if (c.transport_out) setlist.transport_out = c.transport_out;
+                    } else if (c.devices) {
+                        const mi = c.devices.midi_in || {};
+                        const mo = c.devices.midi_out || {};
+                        const oo = c.devices.osc_out || {};
+                        if (mi.clock) { setlist.device_alias['clock'] = mi.clock; setlist.clock_in = 'clock'; }
+                        Object.entries(mi).forEach(([k, v]) => { if (k !== 'clock') setlist.device_alias[k] = v; });
+                        if (mo.transport_out) { setlist.device_alias['transport_out'] = mo.transport_out; setlist.transport_out = 'transport_out'; }
+                        Object.entries(mo).forEach(([k, v]) => { if (k !== 'transport_out') setlist.device_alias[k] = v; });
+                        Object.entries(oo).forEach(([k, v]) => { setlist.device_alias[k] = { type: 'osc', ip: v.ip || '127.0.0.1', port: v.port || 8000 }; });
+                    }
+                    if (c.triggers) setlist._envTriggers = c.triggers;
+                    alert("Entorno importado."); if (uiState.inspectorMode === 'devices') app.devices.showInInspector();
+                } catch(err) { alert(err.message); }
+            };
+            if(e.target.files[0]) r.readAsText(e.target.files[0]); e.target.value='';
+        },
+        normalizeOutput: (item) => {
+            if (!item || typeof item !== 'object') return item;
+            const ev = item.event || item.event_out || '';
+            const hasSemantic = item.event !== undefined || item.event_out !== undefined || item.cc !== undefined || item.pc !== undefined || item.cc_out !== undefined || item.pc_out !== undefined;
+            if (!hasSemantic) return item;
+            const base = { device: item.device || '' };
+            ['bar','beats','each_bar','each_beat'].forEach(k => { if(item[k] !== undefined) base[k] = item[k]; });
+            if (item.channel !== undefined) base.channel = item.channel;
+            else if (item.ch !== undefined) base.channel = item.ch;
+            if (item.address) { base.address = item.address; base.args = item.args || []; return base; }
+            const ccVal = item.cc ?? item.cc_out;
+            const pcVal = item.pc ?? item.pc_out;
+            const effectiveEv = ev || (ccVal !== undefined ? 'cc' : pcVal !== undefined ? 'pc' : '');
+            if (effectiveEv === 'cc' || (ccVal !== undefined && !ev)) { base.control = ccVal ?? item.control ?? 0; if (item.value !== undefined) base.value = item.value; }
+            else if (effectiveEv === 'pc') { base.program = pcVal ?? item.program ?? 0; base.type = 'program_change'; }
+            else if (effectiveEv === 'note' || effectiveEv === 'note_on') { base.note = item.note ?? 60; if (item.velocity !== undefined) base.velocity = item.velocity; base.type = 'note_on'; }
+            else if (effectiveEv === 'note_off') { base.note = item.note ?? 60; base.type = 'note_off'; }
+            else if (effectiveEv === 'pitch' || item.pitch !== undefined) { base.pitch = item.pitch ?? 0; }
+            else if (effectiveEv === 'pressure' || item.pressure !== undefined) { base.pressure = item.pressure ?? 0; }
+            else { return item; }
+            return base;
+        },
+        normalizeAllOutputs: (data) => {
+            const norm = app.io.normalizeOutput;
+            const normList = (list) => Array.isArray(list) ? list.map(norm) : list;
+            (data.songs || []).forEach(s => {
+                (s.parts || []).forEach(p => { if (p.output) p.output = normList(p.output); });
+                if (s.triggers) Object.keys(s.triggers).forEach(k => { s.triggers[k] = normList(s.triggers[k]); });
+            });
+            if (data.triggers) Object.keys(data.triggers).forEach(k => { data.triggers[k] = normList(data.triggers[k]); });
+        },
+        import: (e) => {
+            const r = new FileReader();
+            r.onload = (ev) => {
+                try {
+                    const d = appTools.looseJsonParse(ev.target.result);
+                    if (d.device_alias) {
+                        _preserved.device_alias = { ...(setlist.device_alias || {}) };
+                        _preserved.clock_in = setlist.clock_in;
+                        _preserved.transport_out = setlist.transport_out;
+                    } else if (d.devices) {
+                        const mi = d.devices.midi_in || {};
+                        const mo = d.devices.midi_out || {};
+                        const oo = d.devices.osc_out || {};
+                        d.device_alias = {};
+                        if (mi.clock) { d.device_alias['clock'] = mi.clock; d.clock_in = 'clock'; }
+                        Object.entries(mi).forEach(([k, v]) => { if (k !== 'clock') d.device_alias[k] = v; });
+                        if (mo.transport_out) { d.device_alias['transport_out'] = mo.transport_out; d.transport_out = 'transport_out'; }
+                        Object.entries(mo).forEach(([k, v]) => { if (k !== 'transport_out') d.device_alias[k] = v; });
+                        Object.entries(oo).forEach(([k, v]) => { d.device_alias[k] = { type: 'osc', ip: v.ip || '127.0.0.1', port: v.port || 8000 }; });
+                        delete d.devices;
+                    }
+                    app.io.normalizeAllOutputs(d);
+                    setlist = { ...setlist, ...d, advance_value: d.bars||d.beats||0, advance_unit: d.bars?'bars':'beats' };
+                    ['btnShowDevices','btnShowCues','btnShowMatrix'].forEach(id=>$(id)?.classList.remove('active'));
+                    uiState.inspectorMode=null; uiState.songViewMode='parts'; app.selectSong(-1); app.calcTimes();
+                } catch(e) { alert(e.message); }
+            };
+            if(e.target.files[0]) r.readAsText(e.target.files[0]); e.target.value='';
+        }
+    };
+
+    app.autosave = {
+        KEY: 'miditema_autosave',
+        TS_KEY: 'miditema_autosave_ts',
+        _timer: null,
+        schedule: () => {
+            clearTimeout(app.autosave._timer);
+            app.autosave._timer = setTimeout(app.autosave.save, 2000);
+        },
+        save: () => {
+            try {
+                localStorage.setItem(app.autosave.KEY, JSON.stringify(setlist));
+                localStorage.setItem(app.autosave.TS_KEY, Date.now().toString());
+            } catch(e) { /* quota exceeded or private mode */ }
+        },
+        clear: () => {
+            localStorage.removeItem(app.autosave.KEY);
+            localStorage.removeItem(app.autosave.TS_KEY);
+        },
+        restore: () => {
+            try {
+                const raw = localStorage.getItem(app.autosave.KEY);
+                const ts = parseInt(localStorage.getItem(app.autosave.TS_KEY) || '0');
+                if(!raw) return;
+                const mins = Math.round((Date.now() - ts) / 60000);
+                const label = mins < 2 ? 'hace menos de 1 min' : `hace ${mins} min`;
+                if(confirm(`Hay una sesión guardada automáticamente (${label}).\n¿Restaurar?`)) {
+                    setlist = JSON.parse(raw);
+                    app.selectSong(-1);
+                    app.calcTimes();
+                    app.markDirty();
+                }
+            } catch(e) { /* corrupt data */ }
+        }
+    };
+
+    app.editor = {
+        inst: null,
+        close: () => { uiState.songViewMode='parts'; app.render.parts(); },
+        export: () => { const b=new Blob([app.editor.inst.getValue()],{type:"text/plain"}); const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(setlist.playlist_name||"setlist")+".json"; a.click(); }
+    };
+
+    // --- HISTORIAL UNDO/REDO ---
+    app.history = {
+        stack: [],
+        redoStack: [],
+        MAX: 30,
+        snapshot: () => {
+            const snap = JSON.stringify(setlist);
+            if (app.history.stack.length && app.history.stack[app.history.stack.length-1] === snap) return;
+            app.history.stack.push(snap);
+            if (app.history.stack.length > app.history.MAX) app.history.stack.shift();
+            app.history.redoStack = [];
+        },
+        undo: () => {
+            if (!app.history.stack.length) return;
+            app.history.redoStack.push(JSON.stringify(setlist));
+            setlist = JSON.parse(app.history.stack.pop());
+            uiState.selPart = -1;
+            if (uiState.selSong >= setlist.songs.length) uiState.selSong = setlist.songs.length - 1;
+            uiState.inspectorMode = uiState.selSong === -1 ? 'setlist' : 'song';
+            app.render.sidebar(); app.render.parts(); app.render.inspector(); app.calcTimes();
+            app.markDirty();
+        },
+        redo: () => {
+            if (!app.history.redoStack.length) return;
+            app.history.stack.push(JSON.stringify(setlist));
+            setlist = JSON.parse(app.history.redoStack.pop());
+            uiState.selPart = -1;
+            if (uiState.selSong >= setlist.songs.length) uiState.selSong = setlist.songs.length - 1;
+            uiState.inspectorMode = uiState.selSong === -1 ? 'setlist' : 'song';
+            app.render.sidebar(); app.render.parts(); app.render.inspector(); app.calcTimes();
+            app.markDirty();
+        }
+    };
+
+    // --- CONTROL BINDINGS ---
+    app.control = {
+        ACTIONS: ['next_part','prev_part','next_song','prev_song','song_first','song_last','song_restart','song_jump','part_loop_toggle','part_restart','action_cancel','mode_toggle','global_part_jump','cue_jump','set_quant_4','set_quant_8','set_quant_16','set_quant_bar','set_quant_end','set_quant_instant','quant_jump_instant','quant_jump_bar','quant_jump_8','quant_jump_16'],
+        ACTIONS_WITH_ARG: ['song_jump','global_part_jump','cue_jump'],
+
+        render: (cont) => {
+            if (!cont) return;
+            const rules = setlist.control || [];
+            const aliases = ['', ...Object.keys(setlist.device_alias || {})];
+            cont.innerHTML = '';
+            rules.forEach((rule, i) => {
+                const devOpts = aliases.map(d => `<option value="${d}" ${(rule.device_in||'')===(d)?'selected':''}>${d||'(any)'}</option>`).join('');
+                const actOpts = app.control.ACTIONS.map(a => `<option value="${a}" ${rule.action===a?'selected':''}>${a}</option>`).join('');
+                const needArg = app.control.ACTIONS_WITH_ARG.includes(rule.action);
+                const isNote = rule.event === 'note' || rule.event === 'note_off';
+                const ccOrNote = isNote ? 'note' : 'cc';
+                const fieldVal = rule[ccOrNote] ?? '';
+                const row = document.createElement('div');
+                row.className = 'ctrl-rule-row';
+                row.innerHTML = `
+                    <select class="ctrl-dev" data-action="update-ctrl" data-idx="${i}" data-field="device_in">${devOpts}</select>
+                    <select class="ctrl-evt" data-action="update-ctrl" data-idx="${i}" data-field="event">
+                        <option value="cc" ${rule.event==='cc'?'selected':''}>CC</option>
+                        <option value="note" ${rule.event==='note'?'selected':''}>Note</option>
+                        <option value="note_off" ${rule.event==='note_off'?'selected':''}>NoteOff</option>
+                    </select>
+                    <input type="number" class="input-tiny ctrl-num" placeholder="${ccOrNote}#" value="${fieldVal}" min="0" max="127" data-action="update-ctrl" data-idx="${i}" data-field="${ccOrNote}">
+                    <input type="number" class="input-tiny ctrl-num" placeholder="Ch" value="${rule.ch??''}" min="0" max="15" data-action="update-ctrl" data-idx="${i}" data-field="ch">
+                    <input type="number" class="input-tiny ctrl-num" placeholder="Val" value="${rule.value??''}" min="0" max="127" data-action="update-ctrl" data-idx="${i}" data-field="value">
+                    <select class="ctrl-act" data-action="update-ctrl" data-idx="${i}" data-field="action">${actOpts}</select>
+                    <input type="number" class="input-tiny ctrl-num" placeholder="Arg" value="${rule.arg??''}" min="0" ${needArg?'':'style="visibility:hidden"'} data-action="update-ctrl" data-idx="${i}" data-field="arg">
+                    <button class="icon-only danger ctrl-del" data-action="remove-ctrl" data-idx="${i}"><span class="material-symbols-rounded icon-sm">close</span></button>`;
+                cont.appendChild(row);
+            });
+            const addBtn = document.createElement('button');
+            addBtn.className = 'w-full'; addBtn.textContent = '+ Añadir Regla';
+            addBtn.onclick = () => app.control.add();
+            cont.appendChild(addBtn);
+        },
+
+        add: () => {
+            if (!Array.isArray(setlist.control)) setlist.control = [];
+            setlist.control.push({ event: 'cc', action: 'next_part' });
+            app.control.render($('controlRulesList')); app.markDirty();
+        },
+
+        remove: (idx) => {
+            setlist.control?.splice(idx, 1);
+            app.control.render($('controlRulesList')); app.markDirty();
+        },
+
+        update: (idx, field, val) => {
+            const rule = setlist.control?.[idx]; if (!rule) return;
+            if (field === 'event') {
+                delete rule.cc; delete rule.note;
+                rule.event = val;
+                app.control.render($('controlRulesList'));
+            } else if (field === 'cc' || field === 'note') {
+                const n = parseInt(val); if (!isNaN(n)) rule[field] = n; else delete rule[field];
+            } else if (field === 'ch' || field === 'value' || field === 'arg') {
+                const n = parseInt(val); if (!isNaN(n)) rule[field] = n; else delete rule[field];
+            } else if (field === 'action') {
+                rule.action = val;
+                app.control.render($('controlRulesList'));
+            } else {
+                const v = val?.trim(); if (v) rule[field] = v; else delete rule[field];
+            }
+            app.markDirty();
+        }
+    };
+
+    // --- BÚSQUEDA GLOBAL ---
+    app.search = {
+        openGlobal: () => {
+            $('globalSearchModal').classList.add('open');
+            const inp = $('globalSearchInput');
+            if (inp) { inp.value = ''; app.search.runGlobal(''); setTimeout(() => inp.focus(), 50); }
+        },
+        runGlobal: (term) => {
+            const cont = $('globalSearchResults'); if (!cont) return;
+            const t = term.trim().toLowerCase();
+            cont.innerHTML = '';
+            if (!t) { cont.innerHTML = '<div class="text-muted" style="padding:10px;">Escribe para buscar...</div>'; return; }
+            let count = 0;
+            setlist.songs.forEach((s, si) => {
+                if (s.song_name?.toLowerCase().includes(t)) {
+                    const d = document.createElement('div'); d.className = 'search-result-item';
+                    d.innerHTML = `<span class="material-symbols-rounded icon-sm" style="color:var(--accent)">music_note</span><span class="font-bold">${s.song_name}</span>`;
+                    d.onclick = () => { app.selectSong(si); app.modals.closeAll(); };
+                    cont.appendChild(d); count++;
+                }
+                s.parts?.forEach((p, pi) => {
+                    const fields = [p.name, p.notes, p.cue ? `F${p.cue}` : ''].join(' ').toLowerCase();
+                    if (fields.includes(t)) {
+                        const d = document.createElement('div'); d.className = 'search-result-item search-result-part';
+                        d.innerHTML = `<span class="material-symbols-rounded icon-sm" style="color:var(--text-muted)">subdirectory_arrow_right</span><span class="text-muted">${s.song_name} › </span><span>${p.name}</span>${p.notes ? `<span class="text-muted" style="font-size:11px;"> — ${p.notes.substring(0,50)}</span>` : ''}`;
+                        d.onclick = () => { app.selectSong(si); app.selectPart(pi); app.modals.closeAll(); };
+                        cont.appendChild(d); count++;
+                    }
+                });
+            });
+            if (!count) cont.innerHTML = '<div class="text-muted" style="padding:10px;">Sin resultados.</div>';
+        }
+    };
+
+    /* --- 6. RENDER SYSTEM --- */
+    app.render = {
+        sidebar: () => {
+            const listContainer = $('songList'); 
+            listContainer.innerHTML = '';
+            
+            // Setlist Header Item
+            const head = document.createElement('li'); 
+            head.className = `song-item ${uiState.selSong === -1 ? 'active' : ''}`; 
+            head.dataset.index = -1;
+            head.innerHTML = `<span class="material-symbols-rounded icon-sm text-muted">folder</span><div style="flex:1;font-weight:600;">${setlist.playlist_name || 'Setlist'}</div><div class="song-duration text-accent font-bold">${uiState.stats.totalTime.replace('Total: ','')}</div>`;
+            listContainer.appendChild(head);
+
+            setlist.songs.forEach((song, index) => {
+                let bars = 0;
+                let num = parseInt((song.time_signature || "4/4").split('/')[0]) || 4;
+                
+                if (song.parts) song.parts.forEach(part => bars += (parseInt(part.bars) || 0));
+                
+                const sec = (bars * num * 60) / (setlist.bpm || 120);
+                const li = document.createElement('li'); 
+                li.className = `song-item ${index === uiState.selSong ? 'active' : ''}`;
+                li.draggable = true; 
+                li.dataset.index = index;
+                
+                li.innerHTML = `<div class="drag-handle text-muted"><span class="material-symbols-rounded icon-sm">drag_indicator</span></div><div class="color-dot" style="background:${COLOR_MAP[song.color]||'#555'}"></div><div style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;">${index+1}. ${song.song_name}</div><div class="song-duration">${sec > 0 ? Math.floor(sec/60) + ':' + Math.floor(sec%60).toString().padStart(2,'0') : ''}</div>`;
+                const filterTerm = ($('songSearchInput')?.value || '').toLowerCase();
+                if (filterTerm && !song.song_name.toLowerCase().includes(filterTerm)) li.style.display = 'none';
+                listContainer.appendChild(li);
+            });
+            $('btnSetlistNotes')?.classList.toggle('has-notes', !!setlist.notes);
+        },
+
+        parts: () => {
+            document.body.classList.toggle('json-editing', uiState.songViewMode==='json_editor');
+            document.body.classList.toggle('mode-matrix', uiState.songViewMode==='matrix');
+            const cont = $('partsContainer'); cont.innerHTML = ''; 
+            const head = $('partsHeader'); const btn = $('btnAddPart');
+
+            if(uiState.songViewMode === 'json_editor') {
+                cont.innerHTML = `<div class="json-editor-wrapper"><div id="jsonEditorContainer"></div></div><div class="panel-footer" style="position:absolute;bottom:0;width:100%;border-top:1px solid var(--border);z-index:20;"><div class="flex gap-2 j-end w-full"><span class="text-muted" style="font-size:11px;align-self:center">Vista previa — solo lectura</span><button id="btnJsonClose">Cerrar</button><button id="btnJsonExport" class="icon-only"><span class="material-symbols-rounded icon-sm">download</span></button></div></div>`;
+                const ed = ace.edit("jsonEditorContainer"); ed.setTheme("ace/theme/twilight"); ed.session.setMode("ace/mode/javascript");
+                ed.setValue(JSON.stringify(app.io.buildExportData(), null, 2), -1); ed.setShowPrintMargin(false); ed.setReadOnly(true); app.editor.inst = ed;
+                $('btnJsonClose').onclick = app.editor.close; $('btnJsonExport').onclick = app.editor.export;
+                return;
+            }
+
+            if(uiState.inspectorMode === 'devices') {
+                cont.innerHTML = `<div class="p-10">
+                    <div class="flex j-between mb-20"><h2 class="m-0">Global Ports</h2><button id="btnSaveDev">Guardar</button></div>
+                    <div id="hwScanContainer" class="mb-20"></div>
+                    <div class="prop-group mb-15">
+                        <div class="flex gap-10 mb-10 align-center">
+                            <span class="prop-label" style="min-width:110px">clock_in →</span>
+                            <select id="devClockIn" style="flex:1"></select>
+                        </div>
+                        <div class="flex gap-10 align-center">
+                            <span class="prop-label" style="min-width:110px">transport_out →</span>
+                            <select id="devTransportOut" style="flex:1"></select>
+                        </div>
+                    </div>
+                    <div class="mb-20">
+                        <div class="section-title mb-10">Device Aliases</div>
+                        <table class="device-table">
+                            <thead><tr><th class="col-alias">Alias</th><th>Tipo</th><th>Spec</th><th></th></tr></thead>
+                            <tbody id="aliasTableBody"></tbody>
+                        </table>
+                        <div class="flex gap-5 mt-10">
+                            <button data-action="add-alias" data-type="midi">+ MIDI</button>
+                            <button data-action="add-alias" data-type="osc">+ OSC</button>
+                            <button data-action="add-alias" data-type="bus">+ Bus</button>
+                        </div>
+                    </div>
+                </div>`;
+                app.devices.renderAll();
+                app.devices.scanHardware('hwScanContainer');
+                return;
+            }
+            if (uiState.songViewMode === 'triggers') {
+                const song = setlist.songs[uiState.selSong];
+                cont.innerHTML = `<div class="p-10"><div class="flex j-between mb-20"><h2 class="m-0">Song Triggers</h2><div class="text-code text-muted">${song.song_name}</div></div><div id="songTriggersList"></div></div>`;
+                
+                const types = [
+                    {k:"song_change", l:"On Load"},
+                    {k:"part_change", l:"On Part Change"},
+                    {k:"playback_start", l:"Play"},
+                    {k:"playback_stop", l:"Stop"},
+                    {k:"playback_continue", l:"Continue"},
+                    {k:"playback_initial_start", l:"First Play"},
+                    {k:"setlist_end", l:"Setlist End"},
+                    {k:"bar_triggers", l:"Cyclic"},
+                    {k:"countdown_triggers", l:"Countdown"}
+                ];
+
+                const listDiv = cont.querySelector('#songTriggersList');
+                types.forEach(t => {
+                    const item = document.createElement('div'); 
+                    item.className = 'trigger-item'; 
+                    item.innerHTML = `<div class="trigger-header">${t.l}</div><div id="st_${t.k}"></div>`; 
+                    listDiv.appendChild(item);
+                    
+                    // Inicializar objeto triggers si no existe
+                    if (!song.triggers) song.triggers = {};
+                    
+                    app.inspector.renderList(item.querySelector(`#st_${t.k}`), `song_${t.k}`, song.triggers[t.k]||[], (nl) => {
+                        if (nl && nl.length > 0) song.triggers[t.k] = nl;
+                        else delete song.triggers[t.k];
+                    });
+                });
+                return;
+            }
+            // Bloque Matrix restaurado desde index69
+            if(uiState.selSong !== -1 && uiState.songViewMode === 'matrix') {
+                if($('btnAddPart')) $('btnAddPart').style.display = 'none'; // Ocultar botón añadir
+                
+                const song = setlist.songs[uiState.selSong];
+                const colMap = app.visualizer.getMatrixData(song);
+                
+                if (colMap.length === 0) {
+                    cont.innerHTML = '<div class="empty-state">No hay salidas configuradas en esta canción.<br>Añade outputs en la vista de Partes primero.</div>';
+                    return;
+                }
+
+                let html = '<div class="matrix-wrapper"><table class="matrix-table"><thead><tr><th class="corner-header" style="z-index:20;">Parte</th>';
+                colMap.forEach(col => { 
+                    const chLabel = col.channel === 'OSC' ? 'OSC' : (col.channel === 'Global' ? 'G' : col.channel);
+                    html += `<th><div class="header-device">${col.device}</div>${chLabel}</th>`; 
+                });
+                html += '</tr></thead><tbody>';    
+
+                if(song.parts) song.parts.forEach((p, pIdx) => {
+                    const isSel = (pIdx === uiState.selPart);
+                    html += `<tr><td class="row-header ${isSel?'text-main font-bold':''}" style="cursor:pointer;" onclick="app.selectPart(${pIdx})">${pIdx + 1}. ${p.name}</td>`;
+                    
+                    const outs = Array.isArray(p.output) ? p.output : (p.output ? [p.output] : []);
+                    
+                    colMap.forEach(col => {
+                        const matches = outs.filter(o => (o.device||'default') === col.device && ((o.channel !== undefined) ? o.channel : (o.address ? 'OSC' : 'Global')) == col.channel);
+                        let cellContent = '';
+                        matches.forEach(m => {
+                            let txt = ''; 
+                            if(m.program!==undefined) txt=`PC ${m.program}`; 
+                            else if(m.control!==undefined) txt=`CC ${m.control} <span class="text-muted">${m.value}</span>`; 
+                            else if(m.address) txt=m.address; 
+                            else if(['start','stop','continue'].includes(m.type)) txt = `Tpt:${m.type.toUpperCase()}`; 
+                            else if(m.type === 'note_off') txt = `OFF ${m.note}`; 
+                            else if(m.note !== undefined) txt = `ON ${m.note}`;
+                            if(txt) cellContent += `<span class="cell-msg">${txt}</span>`;
+                        });
+                        
+                        const isEditing = (uiState.inspectorMode === 'cell_edit' && uiState.selPart === pIdx && 
+                                        app.visualizer.cellState.device === col.device && 
+                                        app.visualizer.cellState.channel == col.channel);
+
+                        html += `<td class="matrix-cell ${isEditing ? 'cell-active' : ''}" 
+                                    onclick="app.visualizer.editCell(${uiState.selSong}, ${pIdx}, '${col.device.replace(/'/g,"\\'")}', '${String(col.channel).replace(/'/g,"\\'")}')">
+                                    ${cellContent || '<span style="opacity:0.1;">+</span>'}
+                                </td>`;
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody></table></div>';
+                cont.innerHTML = html;
+                return;
+            }
+
+            if (uiState.songViewMode === 'notes') {
+                const target = uiState.selSong===-1 ? setlist : setlist.songs[uiState.selSong];
+                cont.innerHTML = `<div class="flex-col-full p-10"><div class="section-title mb-10">Notas: ${target.song_name||target.playlist_name}</div><textarea id="notesEditor" class="w-full text-code notes-editor" placeholder="Escribe notas...">${target.notes||''}</textarea></div>`;
+                $('notesEditor').oninput = (e) => target.notes = e.target.value;
+                return;
+            }
+
+            // Normal Views
+            if(uiState.selSong === -1) { // Setlist View
+                if(setlist.songs.length === 0) { 
+                    cont.innerHTML = '<div class="empty-state">Setlist vacío</div>'; 
+                } else {
+                    head.innerHTML = `<div></div><div></div><div>Canción</div><div>Info</div><div class="text-center">Total Bars</div><div class="text-center">Duración</div><div class="text-center"></div><div class="text-center"></div>`;
+                    if(btn) { btn.disabled = false; btn.innerText = "+ Añadir Canción"; }
+                    
+                    setlist.songs.forEach((s, i) => {
+                        let tb = 0, num = parseInt((s.time_signature||"4/4").split('/')[0])||4;
+                        s.parts?.forEach(p => tb += (parseInt(p.bars)||0));
+                        const sec = (tb * num * 60) / (setlist.bpm||120);
+                        const row = document.createElement('div'); 
+                        
+                        // CRÍTICO: Atributos data-index y clases para listeners delegados
+                        row.className = 'grid-layout part-row'; 
+                        row.dataset.index = i; 
+                        row.dataset.type = 'song';
+                        row.draggable = true;
+                        
+                        row.innerHTML = `
+                            <div class="text-muted text-center" style="font-size:10px;">${i+1}</div>
+                            <div class="color-dot" style="background:${COLOR_MAP[s.color]||'#555'}"></div>
+                            <div class="text-main font-bold cursor-pointer">${s.song_name}</div>
+                            <div class="text-muted text-code">${(s.parts||[]).length} partes</div>
+                            <div class="text-center text-code font-bold">${tb}</div>
+                            <div class="text-center text-code text-accent">${sec>0?Math.floor(sec/60)+':'+Math.floor(sec%60).toString().padStart(2,'0'):'0:00'}</div>
+                            <div></div>
+                            <div class="flex j-between">
+                                <button class="icon-only btn-dup-song" data-index="${i}" title="Duplicar"><span class="material-symbols-rounded icon-sm">content_copy</span></button>
+                                <button class="icon-only danger btn-del-song" data-index="${i}" title="Eliminar"><span class="material-symbols-rounded icon-sm">delete</span></button>
+                            </div>`;
+                        cont.appendChild(row);
+                    });
+                }
+            } else { // Song Parts View
+                head.innerHTML = `<div></div><div></div><div>Nombre</div><div>Notas</div><div class="text-center">Bars</div><div class="text-center">Pattern</div><div class="text-center">Outs</div><div class="text-center"></div>`;
+                if(btn) { btn.disabled = false; btn.innerText = "+ Añadir Parte"; }
+                const song = setlist.songs[uiState.selSong];
+                
+                if(song.filepath) {
+                    btn.disabled = true;
+                    if (song._linkedParts && song._linkedParts.length) {
+                        cont.innerHTML = `<div class="empty-state" style="padding:6px 8px;"><span class="material-symbols-rounded icon-sm" style="color:var(--accent);">link</span> <span class="text-code text-muted">${song.filepath}</span></div>`;
+                        song._linkedParts.forEach((p) => {
+                            const row = document.createElement('div');
+                            row.className = 'grid-layout part-row';
+                            row.style.opacity = '0.6';
+                            row.innerHTML = `<div></div><div></div><div>${p.name||'—'}</div><div class="text-muted text-xs">${p.notes||''}</div><div class="text-center text-muted">${p.bars||'?'}</div><div class="text-center text-muted">—</div><div class="text-center text-muted">—</div><div></div>`;
+                            cont.appendChild(row);
+                        });
+                    } else {
+                        cont.innerHTML = `<div class="empty-state"><span class="material-symbols-rounded icon-lg mb-10" style="color:var(--danger);">link_off</span>Enlazado Externo<div class="text-code text-muted mt-5">${song.filepath}</div></div>`;
+                    }
+                    return;
+                }
+                
+                if(!song.parts?.length) { cont.innerHTML = '<div class="empty-state">Sin partes</div>'; return; }
+                
+                song.parts.forEach((p, i) => {
+                    const row = document.createElement('div'); 
+                    row.className = `grid-layout part-row ${i===uiState.selPart?'selected':''}`;
+                    row.draggable = true; 
+                    row.dataset.index = i; 
+                    row.dataset.type = 'part';
+                    
+                    const hasOut = p.output && (Array.isArray(p.output)?p.output.length:Object.keys(p.output).length);
+                    
+                    row.innerHTML = `
+                        <div class="drag-handle"><span class="material-symbols-rounded icon-sm">drag_indicator</span></div>
+                        <div class="color-dot" style="background:${COLOR_MAP[p.color]||"#555"}" data-context="part" onclick="app.colors.open('part', ${i})"></div>
+                        <div class="font-bold part-name-cell" title="Doble-click o F2 para renombrar">${p.name}</div>
+                        <div class="text-muted" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.notes||''}</div>
+                        <div class="text-center text-code">${p.bars}</div>
+                        <div class="text-center text-code text-muted">${app.pattern.summary(p.repeat_pattern)}</div>
+                        <div class="text-center part-outs-indicator ${hasOut?'cursor-pointer':'text-muted'}">
+                             ${hasOut?'<span class="material-symbols-rounded icon-sm">output</span>':'-'}
+                        </div>
+                        <div class="flex j-between">
+                            <button class="icon-only btn-dup-part" data-index="${i}"><span class="material-symbols-rounded icon-sm">content_copy</span></button>
+                            <button class="icon-only danger btn-del-part" data-index="${i}"><span class="material-symbols-rounded icon-sm">delete</span></button>
+                        </div>`;
+                    
+                    const outInd = row.querySelector('.part-outs-indicator');
+                    if (hasOut) {
+                        outInd.onclick = (e) => { e.stopPropagation(); app.midi.send(p.output); };
+                        outInd.onmouseenter = (e) => app.tooltip.show(e, uiState.selSong, i);
+                        outInd.onmouseleave = app.tooltip.hide;
+                    }
+
+                    cont.appendChild(row);
+                });
+            }
+        },
+
+        inspector: () => {
+            const tit = $('inspectorTitle'); const bod = $('inspectorContent'); const act = $('inspectorActions');
+            bod.innerHTML = ''; act.innerHTML = '';
+
+            if (uiState.selSong === -1) {
+                tit.innerText = "Setlist";
+                
+                act.innerHTML = `<button class="icon-only ${(!uiState.inspectorMode||uiState.inspectorMode==='setlist') ? 'active':''}" id="btnSetlistProps"><span class="material-symbols-rounded icon-sm">arrows_output</span></button>
+                                 <button class="icon-only ${setlist.notes?'has-notes':''} ${uiState.songViewMode==='notes'?'active':''}" id="btnSetlistNotes"><span class="material-symbols-rounded icon-sm">description</span></button>
+                                 <div class="separator-v"></div>
+                                 <button class="icon-only ${uiState.inspectorMode==='devices'?'active':''}" id="btnShowDevices"><span class="material-symbols-rounded icon-sm">cable</span></button>
+                                 <button class="icon-only ${uiState.inspectorMode==='global'?'active':''}" id="btnShowGlobalTriggers"><span class="material-symbols-rounded icon-sm">output_circle</span></button>
+                                 <button class="icon-only ${uiState.inspectorMode==='cues'?'active':''}" id="btnShowCues"><span class="material-symbols-rounded icon-sm">bookmarks</span></button>`;
+                
+                // A. MODO EDICIÓN DE CELDA (Integrado aquí para mantener toolbar)
+                if (uiState.inspectorMode === 'cell_edit') {
+                    tit.innerText = "Editar Salida";
+                    bod.innerHTML = `<div class="prop-group">
+                                        <div class="flex j-between align-center mb-10">
+                                            <div class="font-bold">${app.visualizer.cellState.device}</div>
+                                            <div class="text-code text-muted">${app.visualizer.cellState.channel}</div>
+                                        </div>
+                                        <div id="cellEditList"></div>
+                                     </div>
+                                     <div class="prop-group flex gap-2">
+                                        <button id="btnSaveCellInspector" class="primary w-full" onclick="app.visualizer.saveCell()">Guardar</button>
+                                        <button class="w-full" onclick="app.visualizer.cancelCell()">Cancelar</button>
+                                     </div>`;
+                    app.inspector.renderList($('cellEditList'), 'cell_edit', app.visualizer.cellState.tempOuts, (nl)=>app.visualizer.cellState.tempOuts=nl);
+                    return;
+                }
+
+                // B. TRIGGERS GLOBALES
+                if (uiState.inspectorMode === 'global') {
+                    tit.innerText = "Triggers Globales";
+                    // ... (resto lógica global triggers, se mantiene igual pero simplificado aquí por brevedad del ejemplo)
+                    // Restaurar visualización de triggers de entorno (Hardware)
+                    let envHtml = '';
+                    if (setlist._envTriggers) {
+                        envHtml = `<div class="prop-group bg-accent-subtle mb-10"><div class="section-title text-accent">HARDWARE (Importado)</div><div id="envTriggersList"></div></div>`;
+                    }
+                    bod.innerHTML = `
+                        <div class="prop-group mb-20">
+                            <div class="section-title">Advance</div>
+                            <div class="flex gap-2 align-center bg-accent-subtle">
+                                <input type="number" value="${setlist.advance_value||0}" class="input-tiny" data-action="update-global-adv" data-field="val">
+                                <select class="select-tiny" data-action="update-global-adv" data-field="unit">
+                                    <option value="beats" ${setlist.advance_unit==='beats'?'selected':''}>Beats</option>
+                                    <option value="bars" ${setlist.advance_unit==='bars'?'selected':''}>Bars</option>
+                                </select>
+                            </div>
+                        </div>
+                        ${envHtml}
+                        <div class="section-title mt-20">Eventos Local</div>
+                        <div id="globalTriggersList"></div>
+                    `;
+                    // Render Lists
+                    if (setlist._envTriggers) {
+                        const envCont = bod.querySelector('#envTriggersList');
+                        [{k:"bar_triggers",l:"Cyclic"}, {k:"countdown_triggers",l:"Countdown"}, {k:"song_change",l:"Song Change"}, {k:"part_change",l:"Part Change"}, {k:"playback_start",l:"Play"}, {k:"playback_stop",l:"Stop"}, {k:"playback_continue",l:"Continue"}, {k:"playback_initial_start",l:"First Play"}, {k:"setlist_end",l:"End Setlist"}].forEach(t => {
+                            if(setlist._envTriggers[t.k]) {
+                                const d=document.createElement('div'); d.className='trigger-item'; d.innerHTML=`<div class="trigger-header text-muted">${t.l}</div><div id="env_${t.k}"></div>`; envCont.appendChild(d);
+                                app.inspector.renderList(d.querySelector(`#env_${t.k}`), `env_${t.k}`, setlist._envTriggers[t.k], ()=>{});
+                            }
+                        });
+                    }
+                    [{k:"bar_triggers",l:"Cyclic"}, {k:"countdown_triggers",l:"Countdown"}, {k:"playback_start",l:"Play"}, {k:"playback_initial_start",l:"First Play"}, {k:"playback_stop",l:"Stop"}, {k:"playback_continue",l:"Continue"}, {k:"song_change",l:"Song Change"}, {k:"part_change",l:"Part Change"}, {k:"setlist_end",l:"End Setlist"}].forEach(t => {
+                        const d=document.createElement('div'); d.className='trigger-item'; d.innerHTML=`<div class="trigger-header">${t.l}</div><div id="gt_${t.k}"></div>`; bod.querySelector('#globalTriggersList').appendChild(d);
+                        app.inspector.renderList(d.querySelector(`#gt_${t.k}`), `glob_${t.k}`, setlist.triggers?.[t.k]||[], (nl)=>{ if(!setlist.triggers)setlist.triggers={}; setlist.triggers[t.k]=nl; });
+                    });
+                    return;
+                } 
+                
+                // C. CUES
+                else if (uiState.inspectorMode === 'cues') {
+                    tit.innerText = "Asignación Cues";
+                    bod.innerHTML = `<div class="flex-col-full"><div class="flex j-between mb-15"><div class="flex gap-2 w-full"><span class="material-symbols-rounded text-muted icon-sm">search</span><input type="text" id="cueSearch" placeholder="Buscar..." class="cue-search-box"></div><button id="btnSaveCues" onclick="app.cues.save()">Guardar</button></div><div class="prop-label">Fuentes</div><div id="cuesSrc" class="scroll-y cue-src-container"></div><div class="prop-label">Asignaciones</div><div id="cuesSlots" class="scroll-y flex-1"></div></div>`;
+                    bod.querySelector('#cueSearch').oninput = (e) => app.cues.renderSourceList('cuesSrc', e.target.value);
+                    app.cues.renderSourceList('cuesSrc'); app.cues.renderInspectorSlots();
+                    return;
+                } 
+                
+                // D. PART DETAILS (IN MATRIX MODE)
+                else if (uiState.inspectorMode === 'part') {
+                    const p = setlist.songs[uiState.selSong].parts[uiState.selPart];
+                    tit.innerText = "Editar Parte";
+                    bod.innerHTML = `<div class="prop-group"><label class="prop-label">Nombre</label><div class="flex gap-2 align-center"><div class="color-dot" style="width:14px;height:14px;background:${COLOR_MAP[p.color]||'#555'}" data-context="part" onclick="app.colors.open('part', ${uiState.selPart})"></div><input type="text" class="w-full font-bold" value="${p.name}" data-action="update-part" data-field="name"></div></div><div class="prop-group flex gap-2"><div class="w-full"><label class="prop-label">Compases</label><input type="number" value="${p.bars}" data-action="update-part" data-field="bars"></div><div class="w-full"><label class="prop-label">Cue</label><div class="flex gap-2"><input type="number" value="${p.cue||''}" placeholder="-" data-action="update-part" data-field="cue"><button class="icon-only" id="btnShowCuesGrid" onclick="app.cues.show()"><span class="material-symbols-rounded icon-sm">grid_view</span></button></div></div></div><div class="prop-group"><label class="prop-label">Notas</label><textarea rows="2" class="resize-v" data-action="update-part" data-field="notes">${p.notes||''}</textarea></div><div class="prop-group"><div class="flex j-between"><label class="prop-label">Patrón</label><button class="icon-only" id="btnOpenPattern" onclick="app.pattern.open()"><span class="material-symbols-rounded icon-sm">account_tree</span></button></div><input type="text" disabled value="${app.pattern.summary(p.repeat_pattern)}" class="text-code text-muted"></div><div class="prop-group"><div class="flex j-between align-center mb-5"><label class="prop-label m-0">Outputs</label></div><div id="partOutputsList"></div></div>`;
+                    app.inspector.renderOutputList(bod.querySelector('#partOutputsList'), 'part_outs', Array.isArray(p.output)?p.output:[], (nl) => { p.output=nl; app.render.parts(); });
+                    return;
+                }
+
+                // E. DEFAULT SETLIST PROPS
+                else if (uiState.inspectorMode !== 'devices') { // Devices view handles its own rendering
+                    bod.innerHTML = `<div class="prop-group"><label class="prop-label">Nombre</label><input type="text" class="font-bold" value="${setlist.playlist_name||''}" data-action="update-setlist" data-field="name"></div><div class="prop-group flex gap-2"><div class="w-full"><label class="prop-label">BPM</label><input type="number" value="${setlist.bpm||124}" data-action="update-setlist" data-field="bpm"><div id="bpmInfo" class="text-center text-code text-muted mt-5">${uiState.stats.bpmInfo}</div></div><div class="w-full"><label class="prop-label">Modo</label><select data-action="update-setlist" data-field="mode"><option value="loop" ${setlist.mode==='loop'?'selected':''}>Loop</option><option value="song" ${setlist.mode==='song'?'selected':''}>Song</option></select></div></div><div class="prop-group flex align-center gap-2"><input type="checkbox" id="chkBusOutputs" ${setlist.bus_outputs?'checked':''} data-action="update-setlist" data-field="bus_outputs"><label for="chkBusOutputs" class="prop-label m-0">Publicar outputs por bus (midimod)</label></div><div class="prop-group mt-10"><div class="section-title mb-5">Control Bindings</div><div id="controlRulesList"></div></div>`;
+                    app.control.render($('controlRulesList'));
+                }
+                return;
+            }
+
+            // 2. NIVEL CANCIÓN (Cuando no es Matrix ni Global)
+            const song = setlist.songs[uiState.selSong];
+            tit.innerText = uiState.inspectorMode==='part' ? "Editar Parte" : "Editar Canción";
+            const isMatrix = uiState.songViewMode === 'matrix';
+            act.innerHTML = `
+                <button data-view="parts" class="icon-only ${uiState.songViewMode==='parts' || isMatrix ? 'active':''}" title="${isMatrix ? 'Ver Lista' : 'Ver Matrix'}">
+                    <span class="material-symbols-rounded icon-sm">${isMatrix ? 'list' : 'arrows_output'}</span>
+                </button>
+                <button data-view="notes" class="icon-only ${song.notes?'has-notes':''} ${uiState.songViewMode==='notes'?'active':''}" title="Notas">
+                    <span class="material-symbols-rounded icon-sm">description</span>
+                </button>
+                <button data-view="triggers" class="icon-only ${uiState.songViewMode==='triggers'?'active':''}" title="Triggers">
+                    <span class="material-symbols-rounded icon-sm">bolt</span>
+                </button>
+                <div class="separator-v"></div>
+                <button class="icon-only" id="btnLinkSetlist" title="Enlazar fichero">
+                    <span class="material-symbols-rounded icon-sm">link</span>
+                </button>
+                <button class="icon-only" id="btnImportContent" title="Insertar contenido">
+                    <span class="material-symbols-rounded icon-sm">post_add</span>
+                </button>
+                <button class="icon-only" id="btnExportSong" title="Exportar canción">
+                    <span class="material-symbols-rounded icon-sm">download</span>
+                </button>
+                <div class="separator-v"></div>
+                <button class="icon-only" id="btnDupSong" title="Duplicar">
+                    <span class="material-symbols-rounded icon-sm">content_copy</span>
+                </button>
+                <button class="icon-only danger" id="btnDelSong" title="Eliminar">
+                    <span class="material-symbols-rounded icon-sm">delete</span>
+                </button>
+                ${uiState.inspectorMode==='part' ? `
+                    <div class="separator-v"></div>
+                    <button class="icon-only" title="Subir parte" onclick="app.history.snapshot();app.actions.movePartUp()" ${uiState.selPart===0?'disabled':''}><span class="material-symbols-rounded icon-sm">arrow_upward</span></button>
+                    <button class="icon-only" title="Bajar parte" onclick="app.history.snapshot();app.actions.movePartDown()" ${uiState.selPart>=setlist.songs[uiState.selSong]?.parts?.length-1?'disabled':''}><span class="material-symbols-rounded icon-sm">arrow_downward</span></button>
+                    <div class="separator-v"></div>
+                    <button class="icon-only" title="Probar Outputs" onclick="app.midi.send(setlist.songs[uiState.selSong].parts[uiState.selPart].output)"><span class="material-symbols-rounded icon-sm text-accent">play_circle</span></button>
+                ` : ''}
+            `;
+            if(uiState.inspectorMode==='part') {
+                const p = song.parts[uiState.selPart];
+                bod.innerHTML = `<div class="prop-group"><label class="prop-label">Nombre</label><div class="flex gap-2 align-center"><div class="color-dot" style="width:14px;height:14px;background:${COLOR_MAP[p.color]||'#555'}" data-context="part" onclick="app.colors.open('part', ${uiState.selPart})"></div><input type="text" class="w-full font-bold" value="${p.name}" data-action="update-part" data-field="name"></div></div><div class="prop-group flex gap-2"><div class="w-full"><label class="prop-label">Compases</label><input type="number" value="${p.bars}" data-action="update-part" data-field="bars"></div><div class="w-full"><label class="prop-label">Cue</label><div class="flex gap-2"><input type="number" value="${p.cue||''}" placeholder="-" data-action="update-part" data-field="cue"><button class="icon-only" id="btnShowCuesGrid" onclick="app.cues.show()"><span class="material-symbols-rounded icon-sm">grid_view</span></button></div></div></div><div class="prop-group"><label class="prop-label">Notas</label><textarea rows="2" class="resize-v" data-action="update-part" data-field="notes">${p.notes||''}</textarea></div><div class="prop-group"><div class="flex j-between"><label class="prop-label">Patrón</label><button class="icon-only" id="btnOpenPattern" onclick="app.pattern.open()"><span class="material-symbols-rounded icon-sm">account_tree</span></button></div><input type="text" disabled value="${app.pattern.summary(p.repeat_pattern)}" class="text-code text-muted"></div><div class="prop-group"><div class="flex j-between align-center mb-5"><label class="prop-label m-0">Outputs</label></div><div id="partOutputsList"></div></div>`;
+                app.inspector.renderOutputList(bod.querySelector('#partOutputsList'), 'part_outs', Array.isArray(p.output)?p.output:[], (nl) => { p.output=nl; app.render.parts(); });
+            } else {
+                bod.innerHTML = `<div class="prop-group"><label class="prop-label">Nombre</label><div class="flex gap-2 align-center"><div class="color-dot" style="width:14px;height:14px;background:${COLOR_MAP[song.color]||'#555'}" data-context="song" onclick="app.colors.open('song', ${uiState.selSong})"></div><input type="text" class="font-bold" value="${song.song_name}" data-action="update-song" data-field="song_name"></div></div><div class="prop-group flex gap-2"><div class="w-full"><label class="prop-label">Time Sig</label><input type="text" value="${song.time_signature||'4/4'}" data-action="update-song" data-field="time_signature"></div><div class="w-full"><label class="prop-label">Div</label><select data-action="update-song" data-field="time_division"><option value="1/4" ${song.time_division==='1/4'?'selected':''}>1/4</option><option value="1/8" ${song.time_division==='1/8'?'selected':''}>1/8</option><option value="1/16" ${song.time_division==='1/16'?'selected':''}>1/16</option></select></div></div>`;
+            }
+        },
+    };
+    
+    app.tooltip = {
+        show: (e, si, pi) => {
+            const p=setlist.songs[si].parts[pi]; const o=Array.isArray(p.output)?p.output:[p.output]; if(!o.length)return;
+            const h = o.map(x => { const timing=(x.bar!==undefined||x.beats!==undefined)?`${x.bar??''}:${x.beats??''}`:'—'; return `<tr><td class="text-accent">${x.device||'def'}</td><td>${x.address?'OSC':x.program!==undefined?'PC':x.note!==undefined?'Nt':'CC'}</td><td>${x.channel??'-'}</td><td>${x.address??x.program??x.note??x.control??'-'}</td><td>${Array.isArray(x.args)?JSON.stringify(x.args):x.velocity??x.value??'-'}</td><td>${timing}</td></tr>`; }).join('');
+            const el=$('outputPreview'); el.innerHTML=`<table><thead><tr><th>Dev</th><th>Type</th><th>Ch</th><th>V1</th><th>V2</th><th>@</th></tr></thead><tbody>${h}</tbody></table>`;
+            el.style.display='block'; const r=e.target.getBoundingClientRect(); el.style.top=(r.top-10)+'px'; el.style.left=(r.right+10)+'px';
+        },
+        hide: () => $('outputPreview').style.display='none'
+    };
+
+    
+    
+// Additional helpers required for the delegation above
+app.selectSong = (i) => { 
+        uiState.selSong=i; 
+        uiState.selPart=-1; 
+        uiState.inspectorMode = (i === -1) ? 'setlist' : 'song';
+
+        if (i === -1 && uiState.songViewMode === 'matrix') uiState.songViewMode = 'parts';
+
+        app.render.sidebar(); app.render.parts(); app.render.inspector(); app.calcTimes(); 
+    };
+    app.selectPart = (i) => { uiState.selPart=i; uiState.inspectorMode='part'; app.render.parts(); app.render.inspector(); };
+    app.render.songsView = (v) => {
+        // 1. Toggle de modo
+        if (uiState.songViewMode === v) {
+            if (v !== 'parts') uiState.songViewMode = 'parts';
+        } else {
+            uiState.songViewMode = v;
+        }
+
+        app.render.parts();
+        app.render.inspector();
+    };
+
+    // Final Init
+    document.addEventListener('DOMContentLoaded', app.init);
+</script>
+</body>
+</html>

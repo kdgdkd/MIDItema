@@ -1,0 +1,432 @@
+{
+  "playlist_name": "Lista de Objetivos [BUS]",
+  "mode": "loop",
+  "beats": 2,
+  "bus_outputs": true,
+  "device_alias": {
+    "BSP": "BeatStep",
+    "KSP": "KeyStep"
+  },
+  "triggers": {
+    "setlist_end":       [],
+    "bar_triggers":      [],
+    "countdown_triggers": [],
+    "playback_start":    [],
+    "playback_stop":     [],
+    "playback_continue": [],
+    "song_change":       [],
+    "part_change":       []
+  },
+  "songs": [
+    {
+      "song_name": "0 CUENTA ATRAS",
+      "parts": [
+        { "name": "CUENTA ATRAS", "color": "white", "bars": 8,
+          "notes": "Esperando...",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 0 },
+            { "device": "KSP", "channel": 0, "program": 0 },
+            { "device": "KSP", "channel": 2, "program": 0 },
+            { "device": "KSP", "channel": 4, "program": 0 },
+            { "device": "KSP", "channel": 6, "program": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "song_name": "PR7",
+      "parts": [
+        { "name": "1. Intro 1",  "bars": 8,  "notes": "sin bombo",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 0 },
+            { "device": "KSP", "channel": 0, "program": 0 },
+            { "device": "KSP", "channel": 2, "program": 0 },
+            { "device": "KSP", "channel": 4, "program": 0 },
+            { "device": "KSP", "channel": 6, "program": 0 }
+          ]
+        },
+        { "name": "2. Intro 2",  "bars": 8,
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 1 }
+          ]
+        },
+        { "name": "3. Intro 3",  "bars": 4,
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 2 },
+            { "device": "KSP", "channel": 0, "program": 1 }
+          ]
+        },
+        { "name": "4. Intro 4",  "bars": 4,  "color": "default",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 3 },
+            { "device": "KSP", "channel": 6, "program": 1 }
+          ]
+        },
+        { "name": "5. Drop A",   "bars": 8,  "color": "blue",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 4 },
+            { "device": "KSP", "channel": 0, "program": 2 }
+          ]
+        },
+        { "name": "6. Drop A2",  "bars": 8,  "color": "blue",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 5 },
+            { "device": "KSP", "channel": 2, "program": 15 }
+          ]
+        },
+        { "name": "7. Drop C",   "bars": 8,  "color": "blue",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 6 },
+            { "device": "KSP", "channel": 0, "program": 3 }
+          ]
+        },
+        { "name": "8. Drop C 2", "bars": 8,  "color": "blue",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 7 },
+            { "device": "KSP", "channel": 6, "program": 4 }
+          ]
+        },
+        { "name": "9. BREAK2",   "bars": 8,  "color": "bright_yellow",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 8 },
+            { "device": "KSP", "channel": 0, "program": 6 },
+            { "device": "KSP", "channel": 2, "program": 1 }
+          ]
+        },
+        { "name": "10. BREAK2b", "bars": 8,  "color": "bright_yellow",
+          "output": [
+            { "device": "KSP", "channel": 6, "program": 5 },
+            { "device": "KSP", "channel": 4, "program": 4 }
+          ]
+        },
+        { "name": "11. Drop D",  "bars": 8,  "color": "orange",
+          "output": [
+            { "device": "BSP", "channel": 9,  "program": 10 },
+            { "device": "KSP", "channel": 2,  "program": 15 },
+            { "device": "KSP", "channel": 4,  "program": 0  }
+          ]
+        },
+        { "name": "12. Drop D2", "bars": 8,  "color": "orange",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 12 }
+          ]
+        },
+        { "name": "13. Drop D3", "bars": 8,  "color": "orange",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 13 },
+            { "device": "KSP", "channel": 6, "program": 6  }
+          ]
+        },
+        { "name": "14. Drop D4", "bars": 4,  "color": "orange",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 14 }
+          ]
+        },
+        { "name": "15. Break3",  "bars": 8,  "color": "bright_yellow",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 11 },
+            { "device": "KSP", "channel": 0, "program": 8  },
+            { "device": "KSP", "channel": 2, "program": 15 }
+          ]
+        },
+        { "name": "16. Break3b", "bars": 8,  "color": "bright_yellow",
+          "output": [
+            { "device": "KSP", "channel": 6, "program": 7 }
+          ]
+        },
+        { "name": "17. Drop E",  "bars": 8,  "color": "green",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 15 },
+            { "device": "KSP", "channel": 4, "program": 0  },
+            { "device": "KSP", "channel": 6, "program": 15 }
+          ]
+        },
+        { "name": "18. Drop Eb", "bars": 8,  "color": "green",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 6 }
+          ]
+        },
+        { "name": "19. Break4",  "bars": 4,  "color": "bright_yellow",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 8 },
+            { "device": "KSP", "channel": 4, "program": 7 },
+            { "device": "KSP", "channel": 6, "program": 8 }
+          ]
+        },
+        { "name": "20. Drop F",  "bars": 16, "color": "green",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 9 },
+            { "device": "KSP", "channel": 0, "program": 4 },
+            { "device": "KSP", "channel": 4, "program": 8 }
+          ]
+        },
+        { "name": "21. Drop G",  "bars": 8,  "color": "hot_pink",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 13 },
+            { "device": "KSP", "channel": 4, "program": 0  },
+            { "device": "KSP", "channel": 6, "program": 9  }
+          ]
+        },
+        { "name": "22. Drop H",  "bars": 8,  "color": "hot_pink",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 15 },
+            { "device": "KSP", "channel": 4, "program": 0  },
+            { "device": "KSP", "channel": 6, "program": 9  }
+          ]
+        },
+        { "name": "23. Drop J",  "bars": 8,  "color": "hot_pink",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 1  },
+            { "device": "KSP", "channel": 6, "program": 10 }
+          ]
+        },
+        { "name": "24. Drop K",  "bars": 8,  "color": "bright_red",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 3  },
+            { "device": "KSP", "channel": 6, "program": 11 }
+          ]
+        },
+        { "name": "25. BREAK",   "bars": 8,  "color": "bright_yellow",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 4  },
+            { "device": "KSP", "channel": 6, "program": 0  },
+            { "device": "KSP", "channel": 4, "program": 11 }
+          ]
+        },
+        { "name": "26. Drop L",  "bars": 8,  "color": "hot_pink",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 1  },
+            { "device": "KSP", "channel": 6, "program": 10 },
+            { "device": "KSP", "channel": 0, "program": 5  },
+            { "device": "KSP", "channel": 4, "program": 12 }
+          ]
+        },
+        { "name": "27. Drop M",  "bars": 8,  "color": "hot_pink",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 1  },
+            { "device": "KSP", "channel": 6, "program": 12 },
+            { "device": "KSP", "channel": 4, "program": 0  }
+          ]
+        },
+        { "name": "28. Break",   "bars": 8,  "color": "yellow",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 8  },
+            { "device": "KSP", "channel": 6, "program": 13 },
+            { "device": "KSP", "channel": 4, "program": 0  }
+          ]
+        },
+        { "name": "29. Drop N",  "bars": 8,  "color": "electric_orange",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 9  },
+            { "device": "KSP", "channel": 0, "program": 12 }
+          ]
+        },
+        { "name": "30. Drop O",  "bars": 8,  "color": "electric_orange",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 10 }
+          ]
+        },
+        { "name": "31. BRAKe",   "bars": 8,  "color": "yellow",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 11 },
+            { "device": "KSP", "channel": 6, "program": 0  }
+          ]
+        },
+        { "name": "32. Drop P",  "bars": 32, "color": "electric_orange",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 12 },
+            { "device": "KSP", "channel": 6, "program": 14 }
+          ]
+        }
+      ]
+    },
+    {
+      "song_name": "Devol Corta",
+      "parts": [
+        { "name": "Intro",       "bars": 16, "notes": "sin bombo",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 0 },
+            { "device": "KSP", "channel": 0, "program": 7 }
+          ]
+        },
+        { "name": "Evolution 1", "bars": 16, "notes": "Entra bombo",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 1 }
+          ]
+        },
+        { "name": "Evolution 2", "bars": 16,
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 2 },
+            { "device": "KSP", "channel": 2, "program": 7 }
+          ]
+        },
+        { "name": "BREAK 1",     "bars": 8,  "color": "yellow",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 3 },
+            { "device": "KSP", "channel": 6, "program": 9 }
+          ]
+        },
+        { "name": "Drop A",      "bars": 16,
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 4 },
+            { "device": "KSP", "channel": 0, "program": 8 },
+            { "device": "KSP", "channel": 2, "program": 8 },
+            { "device": "KSP", "channel": 6, "program": 8 }
+          ]
+        },
+        { "name": "Drop B",      "bars": 16,
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 5 },
+            { "device": "KSP", "channel": 6, "program": 9 }
+          ]
+        },
+        { "name": "BREAK 2",     "bars": 8,  "color": "yellow",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 6  },
+            { "device": "KSP", "channel": 0, "program": 7  },
+            { "device": "KSP", "channel": 4, "program": 15 },
+            { "device": "KSP", "channel": 6, "program": 11 }
+          ]
+        },
+        { "name": "Drop C",      "bars": 16,
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 7 },
+            { "device": "KSP", "channel": 0, "program": 8 },
+            { "device": "KSP", "channel": 6, "program": 8 }
+          ]
+        },
+        { "name": "Drop D",      "bars": 16,
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 8 },
+            { "device": "KSP", "channel": 6, "program": 9 }
+          ]
+        },
+        { "name": "BREAK 3",     "bars": 8,  "color": "yellow",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 9 },
+            { "device": "KSP", "channel": 4, "program": 9 },
+            { "device": "KSP", "channel": 6, "program": 7 }
+          ]
+        },
+        { "name": "Drop F",      "bars": 32, "notes": "parte larga",
+          "output": [
+            { "device": "BSP", "channel": 9,  "program": 11 },
+            { "device": "KSP", "channel": 6,  "program": 10 }
+          ]
+        }
+      ]
+    },
+    {
+      "song_name": "Bucle LIVE",
+      "parts": [
+        { "name": "Drop 1",  "bars": 16, "repeat_pattern": true, "color": "neon_green"      },
+        { "name": "Drop 2",  "bars": 16, "repeat_pattern": true, "color": "forest_green"    },
+        { "name": "BREAK 1", "bars": 16, "repeat_pattern": true, "color": "electric_orange" },
+        { "name": "Drop 3",  "bars": 16, "repeat_pattern": true, "color": "electric_blue"   },
+        { "name": "Drop 4",  "bars": 16, "repeat_pattern": true, "color": "blue"            },
+        { "name": "BREAK 2", "bars": 16, "repeat_pattern": true, "color": "bright_yellow"   }
+      ]
+    },
+    {
+      "song_name": "Devol Larga",
+      "parts": [
+        { "name": "Intro",       "bars": 32, "notes": "sin bombo",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 0 },
+            { "device": "KSP", "channel": 0, "program": 7 }
+          ]
+        },
+        { "name": "Evolution 1", "bars": 16, "notes": "Entra bombo",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 1 }
+          ]
+        },
+        { "name": "Evolution 2", "bars": 16,
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 2 },
+            { "device": "KSP", "channel": 2, "program": 7 }
+          ]
+        },
+        { "name": "BREAK 1",     "bars": 8,  "color": "yellow",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 3 },
+            { "device": "KSP", "channel": 6, "program": 9 }
+          ]
+        },
+        { "name": "Drop A",      "bars": 16,
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 4 },
+            { "device": "KSP", "channel": 0, "program": 8 },
+            { "device": "KSP", "channel": 2, "program": 8 },
+            { "device": "KSP", "channel": 6, "program": 8 }
+          ]
+        },
+        { "name": "Drop B",      "bars": 16,
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 5 },
+            { "device": "KSP", "channel": 6, "program": 9 }
+          ]
+        },
+        { "name": "BREAK 2",     "bars": 8,  "color": "yellow",
+          "output": [
+            { "device": "BSP", "channel": 9,  "program": 6  },
+            { "device": "KSP", "channel": 0,  "program": 7  },
+            { "device": "KSP", "channel": 4,  "program": 15 },
+            { "device": "KSP", "channel": 6,  "program": 11 }
+          ]
+        },
+        { "name": "Drop C",      "bars": 16,
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 7 },
+            { "device": "KSP", "channel": 0, "program": 8 },
+            { "device": "KSP", "channel": 6, "program": 8 }
+          ]
+        },
+        { "name": "Drop D",      "bars": 16,
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 8 },
+            { "device": "KSP", "channel": 6, "program": 9 }
+          ]
+        },
+        { "name": "BREAK 3",     "bars": 8,  "color": "yellow",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 9 },
+            { "device": "KSP", "channel": 4, "program": 9 },
+            { "device": "KSP", "channel": 6, "program": 7 }
+          ]
+        },
+        { "name": "Drop E",      "bars": 8,  "notes": "parte corta, bridge?",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 10 },
+            { "device": "KSP", "channel": 4, "program": 8  }
+          ]
+        },
+        { "name": "Drop F",      "bars": 32, "notes": "parte larga",
+          "output": [
+            { "device": "BSP", "channel": 9,  "program": 11 },
+            { "device": "KSP", "channel": 6,  "program": 10 }
+          ]
+        },
+        { "name": "Mini BREAK",  "bars": 4,  "color": "orange",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 12 },
+            { "device": "KSP", "channel": 4, "program": 7  }
+          ]
+        },
+        { "name": "Reprise",     "bars": 16,
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 13 }
+          ]
+        },
+        { "name": "Outro",       "bars": 16, "color": "red",
+          "output": [
+            { "device": "BSP", "channel": 9, "program": 14 },
+            { "device": "KSP", "channel": 0, "program": 7  },
+            { "device": "KSP", "channel": 2, "program": 7  },
+            { "device": "KSP", "channel": 6, "program": 7  }
+          ]
+        }
+      ]
+    }
+  ]
+}

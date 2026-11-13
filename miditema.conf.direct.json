@@ -1,0 +1,28 @@
+// miditema config para modo "direct" (sin bus, sin puerto MIDItema virtual).
+//
+// Carga: python -m miditema --conf miditema.conf.direct.json temas/Lista_de_Objetivos_16_direct.json
+//
+// Aliases base (CLOCK, BSP, KSP) vienen de ../midi.conf.json.
+// Aquí añadimos LaunchControl como input de control.
+{
+    "auto_panic_on_stop": true,
+    "clock_in": "CLOCK",
+
+    "device_alias": {
+        "LaunchControl": "LCXL3"
+    },
+
+    "control": [
+        // CC 37 ch0 val 127 → toggle Loop/Song mode
+        { "device_in": "LaunchControl", "event": "cc", "ch": 0, "cc": 37, "value": 127, "action": "mode_toggle" },
+
+        // CC 38 ch0 val 127 → cuantización a 4 bars
+        { "device_in": "LaunchControl", "event": "cc", "ch": 0, "cc": 38, "value": 127, "action": "set_quant_4" },
+
+        // CC 39 ch0 val 127 → parte anterior
+        { "device_in": "LaunchControl", "event": "cc", "ch": 0, "cc": 39, "value": 127, "action": "prev_part" },
+
+        // CC 40 ch0 val 127 → parte siguiente
+        { "device_in": "LaunchControl", "event": "cc", "ch": 0, "cc": 40, "value": 127, "action": "next_part" }
+    ]
+}

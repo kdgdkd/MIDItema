@@ -1,0 +1,1201 @@
+{
+  "playlist_name": "Lista de Objetivos",
+  "mode": "loop",
+  "beats": 2,
+  "devices": {
+    "midi_out": {
+      "MIDItema": "Midi Through"
+    }
+  },
+  "triggers": {
+    "setlist_end": [
+      {
+        "device": "MIDItema",
+        "type": "stop"
+      }
+    ],
+    "bar_triggers": [],
+    "countdown_triggers": [],
+    "playback_start": [],
+    "playback_stop": [],
+    "playback_continue": [],
+    "song_change": [],
+    "part_change": []
+  },
+  "songs": [
+    {
+      "song_name": "0 CUENTA ATRAS",
+      "parts": [
+        {
+          "name": "CUENTA ATRAS",
+          "color": "white",
+          "bars": 8,
+          "notes": "Esperando...",
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 2,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "song_name": "PR7",
+      "parts": [
+        {
+          "name": "1. Intro 1",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 2,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 0
+            }
+          ],
+          "notes": "sin bombo"
+        },
+        {
+          "name": "2. Intro 2",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 1
+            }
+          ]
+        },
+        {
+          "name": "3. Intro 3",
+          "bars": 4,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 2
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 1
+            }
+          ]
+        },
+        {
+          "name": "4. Intro 4",
+          "bars": 4,
+          "color": "default",
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 3
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 1
+            }
+          ]
+        },
+        {
+          "name": "5. Drop A",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 4
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 2
+            }
+          ],
+          "color": "blue"
+        },
+        {
+          "name": "6. Drop A2",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 5
+            },
+            {
+              "device": "MIDItema",
+              "type": "program_change",
+              "channel": 2,
+              "program": 15
+            }
+          ],
+          "color": "blue"
+        },
+        {
+          "name": "7. Drop C",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 6
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 3
+            }
+          ],
+          "color": "blue"
+        },
+        {
+          "name": "8. Drop C 2",
+          "bars": 8,
+          "color": "blue",
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 7
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 4
+            }
+          ]
+        },
+        {
+          "name": "9. BREAK2",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 8
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 6
+            },
+            {
+              "device": "MIDItema",
+              "channel": 2,
+              "program": 1
+            }
+          ],
+          "color": "bright_yellow"
+        },
+        {
+          "name": "10. BREAK2b",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 5
+            },
+            {
+              "device": "MIDItema",
+              "type": "program_change",
+              "channel": 4,
+              "program": 4
+            }
+          ],
+          "color": "bright_yellow"
+        },
+        {
+          "name": "11. Drop D",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 10
+            },
+            {
+              "device": "MIDItema",
+              "channel": 2,
+              "program": 15
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 0
+            }
+          ],
+          "color": "orange"
+        },
+        {
+          "name": "12. Drop D2",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 12
+            }
+          ],
+          "color": "orange"
+        },
+        {
+          "name": "13. Drop D3",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 13
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 6
+            }
+          ],
+          "color": "orange"
+        },
+        {
+          "name": "14. Drop D4",
+          "bars": 4,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 14
+            }
+          ],
+          "color": "orange"
+        },
+        {
+          "name": "15. Break3",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 11
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 8
+            },
+            {
+              "device": "MIDItema",
+              "channel": 2,
+              "program": 15
+            }
+          ],
+          "color": "bright_yellow"
+        },
+        {
+          "name": "16. Break3b",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 7
+            }
+          ],
+          "color": "bright_yellow"
+        },
+        {
+          "name": "17. Drop E",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 15
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 15
+            }
+          ],
+          "color": "green"
+        },
+        {
+          "name": "18. Drop Eb",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 6
+            }
+          ],
+          "color": "green"
+        },
+        {
+          "name": "19. Break4",
+          "bars": 4,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 8
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 7
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 8
+            }
+          ],
+          "color": "bright_yellow"
+        },
+        {
+          "name": "20. Drop F",
+          "bars": 16,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 9
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 4
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 8
+            }
+          ],
+          "color": "green"
+        },
+        {
+          "name": "21. Drop G",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 13
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 9
+            }
+          ],
+          "color": "hot_pink"
+        },
+        {
+          "name": "22. Drop H",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 15
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 9
+            }
+          ],
+          "color": "hot_pink"
+        },
+        {
+          "name": "23. Drop J",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 1
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 10
+            }
+          ],
+          "color": "hot_pink"
+        },
+        {
+          "name": "24. Drop K",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 3
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 11
+            }
+          ],
+          "color": "bright_red"
+        },
+        {
+          "name": "25. BREAK",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 4
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 11
+            }
+          ],
+          "color": "bright_yellow"
+        },
+        {
+          "name": "26. Drop L",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 1
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 10
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 5
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 12
+            }
+          ],
+          "color": "hot_pink"
+        },
+        {
+          "name": "27. Drop M",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 1
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 12
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 0
+            }
+          ],
+          "color": "hot_pink"
+        },
+        {
+          "name": "28. Break",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 8
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 13
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 0
+            }
+          ],
+          "color": "yellow"
+        },
+        {
+          "name": "29. Drop N",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 9
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 12
+            }
+          ],
+          "color": "electric_orange"
+        },
+        {
+          "name": "30. Drop O",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 10
+            }
+          ],
+          "color": "electric_orange"
+        },
+        {
+          "name": "31. BRAKe",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 11
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 0
+            }
+          ],
+          "color": "yellow"
+        },
+        {
+          "name": "32. Drop P",
+          "bars": 32,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 12
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 14
+            }
+          ],
+          "color": "electric_orange"
+        }
+      ]
+    },
+    {
+      "song_name": "Devol Corta",
+      "parts": [
+        {
+          "name": "Intro",
+          "bars": 16,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 7
+            }
+          ],
+          "notes": "sin bombo"
+        },
+        {
+          "name": "Evolution 1",
+          "bars": 16,
+          "notes": "Entra bombo",
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 1
+            }
+          ]
+        },
+        {
+          "name": "Evolution 2",
+          "bars": 16,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 2
+            },
+            {
+              "device": "MIDItema",
+              "channel": 2,
+              "program": 7
+            }
+          ]
+        },
+        {
+          "name": "BREAK 1",
+          "bars": 8,
+          "color": "yellow",
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 3
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 9
+            }
+          ]
+        },
+        {
+          "name": "Drop A",
+          "bars": 16,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 4
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 8
+            },
+            {
+              "device": "MIDItema",
+              "channel": 2,
+              "program": 8
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 8
+            }
+          ]
+        },
+        {
+          "name": "Drop B",
+          "bars": 16,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 5
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 9
+            }
+          ]
+        },
+        {
+          "name": "BREAK 2",
+          "bars": 8,
+          "color": "yellow",
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 6
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 7
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 15
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 11
+            }
+          ]
+        },
+        {
+          "name": "Drop C",
+          "bars": 16,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 7
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 8
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 8
+            }
+          ]
+        },
+        {
+          "name": "Drop D",
+          "bars": 16,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 8
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 9
+            }
+          ]
+        },
+        {
+          "name": "BREAK 3",
+          "bars": 8,
+          "color": "yellow",
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 9
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 9
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 7
+            }
+          ]
+        },
+        {
+          "name": "Drop F",
+          "bars": 32,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 11
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 10
+            }
+          ],
+          "notes": "parte larga"
+        }
+      ]
+    },
+    {
+      "song_name": "Bucle LIVE",
+      "parts": [
+        {
+          "name": "Drop 1",
+          "bars": 16,
+          "repeat_pattern": true,
+          "color": "neon_green"
+        },
+        {
+          "name": "Drop 2",
+          "bars": 16,
+          "repeat_pattern": true,
+          "color": "forest_green"
+        },
+        {
+          "name": "BREAK 1",
+          "bars": 16,
+          "repeat_pattern": true,
+          "color": "electric_orange"
+        },
+        {
+          "name": "Drop 3",
+          "bars": 16,
+          "repeat_pattern": true,
+          "color": "electric_blue"
+        },
+        {
+          "name": "Drop 4",
+          "bars": 16,
+          "repeat_pattern": true,
+          "color": "blue"
+        },
+        {
+          "name": "BREAK 2",
+          "bars": 16,
+          "repeat_pattern": true,
+          "color": "bright_yellow"
+        }
+      ]
+    },
+    {
+      "song_name": "Devol Larga",
+      "parts": [
+        {
+          "name": "Intro",
+          "bars": 32,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 0
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 7
+            }
+          ],
+          "notes": "sin bombo"
+        },
+        {
+          "name": "Evolution 1",
+          "bars": 16,
+          "notes": "Entra bombo",
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 1
+            }
+          ]
+        },
+        {
+          "name": "Evolution 2",
+          "bars": 16,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 2
+            },
+            {
+              "device": "MIDItema",
+              "channel": 2,
+              "program": 7
+            }
+          ]
+        },
+        {
+          "name": "BREAK 1",
+          "bars": 8,
+          "color": "yellow",
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 3
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 9
+            }
+          ]
+        },
+        {
+          "name": "Drop A",
+          "bars": 16,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 4
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 8
+            },
+            {
+              "device": "MIDItema",
+              "channel": 2,
+              "program": 8
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 8
+            }
+          ]
+        },
+        {
+          "name": "Drop B",
+          "bars": 16,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 5
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 9
+            }
+          ]
+        },
+        {
+          "name": "BREAK 2",
+          "bars": 8,
+          "color": "yellow",
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 6
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 7
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 15
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 11
+            }
+          ]
+        },
+        {
+          "name": "Drop C",
+          "bars": 16,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 7
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 8
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 8
+            }
+          ]
+        },
+        {
+          "name": "Drop D",
+          "bars": 16,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 8
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 9
+            }
+          ]
+        },
+        {
+          "name": "BREAK 3",
+          "bars": 8,
+          "color": "yellow",
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 9
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 9
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 7
+            }
+          ]
+        },
+        {
+          "name": "Drop E",
+          "bars": 8,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 10
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 8
+            }
+          ],
+          "notes": "parte corta, bridge?"
+        },
+        {
+          "name": "Drop F",
+          "bars": 32,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 11
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 10
+            }
+          ],
+          "notes": "parte larga"
+        },
+        {
+          "name": "Mini BREAK",
+          "bars": 4,
+          "color": "orange",
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 12
+            },
+            {
+              "device": "MIDItema",
+              "channel": 4,
+              "program": 7
+            }
+          ]
+        },
+        {
+          "name": "Reprise",
+          "bars": 16,
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 13
+            }
+          ]
+        },
+        {
+          "name": "Outro",
+          "bars": 16,
+          "color": "red",
+          "output": [
+            {
+              "device": "MIDItema",
+              "channel": 9,
+              "program": 14
+            },
+            {
+              "device": "MIDItema",
+              "channel": 0,
+              "program": 7
+            },
+            {
+              "device": "MIDItema",
+              "channel": 2,
+              "program": 7
+            },
+            {
+              "device": "MIDItema",
+              "channel": 6,
+              "program": 7
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
