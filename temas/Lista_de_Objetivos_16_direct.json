@@ -34,6 +34,8 @@
       "parts": [
         { "name": "1. Intro 1", "bars": 8, "notes": "sin bombo",
           "output": [
+            { "device": "KSP", "song": 6, "type": "song_select" },
+            { "device": "BSP", "song": 5, "type": "song_select" },
             { "device": "BSP", "channel": 9, "program": 0 },
             { "device": "KSP", "channel": 0, "program": 0 },
             { "device": "KSP", "channel": 2, "program": 0 },
@@ -241,8 +243,13 @@
       "parts": [
         { "name": "Intro", "bars": 16, "notes": "sin bombo",
           "output": [
+            { "device": "KSP", "song": 8, "type": "song_select" },
+            { "device": "BSP", "song": 1, "type": "song_select" },
             { "device": "BSP", "channel": 9, "program": 0 },
-            { "device": "KSP", "channel": 0, "program": 7 }
+            { "device": "KSP", "channel": 0, "program": 7 },
+            { "device": "KSP", "channel": 2, "program": 7 },
+            { "device": "KSP", "channel": 4, "program": 7 },
+            { "device": "KSP", "channel": 6, "program": 7 }
           ]
         },
         { "name": "Evolution 1", "bars": 16, "notes": "Entra bombo",

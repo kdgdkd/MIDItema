@@ -1,0 +1,228 @@
+{
+  "playlist_name": "Lista de Objetivos",
+  "mode": "loop",
+  "bpm": 130,
+  "beats": 4,
+  "devices": {
+    "midi_out": { "MIDItema": "MIDItema" }
+  },
+  "triggers": {
+    "setlist_end": [
+      { "device": "MIDItema", "type": "stop" }
+    ],
+    "bar_triggers": [],
+    "countdown_triggers": [],
+    "playback_start": [],
+    "playback_stop": [],
+    "playback_continue": [],
+    "song_change": [],
+    "part_change": []
+  },
+  "songs": [
+    {
+      "song_name": "TECHNO ORDENADO (Proyecto nuevo v2)",
+      "color": "purple",
+      "notes": "Ejemplo dinámico con orden lógico. Solo partes 4/8/16 compases.\nConvención: ch9 prog0=aire sin kick (con notas). Canales 0/4/6 prog0=OFF (vacío).",
+      "parts": [
+        {
+          "name": "A1 Intro aire",
+          "bars": 8,
+          "notes": "Perc aire (sin kick) + pad fondo. Bajo/lead/pluck off.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 0 },
+            { "device": "MIDItema", "channel": 0, "program": 0 },
+            { "device": "MIDItema", "channel": 2, "program": 1 },
+            { "device": "MIDItema", "channel": 4, "program": 0 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        },
+        {
+          "name": "A2 Entra kick básico",
+          "bars": 8,
+          "notes": "Kick+hat simple. Sin bajo todavía. Pad fondo.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 1 },
+            { "device": "MIDItema", "channel": 0, "program": 0 },
+            { "device": "MIDItema", "channel": 2, "program": 1 },
+            { "device": "MIDItema", "channel": 4, "program": 0 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        },
+        {
+          "name": "A3 Entra bajo filtrado",
+          "bars": 8,
+          "notes": "Bajo filtrado/sencillo. Perc aún contenida. Pad fondo.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 1 },
+            { "device": "MIDItema", "channel": 0, "program": 1 },
+            { "device": "MIDItema", "channel": 2, "program": 1 },
+            { "device": "MIDItema", "channel": 4, "program": 0 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        },
+        {
+          "name": "A4 Groove definido",
+          "bars": 8,
+          "notes": "Groove A (clap 2/4, hats). Bajo principal entra.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 2 },
+            { "device": "MIDItema", "channel": 0, "program": 2 },
+            { "device": "MIDItema", "channel": 2, "program": 1 },
+            { "device": "MIDItema", "channel": 4, "program": 0 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        },
+        {
+          "name": "A5 Groove + top loops",
+          "bars": 8,
+          "notes": "Más tops/loops (sube energía) manteniendo bajo principal.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 3 },
+            { "device": "MIDItema", "channel": 0, "program": 2 },
+            { "device": "MIDItema", "channel": 2, "program": 1 },
+            { "device": "MIDItema", "channel": 4, "program": 0 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        },
+        {
+          "name": "A6 Prebreak (fills)",
+          "bars": 4,
+          "color": "yellow",
+          "notes": "Mismo groove pero con fills/FX de transición. Bajo puede quedarse principal.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 4 },
+            { "device": "MIDItema", "channel": 0, "program": 2 },
+            { "device": "MIDItema", "channel": 2, "program": 1 },
+            { "device": "MIDItema", "channel": 4, "program": 0 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        },
+        {
+          "name": "B1 Break corto",
+          "bars": 8,
+          "color": "yellow",
+          "notes": "Sin kick/bajo. Pad break + arp filtrado.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 5 },
+            { "device": "MIDItema", "channel": 0, "program": 0 },
+            { "device": "MIDItema", "channel": 2, "program": 2 },
+            { "device": "MIDItema", "channel": 4, "program": 1 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        },
+        {
+          "name": "B2 Build",
+          "bars": 4,
+          "color": "orange",
+          "notes": "Build con roll/riser. Sin bajo. Pad break se mantiene.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 6 },
+            { "device": "MIDItema", "channel": 0, "program": 0 },
+            { "device": "MIDItema", "channel": 2, "program": 2 },
+            { "device": "MIDItema", "channel": 4, "program": 1 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        },
+        {
+          "name": "C1 Drop 1",
+          "bars": 16,
+          "notes": "Drop (perc full) + bajo principal. Lead stab puntual. Pad fondo.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 7 },
+            { "device": "MIDItema", "channel": 0, "program": 2 },
+            { "device": "MIDItema", "channel": 2, "program": 1 },
+            { "device": "MIDItema", "channel": 4, "program": 2 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        },
+        {
+          "name": "C2 Variación (bajo)",
+          "bars": 8,
+          "notes": "Mantén perc drop. Cambia bajo a variación y quita lead.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 7 },
+            { "device": "MIDItema", "channel": 0, "program": 3 },
+            { "device": "MIDItema", "channel": 2, "program": 1 },
+            { "device": "MIDItema", "channel": 4, "program": 0 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        },
+        {
+          "name": "C3 Mini break",
+          "bars": 4,
+          "color": "yellow",
+          "notes": "Corte breve: sin kick/bajo. Pad break.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 5 },
+            { "device": "MIDItema", "channel": 0, "program": 0 },
+            { "device": "MIDItema", "channel": 2, "program": 2 },
+            { "device": "MIDItema", "channel": 4, "program": 0 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        },
+        {
+          "name": "D1 Build 2",
+          "bars": 4,
+          "color": "orange",
+          "notes": "Build más tenso: aparece el hook y pluck detalle.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 6 },
+            { "device": "MIDItema", "channel": 0, "program": 0 },
+            { "device": "MIDItema", "channel": 2, "program": 2 },
+            { "device": "MIDItema", "channel": 4, "program": 3 },
+            { "device": "MIDItema", "channel": 6, "program": 1 }
+          ]
+        },
+        {
+          "name": "D2 Drop 2 (clímax)",
+          "bars": 16,
+          "notes": "Clímax: perc full, bajo clímax, pad ancho, hook al frente, pluck brillo.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 7 },
+            { "device": "MIDItema", "channel": 0, "program": 4 },
+            { "device": "MIDItema", "channel": 2, "program": 3 },
+            { "device": "MIDItema", "channel": 4, "program": 3 },
+            { "device": "MIDItema", "channel": 6, "program": 2 }
+          ]
+        },
+        {
+          "name": "E1 Reprise (salida DJ)",
+          "bars": 8,
+          "notes": "Baja energía: vuelve a groove con loops. Bajo principal. Sin leads/plucks.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 3 },
+            { "device": "MIDItema", "channel": 0, "program": 2 },
+            { "device": "MIDItema", "channel": 2, "program": 1 },
+            { "device": "MIDItema", "channel": 4, "program": 0 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        },
+        {
+          "name": "E2 Outro desmontaje",
+          "bars": 8,
+          "color": "red",
+          "notes": "Quita bajo, deja perc outro y pad fondo.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 8 },
+            { "device": "MIDItema", "channel": 0, "program": 0 },
+            { "device": "MIDItema", "channel": 2, "program": 1 },
+            { "device": "MIDItema", "channel": 4, "program": 0 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        },
+        {
+          "name": "E3 Cierre aire",
+          "bars": 4,
+          "notes": "Final sin kick: vuelve aire y apaga pads.",
+          "output": [
+            { "device": "MIDItema", "channel": 9, "program": 0 },
+            { "device": "MIDItema", "channel": 0, "program": 0 },
+            { "device": "MIDItema", "channel": 2, "program": 0 },
+            { "device": "MIDItema", "channel": 4, "program": 0 },
+            { "device": "MIDItema", "channel": 6, "program": 0 }
+          ]
+        }
+      ]
+    }
+  ]
+}

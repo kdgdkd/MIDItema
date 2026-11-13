@@ -280,6 +280,7 @@ def main():
             print("\nSaliendo...")
             return
 
+    listener_thread = None
     if not _session._bus_clock_alias:
         listener_thread = threading.Thread(target=_session.midi_input_listener, daemon=True)
         listener_thread.start()
@@ -344,7 +345,7 @@ def main():
         _session.presence.stop()
     if _session.bus:
         _session.bus.stop()
-    if listener_thread.is_alive():
+    if listener_thread and listener_thread.is_alive():
         listener_thread.join(timeout=0.2)
     for t in control_listener_threads:
         if t.is_alive():

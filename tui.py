@@ -275,6 +275,68 @@ def _format_live_midi_hints(output_list: list) -> str:
     return "  ".join(parts)
 
 
+def _resolve_msg_type(msg: dict):
+    t = msg.get("type")
+    if t:
+        return t
+    if "program" in msg:
+        return "program_change"
+    if "control" in msg:
+        return "control_change"
+    if "note" in msg:
+        return "note_on"
+    if "song" in msg:
+        return "song_select"
+    return None
+
+
+def _collect_output_columns(global_parts: list) -> list:
+    """Ordered unique (device, channel) columns across all parts; channel=None for song_select."""
+    seen: dict = {}
+    for pi in global_parts:
+        for msg in pi.output:
+            dev = msg.get("device", "")
+            mt = _resolve_msg_type(msg)
+            if mt is None:
+                continue
+            ch = None if mt == "song_select" else msg.get("channel", 0)
+            key = (dev, ch)
+            if key not in seen:
+                seen[key] = len(seen)
+    return list(seen.keys())
+
+
+def _col_label(dev: str, ch) -> str:
+    d = dev[:3] if dev else "???"
+    return f"{d}:{ch}" if ch is not None else f"{d}:s"
+
+
+def _matrix_cell(output_list: list, col_dev: str, col_ch, col_w: int) -> str:
+    """Fixed-width cell for the given (device, channel) column, or spaces if no match."""
+    for msg in output_list:
+        if msg.get("device", "") != col_dev:
+            continue
+        mt = _resolve_msg_type(msg)
+        if mt is None:
+            continue
+        if col_ch is None:
+            if mt == "song_select":
+                return f"s{msg.get('song', '?')}"[:col_w].ljust(col_w)
+        else:
+            if msg.get("channel", 0) != col_ch:
+                continue
+            if mt == "program_change":
+                raw = f"p{msg.get('program', '?')}"
+            elif mt == "control_change":
+                raw = f"c{msg.get('control', '?')}"
+            elif mt in ("note_on", "note_off"):
+                raw = f"n{msg.get('note', '?')}"
+            else:
+                continue
+            return raw[:col_w].ljust(col_w)
+    return " " * col_w
+
+
 class LiveInfoBar(Static):
     def update_content(self, miditema) -> None:
         if miditema.playlist_state.is_active:
@@ -747,9 +809,14 @@ class SessionScreen(ModalScreen):
                     text = f" {key} ◉ {name[:18]:<18} {bars:3d}b "
                     cells.append(f"[{fg} on {tinted}]{text}[/]")
                 else:
-                    tinted = _tint_header(bg, 0.2)
+                    # Inactiva: el nombre se muestra en el color vivo de la parte
+                    # sobre fondo casi negro, para que el color se vea aunque
+                    # esté detenido (antes iba en gris fijo #777777).
+                    fg_vivid = miditema._resolve_color_style(
+                        part.get("color"), miditema.FG_COLOR_PALETTE, "default")
+                    tinted = _tint_header(bg, 0.15)
                     text = f" {key}   {name[:18]:<18} {bars:3d}b "
-                    cells.append(f"[#777777 on {tinted}]{text}[/]")
+                    cells.append(f"[{fg_vivid} on {tinted}]{text}[/]")
 
             lines = []
             for i in range(0, len(cells), 2):
@@ -760,7 +827,7 @@ class SessionScreen(ModalScreen):
             grid_w.update("\n".join(lines))
 
         nav_hint = "  AvPág/RePág: canción" if miditema.playlist_state.is_active else ""
-        footer_w.update(f"[dim]Teclas 1-9 / a-z: lanzar parte   Bksp: Clips Mode{nav_hint}   ESC: cerrar[/]")
+        footer_w.update(f"[dim]Teclas 1-9 / a-z: lanzar parte   ↑↓: scroll   Bksp: Clips Mode{nav_hint}   ESC: cerrar[/]")
 
     @staticmethod
     def _resolve_pending_idx(miditema, parts: list, viewed_song_idx: int) -> int:
@@ -795,13 +862,35 @@ class SessionScreen(ModalScreen):
 
         miditema = self.app.miditema
 
-        if event.key in ("pagedown", "pageup") and miditema.playlist_state.is_active:
-            songs = miditema.playlist_state.playlist_elements
-            current = self._viewed_song_index if self._viewed_song_index is not None else miditema.playlist_state.current_song_index
-            if event.key == "pagedown":
-                self._viewed_song_index = min(current + 1, len(songs) - 1)
+        scroll = self.query_one("#session-scroll", VerticalScroll)
+        if event.key == "up":
+            scroll.scroll_up()
+            event.stop()
+            return
+        if event.key == "down":
+            scroll.scroll_down()
+            event.stop()
+            return
+        if event.key == "home":
+            scroll.scroll_home()
+            event.stop()
+            return
+        if event.key == "end":
+            scroll.scroll_end()
+            event.stop()
+            return
+
+        if event.key in ("pagedown", "pageup"):
+            if miditema.playlist_state.is_active:
+                songs = miditema.playlist_state.playlist_elements
+                current = self._viewed_song_index if self._viewed_song_index is not None else miditema.playlist_state.current_song_index
+                if event.key == "pagedown":
+                    self._viewed_song_index = min(current + 1, len(songs) - 1)
+                else:
+                    self._viewed_song_index = max(current - 1, 0)
             else:
-                self._viewed_song_index = max(current - 1, 0)
+                # Sin playlist: AvPág/RePág hacen scroll de página en la rejilla.
+                scroll.scroll_page_down() if event.key == "pagedown" else scroll.scroll_page_up()
             event.stop()
             return
 
@@ -1062,6 +1151,7 @@ class ControlsScreen(Screen):
                 yield self._create_control_row("↑", "Activar/Desactivar Loop de Parte.")
                 yield self._create_control_row("m", "Alternar Modo (Loop / Song).")
                 yield self._create_control_row("l", "Vista Live (cicla Normal → Full → Compact).")
+                yield self._create_control_row("Ctrl+↑/↓", "Scroll de la Vista Live (al estar detenido).")
                 yield self._create_control_row("q", "Salir de la aplicación.")
                 yield self._create_control_row("r", "Recargar archivo actual.")
                 yield self._create_control_row("Ctrl+P", "Panic: detiene todas las notas MIDI activas.")
@@ -1242,6 +1332,7 @@ class MiditemaApp(App):
     def __init__(self, miditema_module, **kwargs):
         super().__init__(**kwargs)
         self.miditema = miditema_module
+        self._live_scroll_offset = 0   # scroll manual de la Live View (Ctrl+↑/↓)
 
     def action_open_file(self) -> None:
         self.push_screen(FileSelectScreen())
@@ -1592,6 +1683,7 @@ class MiditemaApp(App):
 
     def action_toggle_live_view(self) -> None:
         self.live_view_mode = (self.live_view_mode + 1) % 3
+        self._live_scroll_offset = 0
 
     def watch_live_view_mode(self, new_mode: int) -> None:
         try:
@@ -1610,6 +1702,13 @@ class MiditemaApp(App):
         # Descartar feedback sticky con Esc
         if event.key == "escape" and self.miditema.feedback_sticky:
             self.miditema.set_feedback_message("")
+            return
+
+        # --- Scroll manual de la Live View (solo dentro de la vista 'l') ---
+        if self.live_view_mode > 0 and event.key in ("ctrl+up", "ctrl+down"):
+            self._live_scroll_offset = max(0, self._live_scroll_offset + (-1 if event.key == "ctrl+up" else 1))
+            self._update_live_view()
+            event.stop()
             return
 
         miditema = self.miditema
@@ -2213,12 +2312,18 @@ class MiditemaApp(App):
                     if i + 1 >= len(live_rows) or live_rows[i + 1].global_part_idx != current_gp_idx:
                         active_row_idx = i
 
-        # Autoscroll
-        if total_rows <= visible_count or not is_playing:
+        # Scroll: autoscroll siguiendo el playhead al reproducir; manual (Ctrl+↑/↓) al estar detenido.
+        max_offset = max(0, total_rows - visible_count)
+        if total_rows <= visible_count:
             start_row = 0
+            self._live_scroll_offset = 0
+        elif not is_playing:
+            self._live_scroll_offset = max(0, min(self._live_scroll_offset, max_offset))
+            start_row = self._live_scroll_offset
         else:
             offset = 0 if visible_count <= 2 else 1
-            start_row = max(0, min(active_row_idx - offset, total_rows - visible_count))
+            start_row = max(0, min(active_row_idx - offset, max_offset))
+            self._live_scroll_offset = start_row  # sincronizar para cuando se pare
         end_row = min(start_row + visible_count, total_rows)
 
         # Etiquetas visuales: ▶ para la activa, +N para futuras (N = posición ordinal desde activa)
@@ -2261,15 +2366,34 @@ class MiditemaApp(App):
         blink_tick = int(time.time() / half_beat_sec) % 2
 
         # Renderizar filas
+        bar_area_w = sig_num * BARS_PER_ROW + 2 * (BARS_PER_ROW - 1)
+        cols = _collect_output_columns(global_parts)
+        col_w = max(5, max((len(_col_label(d, c)) for d, c in cols), default=5))
         text_lines = []
+        if cols:
+            header_indent = " " * (3 + bar_area_w + 2)
+            header_str = " ".join(_col_label(d, c).ljust(col_w) for d, c in cols)
+            text_lines.append(f"[dim]{header_indent}{header_str}[/]")
         for row_idx in range(start_row, end_row):
             row = live_rows[row_idx]
             pi = row.part_info
+
+            if row.is_first_chunk and row_idx > start_row:
+                if live_rows[row_idx - 1].part_info.song_index != pi.song_index:
+                    sep_line = f"[dim]   {'╌' * bar_area_w}  {html.escape(pi.song_name)}[/]"
+                    text_lines.append(sep_line)
+                    if not compact:
+                        text_lines.append("")
+
             total_part_bars = pi.bars
             chunk_start = row.bar_offset
             chunk_bars = min(BARS_PER_ROW, total_part_bars - chunk_start)
 
             part_style = miditema._resolve_color_style(pi.color, miditema.FG_COLOR_PALETTE, 'default')
+            # Color de las cajas "gastadas" (pasadas/consumidas): gris al reproducir,
+            # pero versión atenuada del color de la parte al estar detenido, para que
+            # se siga viendo el color del arreglo.
+            spent_color = "#222222" if is_playing else _tint_header(part_style, 0.4)
 
             is_highlight_row = (
                 row.global_part_idx == next_highlight_gp_idx
@@ -2296,12 +2420,12 @@ class MiditemaApp(App):
 
                 elif row.global_part_idx < current_gp_idx:
                     # Parte pasada
-                    bar_blocks.append(f"[#222222]{FULL_BLOCK * sig_num}[/]")
+                    bar_blocks.append(f"[{spent_color}]{FULL_BLOCK * sig_num}[/]")
 
                 else:
                     # Parte activa
                     if global_bar < consumed_bars:
-                        bar_blocks.append(f"[#222222]{FULL_BLOCK * sig_num}[/]")
+                        bar_blocks.append(f"[{spent_color}]{FULL_BLOCK * sig_num}[/]")
                     elif global_bar == consumed_bars and is_playing:
                         # Animación beat a beat
                         endpoint_bar = miditema.get_dynamic_endpoint() if pa else total_part_bars_active
@@ -2335,12 +2459,11 @@ class MiditemaApp(App):
             row_content = "  ".join(bar_blocks)
 
             midi_hint = ""
-            if row.is_first_chunk:
-                hint_str = _format_live_midi_hints(pi.output)
-                if hint_str:
-                    is_emphasis = (is_active_row or row.global_part_idx == next_highlight_gp_idx)
-                    hint_style = "bold" if is_emphasis else "dim"
-                    midi_hint = f"  [{hint_style}]{hint_str}[/]"
+            if row.is_first_chunk and cols:
+                is_emphasis = (is_active_row or row.global_part_idx == next_highlight_gp_idx)
+                hint_style = "bold" if is_emphasis else "dim"
+                cells = " ".join(_matrix_cell(pi.output, d, c, col_w) for d, c in cols)
+                midi_hint = f"  [{hint_style}]{cells}[/]"
 
             main_line = prefix + row_content + midi_hint
 
@@ -2356,7 +2479,7 @@ class MiditemaApp(App):
     def on_mount(self) -> None:
         """Configura el intervalo de actualización y comprueba el clock inicial."""
         # Si falta el clock, se pide al usuario que seleccione uno. Y ya está.
-        if not self.miditema.port_registry.get_input("clock"):
+        if not self.miditema.port_registry.get_input("clock") and not self.miditema._bus_clock_alias:
             self.push_screen(DeviceSelectScreen())
 
         # El sondeo de estado se inicia siempre.

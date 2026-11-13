@@ -1880,7 +1880,11 @@ class MiditemaSession:
 
                 collapsed[key] = resolved
 
-        return list(collapsed.values())
+        # song_select delante del resto para que llegue al sintetizador antes que los PCs
+        values = list(collapsed.values())
+        ss = [v for v in values if v.get("type") == "song_select"]
+        rest = [v for v in values if v.get("type") != "song_select"]
+        return ss + rest
 
     def setup_part(self, part_index, fire_instant_trigger=True, collapsed_outputs=None):
         """Configura una parte y dispara incondicionalmente sus triggers asociados."""
